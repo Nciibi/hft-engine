@@ -89,6 +89,10 @@ target_link_libraries(hft_replay PRIVATE hft_core)
 add_executable(hft_test tests/test_units.cpp)
 target_link_libraries(hft_test PRIVATE hft_core)
 
+# Pre-trade risk and the OMS. Header-only, so no extra sources.
+add_executable(hft_risk_oms tests/test_risk_oms.cpp)
+target_link_libraries(hft_risk_oms PRIVATE hft_core)
+
 # The differential test links the reference model, which is
 # header-only, so it needs no extra sources.
 add_executable(hft_differential tests/differential.cpp)
