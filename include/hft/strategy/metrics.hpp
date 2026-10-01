@@ -243,10 +243,15 @@ public:
 
     /// Mark to market. Returns the equity change since the last call.
     std::int64_t mark(Price mid) noexcept {
-        const std::int64_t equity =
-            cash_ + position_ * mid.raw();
+        const std::int64_t equity = cash_ + position_ * mid.raw();
         const std::int64_t delta = equity - last_equity_;
         last_equity_ = equity;
+        // The peak must be updated here or drawdown() is always zero.
+        // It was, for a while, which made the metric report a
+        // risk-free strategy.
+        if (equity > peak_equity_) {
+            peak_equity_ = equity;
+        }
         pnl_sum_ += delta;
         ++marks_;
         if (delta > best_) {
