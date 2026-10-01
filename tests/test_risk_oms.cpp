@@ -519,9 +519,11 @@ void test_oms_risk_integration() {
     }
     m.on_ack(slot, 1, 3'001);
     check_eq(m.count(oms::OrdState::working), 1u, "one order working");
+    const std::size_t cancelled_before = m.count(oms::OrdState::cancelled);
     m.kill_all("second incident", 3'100);
     check_eq(m.count(oms::OrdState::working), 0u, "kill_all cancelled the working order");
-    check_eq(m.count(oms::OrdState::cancelled), 1u, "and it is recorded as cancelled");
+    check_eq(m.count(oms::OrdState::cancelled), cancelled_before + 1,
+             "and it is recorded as cancelled");
 }
 
 void test_oms_slot_recycling() {
