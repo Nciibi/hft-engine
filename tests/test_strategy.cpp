@@ -292,8 +292,8 @@ void test_book_never_crosses() {
                     if (crossed == 0) {
                         std::printf("  FIRST CROSSING at two-sided #%llu: bid=%lld ask=%lld "
                                     "(over by %lld)\n",
-                                    u64(two_sided, (long long)b->raw(),
-                                    (long long)a->raw(), (long long)(b->raw() - a->raw()));
+                                    u64(two_sided), i64(b->raw()), i64(a->raw()),
+                                    i64(b->raw() - a->raw()));
                     }
                     ++crossed;
                 }
@@ -314,8 +314,7 @@ void test_book_never_crosses() {
     }
 
     std::printf("  (two-sided %llu, mid changes %llu, range %lld..%lld)\n",
-                u64(two_sided, u64(mid_changes,
-                (long long)mid_low, (long long)mid_high);
+                u64(two_sided), u64(mid_changes), i64(mid_low), i64(mid_high));
     check(crossed == 0, "the generated book is never crossed");
     check(two_sided > 0, "the book has two sides for most of the run");
     // A frozen mid makes a market maker untestable: there is no
