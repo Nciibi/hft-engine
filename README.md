@@ -338,9 +338,14 @@ built to answer are:
 1. **Design a low-latency market data handler.** Decoder, sequence
    tracking, and the benchmark harness.
 2. **Design an OMS that stays correct under high message rates.** The
-   apply layer and the book, with the differential test as the
+   apply layer, the order state machine, and pre-trade risk, with the
+   differential test and 60,000 randomised operations as the
    correctness argument.
 3. **Design a matching engine.** The book itself.
+4. **How do you make money providing liquidity?** The quoting model and
+   the adverse-selection measurement. This is the question engineering
+   candidates most under-prepare for, and the one most likely to be
+   asked regardless of the round.
 
 Not yet built, and named honestly: sharding, the SPSC ring buffer, and
 MoldUDP64 framing.
