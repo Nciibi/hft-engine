@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 #include "hft/lob/order_book.hpp"
@@ -95,18 +96,32 @@ public:
 
         const Quote quote = quoter_.quote(mid, pnl_.position());
         if (quote.valid) {
-            quoted_spread_raw_ = quote.ask.raw() - quote.bid.raw();
-            resting_bid_ = quote.bid;
-            resting_ask_ = quote.ask;
-            // Suppress the side that would push the position further
-            // out, while leaving the other side live so the position
-            // can still be worked down. A market maker that stops
-            // quoting entirely at its limit cannot reduce its
-            // inventory, which is the opposite of what a limit is for.
+            // Never quote better than the touch.
+            //
+            // The model places quotes around the MID. The book is not
+            // centred on that mid: it is 13 ticks wide, so the model's
+            // bid sits hundreds of raw units ABOVE the best bid. Left
+            // unclamped, that quote is inside the spread, which in a
+            // real market is an aggressive order that would cross, not
+            // a passive one that would rest. It then "filled" 600 raw
+            // units through the mid and reported a 13 dollar effective
+            // spread, which is not a market maker, it is a bug with a
+            // plausible-looking output.
+            //
+            // Clamping each side toward its own touch is what joining
+            // the queue actually means, and it is why the effective and
+            // quoted spreads come out the same order of magnitude.
+            const Price bid = quote.bid > *best_bid ? quote.bid : *best_bid;
+            const Price ask = quote.ask < *best_ask ? quote.ask : *best_ask;
+
+            resting_bid_ = bid;
+            resting_ask_ = ask;
+            quoted_spread_raw_ = ask.raw() - bid.raw();
+
             bid_live_ = pnl_.position() < config_.max_inventory;
             ask_live_ = pnl_.position() > -config_.max_inventory;
-            const bool edge_ok = quoted_spread_raw_ >= config_.min_edge_raw;
-            quote_valid_ = quote.ask > quote.bid && edge_ok && (bid_live_ || ask_live_);
+
+            quote_valid_ = quoted_spread_raw_ >= config_.min_edge_raw && (bid_live_ || ask_live_);
             if (quote_valid_) {
                 ++quotes_;
             }
