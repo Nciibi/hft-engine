@@ -224,7 +224,7 @@ public:
         if (!can_transition(o.state, OrdState::pending_cancel)) {
             return OmsStatus::illegal_transition;
         }
-        o.state = OrdState::pending_cancel;
+        transition(o, OrdState::pending_cancel);
         o.last_update = now;
         return OmsStatus::ok;
     }
@@ -246,7 +246,7 @@ public:
         o.price = new_price;
         o.original_size = new_size;
         o.last_update = now;
-        o.state = OrdState::pending_replace;
+        transition(o, OrdState::pending_replace);
         return OmsStatus::ok;
     }
 
@@ -261,7 +261,7 @@ public:
             return OmsStatus::illegal_transition;
         }
         o.venue_ref = venue_ref;
-        o.state = OrdState::working;
+        transition(o, OrdState::working);
         o.last_update = now;
         return OmsStatus::ok;
     }
@@ -274,7 +274,7 @@ public:
         if (!can_transition(o.state, OrdState::rejected)) {
             return OmsStatus::illegal_transition;
         }
-        o.state = OrdState::rejected;
+        transition(o, OrdState::rejected);
         o.leaves_qty = Quantity{};
         o.last_update = now;
         retire(slot);
@@ -308,7 +308,7 @@ public:
         (void)fill_price;
 
         if (o.leaves_qty.is_zero()) {
-            o.state = OrdState::filled;
+            transition(o, OrdState::filled);
             retire(slot);
             return OmsStatus::ok;
         }
@@ -318,7 +318,7 @@ public:
         if (!can_transition(o.state, OrdState::partially_filled)) {
             return OmsStatus::illegal_transition;
         }
-        o.state = OrdState::partially_filled;
+        transition(o, OrdState::partially_filled);
         return OmsStatus::ok;
     }
 
@@ -336,7 +336,7 @@ public:
         if (!can_transition(o.state, OrdState::cancelled)) {
             return OmsStatus::illegal_transition;
         }
-        o.state = OrdState::cancelled;
+        transition(o, OrdState::cancelled);
         o.leaves_qty = Quantity{};
         o.last_update = now;
         retire(slot);
@@ -351,7 +351,7 @@ public:
         if (!can_transition(o.state, OrdState::working)) {
             return OmsStatus::illegal_transition;
         }
-        o.state = OrdState::working;
+        transition(o, OrdState::working);
         o.last_update = now;
         return OmsStatus::ok;
     }
