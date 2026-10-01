@@ -341,20 +341,49 @@ public:
     /// is not a price, and the whole spread collapses. Returning the
     /// raw-unit volatility keeps the model and its units aligned.
     ///
-    /// Zero until two returns exist, which the caller must tolerate: a
-    /// strategy that quotes from a zero volatility estimate quotes a
-    /// spread with no risk term in it at all.
+    /// **Winsorised.** The estimator clamps each return to
+    /// `kWinsorSigma` median absolute deviations before taking the
+    /// root mean square. This is not fastidiousness: the A-S risk term
+    /// is QUADRATIC in sigma, so a single outlier return propagates
+    /// into the quote as its square. With a plain mean of squares, one
+    /// 10-sigma tick took the risk term from 40 to 1,000 raw units,
+    /// which quoted the strategy 100,000 raw units away from a market
+    /// it should have been quoting 200 units into. The strategy ended
+    /// up placing 199,997 quotes and taking 4 fills, all of them in the
+    /// brief windows between spikes.
+    ///
+    /// Clamping is the cheap, standard fix. A regime-switching or
+    /// GARCH estimator would be a better model and a larger claim than
+    /// this code makes.
     [[nodiscard]] double sigma() const noexcept {
         if (returns_.size() < 2) {
             return 0.0;
         }
+
+        // Median absolute deviation, via nth_element on a scratch copy.
+        scratch_.clear();
+        for (const std::int64_t d : returns_) {
+            scratch_.push_back(d < 0 ? -d : d);
+        }
+        const std::size_t n = scratch_.size();
+        std::nth_element(scratch_.begin(), scratch_.begin() + static_cast<std::ptrdiff_t>(n / 2),
+                         scratch_.end());
+        const double mad = static_cast<double>(scratch_[n / 2]);
+        const double bound = kWinsorSigma * mad;
+
         double sum_sq = 0.0;
         for (const std::int64_t d : returns_) {
-            const double v = static_cast<double>(d);
+            double v = static_cast<double>(d);
+            if (bound > 0.0) {
+                if (v > bound) {
+                    v = bound;
+                } else if (v < -bound) {
+                    v = -bound;
+                }
+            }
             sum_sq += v * v;
         }
-        const double mean_sq = sum_sq / static_cast<double>(returns_.size());
-        return std::sqrt(mean_sq);
+        return std::sqrt(sum_sq / static_cast<double>(returns_.size()));
     }
 
     /// The same estimate as a fraction of the last price, for
