@@ -18,15 +18,28 @@ namespace {
     return false;
 }
 
-[[nodiscard]] DecodeResult truncated_result() noexcept {
-    DecodeResult r;
-    r.status = DecodeStatus::truncated;
-    return r;
+/// The 8-byte header every order-level ITCH message shares: stock
+/// locate, tracking number, and the split 48-bit timestamp. Returns
+/// false only if the order reference is the reserved zero.
+struct OrderHeader {
+    StockLocate locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId id = kInvalidOrderId;
+};
+
+[[nodiscard]] OrderHeader read_order_header(const std::uint8_t* body) noexcept {
+    OrderHeader h;
+    h.locate = read_be16(body + off::stock_locate);
+    h.tracking = read_be16(body + off::tracking_number);
+    h.timestamp = read_timestamp48(body + off::timestamp);
+    h.id = read_be64(body + off::order_cancel_id);  // offset 11 in all order messages
+    return h;
 }
 
-[[nodiscard]] DecodeResult unknown_type_result(std::uint16_t length) noexcept {
+[[nodiscard]] DecodeResult status_of(DecodeStatus status, std::uint16_t length) noexcept {
     DecodeResult r;
-    r.status = DecodeStatus::unknown_type;
+    r.status = status;
     r.length = length;
     return r;
 }
@@ -64,82 +77,144 @@ Nanos read_timestamp48(const std::uint8_t* p) noexcept {
 
 DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
     if (available < kLengthPrefixSize) {
-        return truncated_result();
+        return status_of(DecodeStatus::truncated, 0);
     }
 
     const std::uint16_t body_length = read_be16(data);
     if (body_length < 1) {
-        DecodeResult r;
-        r.status = DecodeStatus::bad_length;
-        r.length = body_length;
-        return r;
+        return status_of(DecodeStatus::bad_length, body_length);
     }
 
     // Truncated body: the prefix is trustworthy, so report the length
     // and let the caller wait for more bytes rather than treating this
     // as corruption.
     if (available < kLengthPrefixSize + body_length) {
-        DecodeResult r;
-        r.status = DecodeStatus::truncated_body;
-        r.length = body_length;
-        return r;
+        return status_of(DecodeStatus::truncated_body, body_length);
     }
 
     const std::uint8_t* body = data + kLengthPrefixSize;
-    const std::uint8_t tag = body[off::tag];
+    const auto tag = static_cast<std::uint8_t>(body[off::tag]);
 
-    if (tag != static_cast<std::uint8_t>(MessageType::add_order)) {
-        // Structurally valid, not ours. Length is populated so the
-        // caller can skip exactly this frame.
-        return unknown_type_result(body_length);
+    // Reject a declared length that disagrees with the type before
+    // reading any field, so a mis-framed message can never be read as
+    // though its fields were laid out differently.
+    std::size_t expected = 0;
+    switch (static_cast<MessageType>(tag)) {
+        case MessageType::add_order:               expected = off::kAddOrderSize; break;
+        case MessageType::order_executed:          expected = off::kOrderExecutedSize; break;
+        case MessageType::order_executed_at_price:
+            expected = off::kOrderExecutedAtPriceSize;
+            break;
+        case MessageType::order_cancel:            expected = off::kOrderCancelSize; break;
+        case MessageType::order_delete:            expected = off::kOrderDeleteSize; break;
+        default:                                   expected = 0; break;  // skip below
     }
 
-    // A frame tagged 'A' must declare exactly the Add Order length.
-    // Accepting a longer frame would let a mis-framed message read
-    // adjacent bytes as order fields.
-    if (body_length != off::kAddOrderSize) {
-        DecodeResult r;
-        r.status = DecodeStatus::bad_length;
-        r.length = body_length;
-        return r;
+    if (expected != 0) {
+        if (body_length != expected) {
+            return status_of(DecodeStatus::bad_length, body_length);
+        }
+    } else {
+        // A well-formed frame of a type this build does not decode.
+        // Length is populated so the caller can skip exactly this
+        // frame. Order Replace lands here on purpose: its field table
+        // was not verified, and an unverified offset is worse than an
+        // honest skip.
+        return status_of(DecodeStatus::unknown_type, body_length);
     }
 
-    AddOrder ao;
-    ao.stock_locate = read_be16(body + off::stock_locate);
-    ao.tracking = read_be16(body + off::tracking_number);
-    ao.timestamp = read_timestamp48(body + off::timestamp);
-    ao.id = read_be64(body + off::add_order_id);
-
-    if (!side_from_byte(body[off::add_order_side], ao.side)) {
-        DecodeResult r;
-        r.status = DecodeStatus::malformed;
-        r.length = body_length;
-        return r;
-    }
-
-    ao.price = Price::from_raw(static_cast<std::int64_t>(read_be32(body + off::add_order_price)));
-    ao.size = Quantity::from_raw(read_be32(body + off::add_order_size));
-    ao.order_type = body[off::add_order_type];
-    ao.time_in_force = body[off::add_order_tif];
-    ao.display = body[off::add_order_display];
-    ao.participant = body[off::add_order_participant];
-
-    if (ao.id == kInvalidOrderId) {
+    const OrderHeader header = read_order_header(body);
+    if (header.id == kInvalidOrderId) {
         // ITCH uses 0 to mean "no order reference" in some contexts;
-        // treating it as a real handle would collide with every
+        // treating it as a live handle would collide with every
         // subsequent order.
-        DecodeResult r;
-        r.status = DecodeStatus::malformed;
-        r.length = body_length;
-        return r;
+        return status_of(DecodeStatus::malformed, body_length);
     }
 
     DecodeResult r;
-    r.status = DecodeStatus::ok;
     r.length = body_length;
-    r.message.type = MessageType::add_order;
-    r.message.add_order = ao;
-    return r;
+
+    switch (static_cast<MessageType>(tag)) {
+        case MessageType::add_order: {
+            AddOrder ao;
+            ao.stock_locate = header.locate;
+            ao.tracking = header.tracking;
+            ao.timestamp = header.timestamp;
+            ao.id = header.id;
+            if (!side_from_byte(body[off::add_order_side], ao.side)) {
+                return status_of(DecodeStatus::malformed, body_length);
+            }
+            ao.price =
+                Price::from_raw(static_cast<std::int64_t>(read_be32(body + off::add_order_price)));
+            ao.size = Quantity::from_raw(read_be32(body + off::add_order_size));
+            ao.order_type = body[off::add_order_type];
+            ao.time_in_force = body[off::add_order_tif];
+            ao.display = body[off::add_order_display];
+            ao.participant = body[off::add_order_participant];
+            r.status = DecodeStatus::ok;
+            r.message.body = ao;
+            return r;
+        }
+
+        case MessageType::order_executed: {
+            OrderExecuted e;
+            e.stock_locate = header.locate;
+            e.tracking = header.tracking;
+            e.timestamp = header.timestamp;
+            e.id = header.id;
+            e.shares = Quantity::from_raw(read_be32(body + off::order_executed_shares));
+            e.match_number = read_be64(body + off::order_executed_match);
+            e.printable = body[off::order_executed_printable];
+            r.status = DecodeStatus::ok;
+            r.message.body = e;
+            return r;
+        }
+
+        case MessageType::order_executed_at_price: {
+            OrderExecutedAtPrice e;
+            e.stock_locate = header.locate;
+            e.tracking = header.tracking;
+            e.timestamp = header.timestamp;
+            e.id = header.id;
+            e.shares = Quantity::from_raw(read_be32(body + off::order_exec_price_shares));
+            e.match_number = read_be64(body + off::order_exec_price_match);
+            e.printable = body[off::order_exec_price_printable];
+            e.execution_price = Price::from_raw(static_cast<std::int64_t>(
+                read_be32(body + off::order_exec_price_execution_price)));
+            r.status = DecodeStatus::ok;
+            r.message.body = e;
+            return r;
+        }
+
+        case MessageType::order_cancel: {
+            OrderCancel c;
+            c.stock_locate = header.locate;
+            c.tracking = header.tracking;
+            c.timestamp = header.timestamp;
+            c.id = header.id;
+            c.shares = Quantity::from_raw(read_be32(body + off::order_cancel_shares));
+            r.status = DecodeStatus::ok;
+            r.message.body = c;
+            return r;
+        }
+
+        case MessageType::order_delete: {
+            OrderDelete d;
+            d.stock_locate = header.locate;
+            d.tracking = header.tracking;
+            d.timestamp = header.timestamp;
+            d.id = header.id;
+            r.status = DecodeStatus::ok;
+            r.message.body = d;
+            return r;
+        }
+
+        default:
+            // Unreachable: every tag reaching here was classified
+            // above. Returned rather than asserted so a future tag
+            // added to the switch above degrades safely.
+            return status_of(DecodeStatus::unknown_type, body_length);
+    }
 }
 
 }  // namespace hft::itch
