@@ -12,27 +12,33 @@ decode-to-encode pipeline.
 
 ## What is implemented
 
-This repository is under construction. Phase 1, the walking skeleton, is
-complete and tested. The remaining phases are not built, and the
-sections below describe the intended end state rather than current
-behaviour where they say so.
-
 | Component | State |
 |---|---|
 | Fixed-point `Price`, no float constructor | done |
-| ITCH 5.0 Add Order (`'A'`) decode, zero-copy, big-endian | done |
+| ITCH decode: `A`, `E`, `C`, `X`, `D` | done |
 | Split 48-bit timestamp reassembly | done |
 | Unknown-type skip by length, truncation reporting | done |
+| SOUP sequence tracking, gap and duplicate detection | done |
 | Price-time priority book, slab arena, no hot-path allocation | done |
 | `execute` / `cancel_partial` / `remove`, `X` vs `D` distinct | done |
+| Apply layer, single dispatch point from message to book | done |
+| Deterministic replay, FNV-1a book-state checksum | done |
+| Order Replace (`U`) decode | deliberately **not** done, see below |
 | SPSC ring buffer, multi-shard, pre-trade risk, market maker | not started |
-| Remaining ITCH types (`E`, `C`, `X`, `D`, `U`) | not started |
+| MoldUDP64 packet framing and checksum | not started |
 
-Correctness so far: 83 unit checks, and a differential test comparing
-the fast book against an independent naive model over **400,000
-operations, with full state comparison after every single one**, across
-five seeds. That test is what justifies trusting the latency numbers,
-and it is also how three real bugs in this repository were found.
+**Order Replace is skipped on purpose.** Its field table was not
+verified against the published specification, and the alternative to
+guessing an offset is honouring the skip-by-length path. A skipped
+message is recoverable; a decoder that reads the wrong bytes is not.
+This is the one place the decoder declines to be complete on purpose,
+and the reason is recorded in `include/hft/itch/protocol.hpp`.
+
+Verified: **136 unit checks**, and a differential test comparing the
+fast book against an independent naive model over **400,000 operations
+with full state comparison after every one**, across five seeds.
+Determinism is checked too: the same capture replayed at `-O0`, `-O2`,
+`-O3` and `-Os` produces an identical book checksum.
 
 ## Results
 
