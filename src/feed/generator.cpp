@@ -231,12 +231,9 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
     CaptureStats local{};
 
     const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
-    const std::int64_t half = levels / 2;
     const std::int64_t tick = config.tick_raw < 1 ? 1 : config.tick_raw;
-    const std::int64_t half_spread = config.half_spread_raw < 0 ? 1 : config.half_spread_raw;
     const std::int64_t drift = config.drift_raw < 0 ? 0 : config.drift_raw;
     const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
-    const std::int64_t tick = config.tick_raw < 1 ? 1 : config.tick_raw;
     const std::size_t levels = config.price_levels == 0 ? 1 : config.price_levels;
 
     std::int64_t mid = config.anchor_raw;
