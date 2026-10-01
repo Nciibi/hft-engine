@@ -186,6 +186,14 @@ public:
     [[nodiscard]] std::uint64_t two_sided_observations() const noexcept { return two_sided_; }
     [[nodiscard]] std::uint64_t one_sided_observations() const noexcept { return one_sided_; }
     [[nodiscard]] std::uint64_t fills() const noexcept { return fills_; }
+    /// Fill-path diagnostics. If `checks` is large and `fills` is
+    /// small, the quote is resting but the condition is not being met,
+    /// which points at the fill model rather than at the strategy.
+    [[nodiscard]] std::uint64_t fill_checks() const noexcept { return fill_checks_; }
+    [[nodiscard]] std::uint64_t bid_side_checks() const noexcept { return bid_checks_; }
+    [[nodiscard]] std::uint64_t ask_side_checks() const noexcept { return ask_checks_; }
+    [[nodiscard]] std::uint64_t bid_hits() const noexcept { return bid_hits_; }
+    [[nodiscard]] std::uint64_t ask_hits() const noexcept { return ask_hits_; }
     [[nodiscard]] std::uint64_t quotes() const noexcept { return quotes_; }
     [[nodiscard]] const MarketMakerConfig& config() const noexcept { return config_; }
 
