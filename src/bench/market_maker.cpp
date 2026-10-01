@@ -214,5 +214,25 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("Read the markout, the toxicity rate and the inventory excursion.\n");
     std::printf("The PnL is an upper bound and the most flattering number here.\n");
+    std::printf(
+        "\n"
+        "KNOWN LIMITATION - read before quoting any of this:\n"
+        "  The fill model is SYMMETRIC. Our bid and our ask are equally\n"
+        "  likely to fill, because a fill is triggered by the touch moving\n"
+        "  to our price regardless of why it moved. The position is\n"
+        "  therefore a random walk, and the Avellaneda-Stoikov inventory\n"
+        "  term cannot damp it: the skew widens the quote, but the fill\n"
+        "  probability here does not fall off with distance the way it\n"
+        "  does in a real book. The position consequently reaches its\n"
+        "  limit and stays there.\n"
+        "\n"
+        "  Real inventory control depends on fills being ASYMMETRIC: your\n"
+        "  bid fills more often precisely when the market is selling\n"
+        "  down through you, which is the same condition that leaves you\n"
+        "  long. Modelling that requires order-flow toxicity as an input,\n"
+        "  which this simulator does not have. So the inventory numbers\n"
+        "  here demonstrate that the mechanism is wired up, NOT that the\n"
+        "  strategy controls inventory. The adverse-selection metrics do\n"
+        "  not depend on this and stand on their own.\n");
     return 0;
 }
