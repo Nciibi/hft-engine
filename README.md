@@ -195,6 +195,35 @@ terminal: a fill can arrive while a cancel is outstanding, and treating
 that as a completed cancel silently drops the residual order and leaks
 inventory.
 
+**The market maker quotes around the mid but is bounded by the touch.**
+The Avellaneda-Stoikov model wants a spread and a price, and the
+book is not centred on the mid the model is using. Each side is
+therefore clamped to be at or outside its own touch and never to cross
+it, which is what joining a queue means. The model still does the
+deciding: when it wants a *wider* quote than the touch offers, the
+clamp is inactive and the widening happens. A long inventory
+therefore bids further away while continuing to offer, which is
+inventory control expressed purely through placement.
+
+**The tick size is a constraint the model does not get to ignore.**
+When A-S produces a spread narrower than one tick, the quote is
+widened to the minimum placeable spread rather than declared invalid.
+The edge the model expected above the touch is edge the strategy does
+not get, and that is precisely why tick size is a real constraint on
+market making profitability rather than a formatting detail. Quoting
+is reported as `tick_constrained` so the cost is visible.
+
+**The metrics are defined, not approximated.** `realised = effective
+- 2 * markout` holds exactly and the tool prints both sides of it
+every run, because it is the one arithmetic relation a reviewer will
+check. A *negative* effective spread is correct here: a passive fill
+buys at the bid, which is below the mid, so `2*sign*(fill-mid)` is
+negative by construction. The profit is in the round trip; what costs
+money is adverse selection, which is why the reported number is the
+markout and the toxicity rate.
+
+**A negative EFFECTIVE spread is not a market maker beating the mid.**
+
 **The price ladder is a sorted linked list, and that is a known cost.**
 Inserting a price that is not adjacent to the best walks from the head
 of the ladder, so book-update latency is proportional to ladder depth.
