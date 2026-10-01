@@ -169,11 +169,12 @@ inline constexpr std::size_t kCaptureSequenceSize = 4;
 struct CaptureConfig {
     std::uint64_t seed = 0xC0FF'EE00'1234'5678ULL;
     std::size_t record_count = 1'000'000;
-    std::size_t price_levels = 64;
-    std::int64_t half_spread_raw = 5'000;
+    /// Price levels per side.
+    std::size_t price_levels = 32;
+    /// Spacing between levels, in raw units ($0.01).
     std::int64_t tick_raw = 100;
     std::int64_t anchor_raw = 1'000'000;
-    std::int64_t drift_raw = 250;
+    std::int64_t drift_raw = 60;
     std::int64_t reversion = 64;
     OrderId first_order_id = 1'000'000;
     /// Starting SOUP sequence number. Chosen near the 32-bit wrap so
