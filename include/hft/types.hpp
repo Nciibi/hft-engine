@@ -68,6 +68,12 @@ public:
     [[nodiscard]] constexpr bool operator>(const Price& other) const noexcept {
         return raw_ > other.raw_;
     }
+    [[nodiscard]] constexpr bool operator<=(const Price& other) const noexcept {
+        return raw_ <= other.raw_;
+    }
+    [[nodiscard]] constexpr bool operator>=(const Price& other) const noexcept {
+        return raw_ >= other.raw_;
+    }
 
 private:
     std::int64_t raw_ = 0;
