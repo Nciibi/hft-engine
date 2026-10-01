@@ -222,7 +222,13 @@ public:
         q.ask = Price::from_raw(round_to_raw(ask_raw));
         q.bid_size = params_.base_size;
         q.ask_size = params_.base_size;
-        q.valid = q.ask > q.bid;
+        // Valid only if the two sides are genuinely distinct AND the
+        // spread is at least one placeable tick. A mathematically
+        // valid but sub-tick quote is unplaceable, and reporting it as
+        // valid is how a strategy ends up "running" while never
+        // quoting anything.
+        q.valid = q.ask > q.bid &&
+                  (q.ask.raw() - q.bid.raw()) >= params_.min_spread_raw;
         return q;
     }
 
