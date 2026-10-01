@@ -11,6 +11,7 @@
 //    things directed tests do not think to check.
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -599,22 +600,33 @@ void test_oms_random_invariants() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // Unbuffered: a crash mid-suite would otherwise swallow every line
+    // printed before it and leave nothing to diagnose from.
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
+
+    // Optional substring filter, so a single failing group can be
+    // rerun in isolation.
+    const char* filter = argc > 1 ? argv[1] : nullptr;
+    auto want = [filter](const char* name) {
+        return filter == nullptr || std::string(name).find(filter) != std::string::npos;
+    };
+
     std::printf("risk and OMS tests\n------------------\n");
-    test_risk_basics();
-    test_risk_no_reference();
-    test_risk_positions();
-    test_risk_kill_switch();
-    test_risk_rate_limit();
-    test_risk_notional_overflow();
-    test_transition_table();
-    test_oms_lifecycle();
-    test_oms_fill_races_cancel();
-    test_oms_fill_beats_cancel();
-    test_oms_overfill();
-    test_oms_risk_integration();
-    test_oms_slot_recycling();
-    test_oms_random_invariants();
+    if (want("basics"))      test_risk_basics();
+    if (want("no_reference")) test_risk_no_reference();
+    if (want("positions"))   test_risk_positions();
+    if (want("kill"))        test_risk_kill_switch();
+    if (want("rate"))        test_risk_rate_limit();
+    if (want("overflow"))    test_risk_notional_overflow();
+    if (want("transition"))  test_transition_table();
+    if (want("lifecycle"))   test_oms_lifecycle();
+    if (want("races"))       test_oms_fill_races_cancel();
+    if (want("beats"))       test_oms_fill_beats_cancel();
+    if (want("overfill"))    test_oms_overfill();
+    if (want("integration")) test_oms_risk_integration();
+    if (want("recycling"))   test_oms_slot_recycling();
+    if (want("random"))      test_oms_random_invariants();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
