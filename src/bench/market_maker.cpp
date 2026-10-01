@@ -147,25 +147,21 @@ int main(int argc, char** argv) {
     std::printf("HFT Engine market maker\n");
     std::printf("-----------------------\n");
     std::printf("records              %zu\n", stats.records);
-    std::printf("ticks observed       %llu\n", u64(ticks);
-    std::printf("two-sided book       %llu  (%.1f%%)\n",
-                u64(mm.two_sided_observations(),
-                ticks == 0 ? 0.0
-                           : 100.0 * static_cast<double>(mm.two_sided_observations()) /
-                                 static_cast<double>(ticks));
-    std::printf("one-sided book       %llu\n",
-                u64(mm.one_sided_observations());
-    std::printf("quotes placed        %llu\n", u64(mm.quotes());
-    std::printf("fill checks          %llu  (bid %llu / ask %llu)\n",
-                u64(mm.fill_checks(),
-                u64(mm.bid_side_checks(),
-                u64(mm.ask_side_checks());
-    std::printf("fills                %llu  (bid %llu / ask %llu)\n",
-                u64(mm.fills(), u64(mm.bid_hits(),
-                u64(mm.ask_hits());
+    std::printf("ticks observed       %llu\n", u64(ticks));
+    const double two_sided_pct =
+        ticks == 0 ? 0.0
+                   : 100.0 * static_cast<double>(mm.two_sided_observations()) /
+                         static_cast<double>(ticks);
+    std::printf("two-sided book       %llu  (%.1f%%)\n", u64(mm.two_sided_observations()),
+                two_sided_pct);
+    std::printf("one-sided book       %llu\n", u64(mm.one_sided_observations()));
+    std::printf("quotes placed        %llu\n", u64(mm.quotes()));
+    std::printf("fill checks          %llu  (bid %llu / ask %llu)\n", u64(mm.fill_checks()),
+                u64(mm.bid_side_checks()), u64(mm.ask_side_checks()));
+    std::printf("fills                %llu  (bid %llu / ask %llu)\n", u64(mm.fills()),
+                u64(mm.bid_hits()), u64(mm.ask_hits()));
     std::printf("markout horizon      %llu ticks (~%llu us synthetic)\n",
-                u64((mm.adverse().horizon() / 4'000),
-                u64((mm.adverse().horizon() / 1'000));
+                u64(mm.adverse().horizon() / 4'000), u64(mm.adverse().horizon() / 1'000));
     std::printf("volatility sigma     %.2f raw/tick (%.4f%%)\n", mm.volatility().sigma(),
                 mm.volatility().sigma_fraction() * 100.0);
     std::printf("risk term            %.6f\n", mm.quoter().risk_term());
@@ -173,12 +169,12 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("INVENTORY\n");
     std::printf("--------\n");
-    std::printf("bid shares filled    %llu\n", u64(s.bid_shares);
-    std::printf("ask shares filled    %llu\n", u64(s.ask_shares);
-    std::printf("net position         %lld\n", i64(s.net_shares());
-    std::printf("max |position|       %lld  (limit %lld)\n",
-                i64(mm.max_position_observed(), i64(mm_config.max_inventory);
-    std::printf("closing position     %lld\n", i64(p.position());
+    std::printf("bid shares filled    %llu\n", u64(s.bid_shares));
+    std::printf("ask shares filled    %llu\n", u64(s.ask_shares));
+    std::printf("net position         %lld\n", i64(s.net_shares()));
+    std::printf("max |position|       %lld  (limit %lld)\n", i64(mm.max_position_observed()),
+                i64(mm_config.max_inventory));
+    std::printf("closing position     %lld\n", i64(p.position()));
     std::printf("\n");
     std::printf("SPREADS (raw price units, 1/10000)\n");
     std::printf("------------------------------------\n");
@@ -194,8 +190,8 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("ADVERSE SELECTION\n");
     std::printf("----------------\n");
-    std::printf("resolved fills       %llu\n", u64(s.resolved);
-    std::printf("toxic fills          %llu\n", u64(s.toxic);
+    std::printf("resolved fills       %llu\n", u64(s.resolved));
+    std::printf("toxic fills          %llu\n", u64(s.toxic));
     std::printf("toxicity rate        %.2f%%\n", s.toxicity_rate() * 100.0);
     std::printf("adverse cost / fill  %+.2f raw  (2 * markout; positive is a cost)\n",
                 s.adverse_cost_per_fill());
@@ -211,7 +207,7 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("PNL (UPPER BOUND - no queue position, no latency, no depth)\n");
     std::printf("----------------------------------------------------\n");
-    std::printf("total pnl (raw)      %lld\n", i64(p.total_pnl());
+    std::printf("total pnl (raw)      %lld\n", i64(p.total_pnl()));
     std::printf("pnl per fill (raw)   %.2f\n", p.pnl_per_fill());
     std::printf("best step (raw)      %lld\n", i64(p.best_step());
     std::printf("worst step (raw)     %lld\n", i64(p.worst_step());
