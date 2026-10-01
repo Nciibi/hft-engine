@@ -129,6 +129,17 @@ public:
 
             resting_bid_ = bid;
             resting_ask_ = ask;
+            // The mid as of the moment this quote was placed. A fill on
+            // this quote must be measured against THIS mid, not the
+            // mid after the book moved to fill it.
+            //
+            // Using the post-move mid is the bug this comment exists to
+            // prevent: it prices the fill against a mid that already
+            // contains the adverse move, which makes every fill look
+            // better than the mid and reports a NEGATIVE effective
+            // spread. A market maker cannot systematically buy below
+            // the mid. Measuring against the post-move mid says it can.
+            quote_mid_ = mid;
             quoted_spread_raw_ = ask.raw() - bid.raw();
             quote_valid_ = quoted_spread_raw_ >= config_.min_edge_raw && (bid_live_ || ask_live_);
             if (quote_valid_) {
