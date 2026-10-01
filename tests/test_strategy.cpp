@@ -73,21 +73,32 @@ void test_quoting_units() {
     q.set_sigma(30.0);
     check_near(q.risk_term(), sigma_before, 1e-6, "restoring sigma restores the risk term");
 
-    // The tick clamp. The model wants ~20 raw units; one tick is 100.
-    const strategy::Quote quote = q.quote(Price::from_raw(1'000'000), 0);
-    check(quote.valid, "quote is valid after tick clamping");
-    check(quote.tick_constrained, "and reports that the tick set the spread");
-    check(quote.ask.raw() - quote.bid.raw() >= 100,
-          "spread is at least one tick, never a fraction of one");
-    check(quote.ask > quote.bid, "ask is above bid");
+    // The tick clamp. Use a low-volatility regime, which is the case
+    // that matters: the model wants a spread narrower than a tick and
+    // the tick wins. With sigma=30 the model wants ~280 raw units,
+    // which is wider than a tick and correctly not clamped.
+    {
+        strategy::QuoteParams tight = p;
+        tight.sigma = 8.0;
+        strategy::Quoter qt(tight);
+        const strategy::Quote tquote = qt.quote(Price::from_raw(1'000'000), 0);
+        check(tquote.valid, "quote is valid after tick clamping");
+        check(tquote.tick_constrained, "and reports that the tick set the spread");
+        check(tquote.ask.raw() - tquote.bid.raw() >= 100,
+              "spread is at least one tick, never a fraction of one");
+        check(tquote.ask > tquote.bid, "ask is above bid");
+    }
 
     // A wide model spread must NOT be clamped down.
-    strategy::QuoteParams wide = p;
-    wide.gamma = 0.5;  // enormous risk aversion
-    strategy::Quoter qw(wide);
-    const strategy::Quote wquote = qw.quote(Price::from_raw(1'000'000), 0);
-    check(wquote.ask.raw() - wquote.bid.raw() > 100,
-          "a model that wants wider is not narrowed to the tick");
+    {
+        strategy::QuoteParams wide = p;
+        wide.gamma = 0.5;  // enormous risk aversion
+        strategy::Quoter qw(wide);
+        const strategy::Quote wquote = qw.quote(Price::from_raw(1'000'000), 0);
+        check(wquote.ask.raw() - wquote.bid.raw() > 100,
+              "a model that wants wider is not narrowed to the tick");
+        check(!wquote.tick_constrained, "and is not reported as tick constrained");
+    }
 }
 
 void test_inventory_skew() {
