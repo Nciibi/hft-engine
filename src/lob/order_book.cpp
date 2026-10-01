@@ -336,8 +336,22 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     link_order(h, level);
 
     if (!order_index_.insert(id, h)) {
+        // Unreachable single-threaded: contains() was checked above and
+        // nothing between here and there removes entries. Handled
+        // anyway, and fully, because leaving the book and the index
+        // disagreeing is the failure mode worth being pedantic about.
         unlink_order(h);
         release_order(h);
+        if (created_level) {
+            index.erase(price);
+            unlink_level(level);
+            release_level(level);
+            if (side == Side::bid) {
+                bid_levels_ -= 1;
+            } else {
+                ask_levels_ -= 1;
+            }
+        }
         status = BookStatus::capacity_exhausted;
         return kInvalidHandle;
     }
