@@ -365,21 +365,28 @@ public:
         return &orders_[static_cast<std::size_t>(slot)];
     }
 
-    /// Count of orders in each state. The OMS equivalent of a
-    /// reconcile: a non-zero pending_cancel count for longer than a
-    /// heartbeat is the first sign of a stuck cancel.
+    /// Count of orders in each state, for reconciliation.
+    ///
+    /// Reads maintained counters rather than scanning the slot pool.
+    /// An earlier version gated this on the live flag, which meant a
+    /// retired order's terminal state became invisible the moment its
+    /// slot was released: `count(filled)` returned zero for an OMS
+    /// whose entire history was filled orders. For the one purpose
+    /// this function exists for, that is worse than useless.
     [[nodiscard]] std::size_t count(OrdState s) const noexcept {
-        std::size_t n = 0;
-        for (std::size_t i = 0; i < orders_.size(); ++i) {
-            if (live_[i] != 0 && orders_[i].state == s) {
-                ++n;
-            }
-        }
-        return n;
+        return state_counts_[static_cast<std::size_t>(s)];
     }
 
     [[nodiscard]] std::uint64_t submitted() const noexcept { return submitted_; }
-    [[nodiscard]] std::uint64_t rejected() const noexcept { return rejected_; }
+    /// Refused by pre-trade risk.
+    [[nodiscard]] std::uint64_t risk_rejected() const noexcept { return risk_rejected_; }
+    /// Refused because the slot pool was full. Distinct from a risk
+    /// rejection: this one means capacity, not misbehaviour.
+    [[nodiscard]] std::uint64_t pool_full() const noexcept { return pool_full_; }
+    /// Every refusal, of either kind.
+    [[nodiscard]] std::uint64_t rejected() const noexcept {
+        return risk_rejected_ + pool_full_;
+    }
     [[nodiscard]] std::uint64_t fills() const noexcept { return fills_; }
 
     /// Engage the kill switch and cancel every live order.
@@ -393,12 +400,13 @@ public:
             if (live_[i] == 0) {
                 continue;
             }
-            if (is_terminal(orders_[i].state)) {
+            Order& o = orders_[i];
+            if (is_terminal(o.state)) {
                 continue;
             }
-            orders_[i].state = OrdState::cancelled;
-            orders_[i].leaves_qty = Quantity{};
-            orders_[i].last_update = now;
+            o.leaves_qty = Quantity{};
+            o.last_update = now;
+            transition(o, OrdState::cancelled);
             retire(i);
         }
     }
