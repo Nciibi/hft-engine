@@ -308,10 +308,15 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             ++next_id;
             ++local.adds;
         } else {
-            // Choose a live order to mutate. Index 0 is reserved as
-            // "not found" so a zero index never silently targets the
-            // first element.
-            const std::size_t pick = 1 + static_cast<std::size_t>(rng.below(live.size() - 1));
+            // Pick from the whole live set. An earlier revision used
+            // `1 + below(live.size() - 1)`, reserving index 0 as a
+            // "not found" sentinel, which read and wrote one element
+            // past the end whenever exactly one order was live. That
+            // is a heap corruption bug, and it showed up as tens of
+            // thousands of records failing to decode in the replay
+            // tool, which is exactly the kind of indirect symptom that
+            // costs a day.
+            const std::size_t pick = static_cast<std::size_t>(rng.below(live.size()));
             Live target = live[pick];
             live[pick] = live.back();
             live.pop_back();
