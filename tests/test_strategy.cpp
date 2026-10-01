@@ -47,6 +47,16 @@ using hft::Side;
 namespace strategy = hft::strategy;
 namespace lob = hft::lob;
 
+/// Narrowing helpers for printf. A lambda rather than a cast at each
+/// call site, so the cast appears once.
+[[nodiscard]] unsigned long long u64(std::uint64_t v) noexcept {
+    return static_cast<unsigned long long>(v);
+}
+
+[[nodiscard]] long long i64(std::int64_t v) noexcept {
+    return static_cast<long long>(v);
+}
+
 // ---- The model ------------------------------------------------------
 
 void test_quoting_units() {
