@@ -139,4 +139,240 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
     return out;
 }
 
+void append_order_cancel(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Quantity shares,
+                         hft::Nanos timestamp, hft::StockLocate locate,
+                         hft::TrackingNumber tracking) noexcept {
+    using namespace hft::itch;
+    write_be16(out, static_cast<std::uint16_t>(off::kOrderCancelSize));
+    out.push_back(static_cast<std::uint8_t>(MessageType::order_cancel));
+    write_be16(out, locate);
+    write_be16(out, tracking);
+    write_timestamp48(out, timestamp);
+    write_be64(out, id);
+    write_be32(out, static_cast<std::uint32_t>(shares.raw()));
+}
+
+void append_order_delete(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Nanos timestamp,
+                         hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
+    using namespace hft::itch;
+    write_be16(out, static_cast<std::uint16_t>(off::kOrderDeleteSize));
+    out.push_back(static_cast<std::uint8_t>(MessageType::order_delete));
+    write_be16(out, locate);
+    write_be16(out, tracking);
+    write_timestamp48(out, timestamp);
+    write_be64(out, id);
+}
+
+void append_order_executed(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Quantity shares,
+                           hft::Nanos timestamp, std::uint64_t match_number,
+                           hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
+    using namespace hft::itch;
+    write_be16(out, static_cast<std::uint16_t>(off::kOrderExecutedSize));
+    out.push_back(static_cast<std::uint8_t>(MessageType::order_executed));
+    write_be16(out, locate);
+    write_be16(out, tracking);
+    write_timestamp48(out, timestamp);
+    write_be64(out, id);
+    write_be32(out, static_cast<std::uint32_t>(shares.raw()));
+    write_be64(out, match_number);
+    out.push_back('Y');  // printable
+}
+
+void append_order_executed_at_price(std::vector<std::uint8_t>& out, hft::OrderId id,
+                                    hft::Quantity shares, hft::Price execution_price,
+                                    hft::Nanos timestamp, std::uint64_t match_number,
+                                    hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
+    using namespace hft::itch;
+    write_be16(out, static_cast<std::uint16_t>(off::kOrderExecutedAtPriceSize));
+    out.push_back(static_cast<std::uint8_t>(MessageType::order_executed_at_price));
+    write_be16(out, locate);
+    write_be16(out, tracking);
+    write_timestamp48(out, timestamp);
+    write_be64(out, id);
+    write_be32(out, static_cast<std::uint32_t>(shares.raw()));
+    write_be64(out, match_number);
+    out.push_back('Y');  // printable
+    write_be32(out, static_cast<std::uint32_t>(execution_price.raw()));
+}
+
+/// Order Replace ('U'). Emitted only to exercise the decoder's
+/// skip-by-length path; this build deliberately does not decode it.
+void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original, hft::OrderId next,
+                          hft::Quantity shares, hft::Price price, hft::Nanos timestamp,
+                          hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
+    using namespace hft::itch;
+    // 2 locate + 2 track + 6 ts + 8 original + 8 new + 4 shares
+    // + 4 price + 1 type + 1 tif + 1 display + 1 participant = 36
+    constexpr std::uint16_t kReplaceBodySize = 36;
+    write_be16(out, kReplaceBodySize);
+    out.push_back(static_cast<std::uint8_t>(MessageType::order_replace));
+    write_be16(out, locate);
+    write_be16(out, tracking);
+    write_timestamp48(out, timestamp);
+    write_be64(out, original);
+    write_be64(out, next);
+    write_be32(out, static_cast<std::uint32_t>(shares.raw()));
+    write_be32(out, static_cast<std::uint32_t>(price.raw()));
+    out.push_back('2');
+    out.push_back('0');
+    out.push_back('1');
+    out.push_back('N');
+}
+
+namespace {
+
+/// One record of a capture: sequence number, then the raw ITCH frame.
+void append_capture_record(std::vector<std::uint8_t>& out, std::uint32_t sequence,
+                           const std::vector<std::uint8_t>& frame) noexcept {
+    write_be32(out, sequence);
+    out.insert(out.end(), frame.begin(), frame.end());
+}
+
+}  // namespace
+
+std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureStats* stats) {
+    std::vector<std::uint8_t> out;
+    out.reserve(config.record_count * 48);
+
+    SplitMix64 rng(config.seed);
+    CaptureStats local{};
+
+    const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
+    const std::int64_t half = levels / 2;
+    const std::int64_t tick = config.tick_raw < 1 ? 1 : config.tick_raw;
+    const std::int64_t half_spread = config.half_spread_raw < 0 ? 1 : config.half_spread_raw;
+    const std::int64_t drift = config.drift_raw < 0 ? 0 : config.drift_raw;
+    const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
+
+    std::int64_t mid = config.anchor_raw;
+    hft::OrderId next_id = config.first_order_id;
+    std::uint32_t sequence = config.first_sequence;
+    std::uint64_t clock = 0;
+    std::uint64_t match_number = 0;
+
+    // Live orders the generator believes are resting, with the size it
+    // believes remains. Emitting a mutation for an order that is not
+    // here would produce a feed that only ever exercises rejection.
+    struct Live {
+        hft::OrderId id;
+        hft::Price price;
+        hft::Side side;
+        std::uint32_t remaining;
+    };
+    std::vector<Live> live;
+    live.reserve(8192);
+
+    const std::uint32_t span = config.max_shares - config.min_shares + 1;
+
+    for (std::size_t i = 0; i < config.record_count; ++i) {
+        const std::uint64_t roll = rng.below(100);
+        const std::uint64_t before = out.size();
+        ++sequence;
+        ++local.records;
+
+        const bool may_mutate = !live.empty();
+        if (!may_mutate || roll < config.pct_add) {
+            mid += static_cast<std::int64_t>(
+                       rng.below(2 * static_cast<std::uint64_t>(drift) + 1)) -
+                   drift;
+            mid += (config.anchor_raw - mid) / reversion;
+
+            const std::int64_t offset =
+                static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels))) - half;
+            const hft::Side side = (rng.next() & 1u) == 0u ? hft::Side::bid : hft::Side::ask;
+            const std::uint32_t shares =
+                config.min_shares + static_cast<std::uint32_t>(rng.below(span));
+
+            std::int64_t raw_price = mid + offset * half_spread;
+            if (raw_price > 0) {
+                raw_price = ((raw_price + tick / 2) / tick) * tick;
+            }
+            if (raw_price <= 0) {
+                continue;
+            }
+
+            const hft::Price price = hft::Price::from_raw(raw_price);
+            std::vector<std::uint8_t> frame;
+            frame.reserve(itch::frame_size(itch::off::kAddOrderSize));
+            clock += 1 + rng.below(4'000);
+            append_add_order(frame, side, price, hft::Quantity::from_raw(shares), next_id, clock, 1,
+                             static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+            append_capture_record(out, sequence, frame);
+
+            live.push_back(Live{next_id, price, side, shares});
+            ++next_id;
+            ++local.adds;
+        } else {
+            // Choose a live order to mutate. Index 0 is reserved as
+            // "not found" so a zero index never silently targets the
+            // first element.
+            const std::size_t pick = 1 + static_cast<std::size_t>(rng.below(live.size() - 1));
+            Live target = live[pick];
+            live[pick] = live.back();
+            live.pop_back();
+
+            clock += 1 + rng.below(4'000);
+            std::vector<std::uint8_t> frame;
+            frame.reserve(itch::frame_size(itch::off::kOrderExecutedAtPriceSize));
+
+            if (config.inject_order_replace && roll >= 99) {
+                append_order_replace(frame, target.id, next_id, hft::Quantity::from_raw(
+                                                                    target.remaining),
+                                     target.price, clock, 1,
+                                     static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+                ++local.order_replace;
+                // The replaced order leaves the book under its new
+                // reference, which this build does not track, so the
+                // generator's live set does not gain an entry for it.
+            } else if (roll < config.pct_add + config.pct_execute) {
+                // Execute 1..remaining. Never zero: a zero-share
+                // execution is not a thing a venue sends, and allowing
+                // it would make the fill path look idempotent when it
+                // is not.
+                const std::uint32_t shares =
+                    1 + static_cast<std::uint32_t>(rng.below(target.remaining));
+                ++match_number;
+                if ((rng.next() & 3u) == 0u) {
+                    append_order_executed_at_price(frame, target.id,
+                                                   hft::Quantity::from_raw(shares),
+                                                   target.price, clock, match_number, 1,
+                                                   static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+                } else {
+                    append_order_executed(frame, target.id, hft::Quantity::from_raw(shares), clock,
+                                          match_number, 1,
+                                          static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+                }
+                ++local.executes;
+                if (shares < target.remaining) {
+                    target.remaining -= shares;
+                    live.push_back(target);
+                }
+            } else if (roll < config.pct_add + config.pct_execute + config.pct_cancel) {
+                const std::uint32_t shares =
+                    1 + static_cast<std::uint32_t>(rng.below(target.remaining));
+                append_order_cancel(frame, target.id, hft::Quantity::from_raw(shares), clock, 1,
+                                    static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+                ++local.cancels;
+                if (shares < target.remaining) {
+                    target.remaining -= shares;
+                    live.push_back(target);
+                }
+            } else {
+                append_order_delete(frame, target.id, clock, 1,
+                                    static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+                ++local.deletes;
+            }
+        }
+
+        if (out.size() != before) {
+            continue;
+        }
+    }
+
+    if (stats != nullptr) {
+        *stats = local;
+    }
+    return out;
+}
+
 }  // namespace hft::feed
