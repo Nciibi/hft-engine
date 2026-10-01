@@ -95,11 +95,19 @@ void test_risk_basics() {
              static_cast<int>(risk::LimitStatus::price_band),
              "the band is symmetric below the reference too");
 
-    // Notional: $200 cap, so 20 shares at $100 is $2000 and refused.
-    check_eq(static_cast<int>(r.check(Side::bid, kRef, Quantity::from_raw(2'000),
-                                      1'000'000'003ULL)
-                                   .status),
-             static_cast<int>(risk::LimitStatus::order_notional), "notional cap is enforced");
+    // Notional: a $200 cap, so 20 shares at $100 is $2,000 and is
+    // refused. Uses its own limits so the notional check is the only
+    // thing that can fire.
+    {
+        risk::PreTradeRisk rn(tight_notional_limits());
+        rn.set_reference_price(kRef);
+        check_eq(static_cast<int>(rn.check(Side::bid, kRef, Quantity::from_raw(2'000),
+                                           1'000'000'003ULL)
+                                      .status),
+                 static_cast<int>(risk::LimitStatus::order_notional), "notional cap is enforced");
+        check(rn.check(Side::bid, kRef, Quantity::from_raw(20), 1'000'000'004ULL).allowed(),
+              "an order just under the notional cap passes");
+    }
 
     // Zero size has no meaning and is refused rather than admitted.
     check(!r.check(Side::bid, kRef, Quantity{}, 1'000'000'004ULL).allowed(),
@@ -342,6 +350,21 @@ void test_transition_table() {
 }
 
 // ---- OMS lifecycle ---------------------------------------------------
+
+/// A test helper that refuses to hand back a slot it did not get.
+///
+/// Every OMS test below needs a live slot. If `submit` refuses one, the
+/// correct outcome is a reported failure, not a null dereference
+/// several lines later: an earlier revision crashed the whole binary
+/// this way, which hid the real cause behind a heap fault.
+///
+/// Returns -1 on failure. Callers check.
+[[nodiscard]] int submit_or_fail(oms::Manager& m, Side side, Price price, Quantity size,
+                                 Nanos now, const char* what) {
+    const int slot = m.submit(side, price, size, now);
+    check(slot >= 0, what);
+    return slot;
+}
 
 oms::Manager make_manager(std::size_t capacity = 1'024) {
     return oms::Manager(capacity, small_limits());
