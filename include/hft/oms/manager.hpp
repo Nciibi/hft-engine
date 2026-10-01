@@ -207,6 +207,17 @@ public:
         }
         held_[slot] = 1;
         o = Order{};
+
+        o.state = OrdState::pending_new;
+        // Booked explicitly rather than through transition(). The reset
+        // above already left o.state == pending_new, so transition()
+        // would see no change and adjust nothing: the counter would
+        // stay at zero while held_ says a slot is occupied, and the
+        // first departure from pending_new would drive it to -1. The
+        // asymmetry between this line and every other state change is
+        // deliberate, and this comment is the only thing standing
+        // between a future reader and a very quiet bug.
+        ++state_counts_[static_cast<std::size_t>(OrdState::pending_new)];
         o.id = next_id_++;
         o.side = side;
         o.price = price;
@@ -215,9 +226,6 @@ public:
         o.risk_status = risk::LimitStatus::ok;
         o.last_update = now;
         live_[slot] = 1;
-        // Counted through the same helper as every other transition,
-        // so the reconcile view cannot drift from the actual state.
-        transition(o, OrdState::pending_new);
 
         ++submitted_;
         return static_cast<int>(slot);
