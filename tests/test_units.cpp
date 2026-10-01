@@ -131,12 +131,16 @@ void test_decode() {
     const auto r = itch::decode(buf.data(), buf.size());
     check(r.ok(), "valid frame decodes");
     if (r.ok()) {
-        const auto& ao = r.message.add_order;
-        check(ao.id == 0xABCD'EF01'2345'6789ULL, "order id round trips");
-        check(ao.side == Side::bid, "side round trips");
-        check_eq_int(ao.price.raw(), 1234500, "price round trips");
-        check_eq_int(static_cast<long long>(ao.size.raw()), 300, "size round trips");
-        check(ao.timestamp == 0x0000'0001'2BAD'F00DULL, "timestamp round trips");
+        const auto* ao = std::get_if<itch::AddOrder>(&r.message.body);
+        check(ao != nullptr, "payload is an AddOrder");
+        check(r.message.type() == itch::MessageType::add_order, "tag derived from variant");
+        if (ao != nullptr) {
+            check(ao->id == 0xABCD'EF01'2345'6789ULL, "order id round trips");
+            check(ao->side == Side::bid, "side round trips");
+            check_eq_int(ao->price.raw(), 1234500, "price round trips");
+            check_eq_int(static_cast<long long>(ao->size.raw()), 300, "size round trips");
+            check(ao->timestamp == 0x0000'0001'2BAD'F00DULL, "timestamp round trips");
+        }
         check_eq_int(itch::frame_stride(r), 34, "stride is the full frame");
     }
 
