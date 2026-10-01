@@ -401,7 +401,14 @@ public:
     }
 
 private:
+    /// Returns are clamped to this many median absolute deviations.
+    static constexpr double kWinsorSigma = 4.0;
+
     std::vector<std::int64_t> returns_;
+    /// Scratch space for the median, kept as a member so sigma() does
+    /// not allocate on every tick. A volatility estimator that
+    /// allocates per call is a latency spike in the quote path.
+    mutable std::vector<double> scratch_;
     std::size_t window_;
     Price previous_{};
     bool have_previous_ = false;
