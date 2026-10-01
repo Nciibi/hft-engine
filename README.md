@@ -226,6 +226,28 @@ infrastructure*, both were found only because a check that should have
 been automatic actually ran, and both would have been invisible to
 anyone reading the book code alone.
 
+Phase 3 added four more, and the pattern is worth naming because it is
+the same lesson three times over:
+
+- The `TokenBucket` treated its burst multiplier as an absolute token
+  count, so a 100/second limit admitted exactly **one** order and then
+  refused ninety-nine. The rate limiter worked; it simply did not work
+  at the rate anyone asked for.
+- The refill clamped the interval to the time to add *one* token rather
+  than to fill the *bucket*, silently truncating any interval longer
+  than a fraction of a second.
+- The refill then divided by 1000 in the wrong direction, granting
+  1/1000th of the tokens owed: 0.005 tokens per half second instead of
+  five.
+- The OMS state counters were decremented on slot reuse even for a
+  never-used slot, and the `pending_new` count was never incremented,
+  so a reconcile view reported **-105 orders in live states** after a
+  randomised run.
+
+A rate limiter that quietly admits one order per second, and a
+reconciliation counter that goes negative, are both the kind of defect
+that reaches production. Neither is the kind that code review catches.
+
 ## Failure modes
 
 Things this build handles explicitly, because they are where real
