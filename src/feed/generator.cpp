@@ -75,6 +75,13 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
 
     SplitMix64 rng(config.seed);
 
+    // A negative drift or half-spread would make the level-offset
+    // arithmetic produce prices at or below zero, which the walker
+    // would then silently skip. Clamp once, loudly, rather than let a
+    // config mistake quietly shrink the feed.
+    const std::int64_t drift_raw = config.drift_raw < 0 ? 0 : config.drift_raw;
+    const std::int64_t half_spread_raw = config.half_spread_raw < 0 ? 1 : config.half_spread_raw;
+
     const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
     const std::int64_t half = levels / 2;
     std::int64_t mid = hft::Price::kScale * 100;  // $100.00, raw
@@ -84,9 +91,8 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
     for (std::size_t i = 0; i < config.message_count; ++i) {
         // Random walk the mid so the book is not a static ladder.
         const std::int64_t step =
-            static_cast<std::int64_t>(rng.below(2 * static_cast<std::uint64_t>(
-                                                   config.drift_raw) + 1)) -
-            config.drift_raw;
+            static_cast<std::int64_t>(rng.below(2 * static_cast<std::uint64_t>(drift_raw) + 1)) -
+            drift_raw;
         mid += step;
         if (mid < hft::Price::kScale) {
             mid = hft::Price::kScale;  // do not walk through zero
