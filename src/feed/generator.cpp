@@ -282,23 +282,25 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
                    drift;
             mid += (config.anchor_raw - mid) / reversion;
 
-            const std::int64_t offset =
-                static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels))) - half;
             const hft::Side side = (rng.next() & 1u) == 0u ? hft::Side::bid : hft::Side::ask;
             const std::uint32_t shares =
                 config.min_shares + static_cast<std::uint32_t>(rng.below(span));
 
-            std::int64_t raw_price = mid + offset * half_spread;
-            if (raw_price > 0) {
-                raw_price = ((raw_price + tick / 2) / tick) * tick;
-            }
-            // Clamp rather than skip. Every iteration must emit exactly
-            // one record, because the sequence number is consumed
-            // above; skipping here would manufacture a phantom gap
-            // that the replay tool would correctly report as data
-            // loss.
+            // Bids strictly BELOW the mid and asks strictly ABOVE it.
+            //
+            // This is the whole definition of a book, and getting it
+            // wrong is invisible until something downstream depends on
+            // it. An earlier revision chose the side and the price
+            // offset independently, so bids and asks were drawn from
+            // the same wide band and overlapped: the best ask sat
+            // $15 BELOW the best bid, the mid moved 20 times in 40,000
+            // ticks, and a market maker had zero volatility to price.
+            const std::int64_t offset =
+                1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels)));
+            const std::int64_t raw_price =
+                side == hft::Side::bid ? mid - offset * tick : mid + offset * tick;
             if (raw_price <= 0) {
-                raw_price = tick;
+                continue;  // only reachable if the mid walked to zero
             }
 
             const hft::Price price = hft::Price::from_raw(raw_price);
