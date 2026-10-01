@@ -65,6 +65,17 @@ struct GeneratorConfig {
     std::size_t price_levels = 64;
     /// Half-width of the initial mid, in raw 1/10000 units.
     std::int64_t half_spread_raw = 5'000;  // $0.50
+    /// Quantise emitted prices to this grid, in raw units. Default
+    /// $0.01, which is the tick for a US equity.
+    ///
+    /// This bounds the number of distinct prices, and therefore the
+    /// length of the book's price ladder, to something a real
+    /// single-instrument book actually looks like. Without it, an
+    /// unquantised walk touches tens of thousands of distinct raw
+    /// values, and the ladder walks that far on every out-of-order
+    /// insert, which makes the benchmark quadratic and the result
+    /// meaningless.
+    std::int64_t tick_raw = 100;  // $0.01
     /// Per-step random walk magnitude on the mid, raw units.
     std::int64_t drift_raw = 250;  // $0.025
     /// Mid price the walk reverts toward, raw units ($100.00).
