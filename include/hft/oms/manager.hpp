@@ -197,13 +197,15 @@ public:
         // the state counters must be removed BEFORE the record is
         // overwritten.
         //
-        // Skipping this made the counters drift negative over a long
-        // run, because `o = Order{}` resets the state without telling
-        // the counters anything. The sum of the counters stopped
-        // equalling the number of orders, and a reconcile view showing
-        // -105 orders in live states is the kind of thing that gets
-        // discovered in production.
-        --state_counts_[static_cast<std::size_t>(o.state)];
+        // Only when the slot actually holds an order. A never-used slot
+        // carries a default-constructed Order whose state happens to be
+        // pending_new, and decrementing for it drives the counters
+        // negative on the very first submit. `held_` distinguishes the
+        // two cases; `live_` cannot, because both are 0 here.
+        if (held_[slot] != 0) {
+            --state_counts_[static_cast<std::size_t>(o.state)];
+        }
+        held_[slot] = 1;
         o = Order{};
         o.id = next_id_++;
         o.side = side;
