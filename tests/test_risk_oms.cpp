@@ -50,13 +50,27 @@ namespace oms = hft::oms;
 
 constexpr Price kRef = Price::from_raw(1'000'000);  // $100.00
 
+/// Limits for tests that are about position, rate or lifecycle.
+///
+/// The notional cap is deliberately generous here. An earlier revision
+/// left it tight, which meant every position test tripped the notional
+/// check first and the position check was never actually reached: the
+/// test passed for the wrong reason, then failed once the cap was
+/// noticed. Each test should fail for exactly one reason.
 risk::Limits small_limits() {
     risk::Limits l;
     l.max_position_per_side = 1'000;
     l.max_abs_position = 1'500;
-    l.max_order_notional_raw = 2'000'000;  // $200
-    l.max_price_deviation_raw = 10'000;    // $1.00
+    l.max_order_notional_raw = 1'000'000'000;  // $100,000
+    l.max_price_deviation_raw = 10'000;        // $1.00
     l.max_order_rate = 100;
+    return l;
+}
+
+/// Limits with the notional cap as the binding constraint.
+risk::Limits tight_notional_limits() {
+    risk::Limits l = small_limits();
+    l.max_order_notional_raw = 2'000'000;  // $200
     return l;
 }
 
