@@ -63,21 +63,30 @@ int main(int argc, char** argv) {
     // level, and its mid is frozen for the whole run, which leaves a
     // market maker with zero volatility to price. A book that cannot
     // reprice cannot be used to study a strategy that trades it.
-    capture.price_levels = 10;
-    capture.max_live_orders = 120;
+    //
+    // Four levels a side is roughly a four-tick book, which is what a
+    // liquid US equity actually looks like. Deeper is not more
+    // realistic here, it is just a wider book to quote into.
+    capture.price_levels = 4;
+    capture.max_live_orders = 60;
     capture.drift_raw = 200;
     hft::feed::CaptureStats stats{};
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(capture, &stats);
 
     strategy::MarketMakerConfig mm_config;
     mm_config.markout_horizon = horizon;
-    // gamma and k are chosen so the quote is competitive but not
-    // reckless against this feed's volatility. They are defaults, not
-    // fitted values: fitting them to the capture would be fitting to
-    // the noise and would flatter the result.
-    mm_config.quote.gamma = 1.0e-3;   // 1/price units
+    // gamma is in 1/price units. Sized so that one tick of inventory
+    // skews the reservation by roughly one tick: risk_term is
+    // gamma*sigma^2*horizon, and with sigma near 13 raw/tick and a
+    // 250-tick horizon that is 40,000*gamma, so 2.5e-3 gives about
+    // 100 raw units, one tick.
+    //
+    // These are illustrative, not fitted. Fitting gamma to this
+    // capture would be fitting it to the noise and would flatter every
+    // number below.
+    mm_config.quote.gamma = 2.5e-3;
     mm_config.quote.k = 1.5;
-    mm_config.quote.horizon_ticks = 250.0;   // observations, not seconds
+    mm_config.quote.horizon_ticks = 250.0;
     mm_config.quote.base_size = 100;
     mm_config.max_inventory = 5'000;
 
