@@ -141,16 +141,6 @@ int main(int argc, char** argv) {
         record_count = stats.records;
     }
 
-    std::printf("HFT Engine replay\n");
-    std::printf("-----------------\n");
-    std::printf("source             %s\n", path != nullptr ? path : "(generated in memory)");
-    std::printf("capture bytes      %zu\n", capture.size());
-    std::printf("records            %zu\n", record_count);
-    std::printf("first sequence     %u\n", first_sequence);
-    std::printf("\n");
-
-    hft::lob::OrderBook book(1u << 20, 1u << 16);
-
     // Seed the tracker from the first record actually present.
     //
     // A hardcoded seed would be wrong twice over: it would be a
@@ -163,6 +153,16 @@ int main(int argc, char** argv) {
         capture.size() >= hft::feed::kCaptureSequenceSize
             ? hft::itch::read_be32(capture.data())
             : 0u;
+
+    std::printf("HFT Engine replay\n");
+    std::printf("-----------------\n");
+    std::printf("source             %s\n", path != nullptr ? path : "(generated in memory)");
+    std::printf("capture bytes      %zu\n", capture.size());
+    std::printf("records            %zu\n", record_count);
+    std::printf("first sequence     %u\n", first_sequence);
+    std::printf("\n");
+
+    hft::lob::OrderBook book(1u << 20, 1u << 16);
     hft::itch::SequenceTracker sequence(first_sequence);
 
     std::size_t offset = 0;
