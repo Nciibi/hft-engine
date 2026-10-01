@@ -375,8 +375,11 @@ void test_oms_lifecycle() {
     oms::Manager m = make_manager();
     m.set_reference_price(kRef);
 
-    const int slot = m.submit(Side::bid, kRef, Quantity::from_raw(100), 1'000);
-    check(slot >= 0, "a valid order is accepted");
+    const int slot = submit_or_fail(m, Side::bid, kRef, Quantity::from_raw(100), 1'000,
+                                    "a valid order is accepted");
+    if (slot < 0) {
+        return;
+    }
     check_eq(static_cast<int>(m.at(slot)->state),
              static_cast<int>(oms::OrdState::pending_new), "it starts pending_new");
 
