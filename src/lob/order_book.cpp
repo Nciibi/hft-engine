@@ -371,7 +371,12 @@ BookStatus OrderBook::execute(OrderId id, Quantity qty) noexcept {
     }
 
     if (qty.raw() == o.size.raw()) {
-        o.size = Quantity{};
+        // Do NOT zero o.size before detaching. detach_order unlinks the
+        // order and unlink_order subtracts o.size from the level
+        // aggregate, so clearing the size first would subtract zero and
+        // leave the level permanently inflated by this order's size.
+        // The node is released a moment later regardless, so its size
+        // field never needs clearing.
         o.state = OrderState::filled;
         detach_order(h);
         return BookStatus::ok;
@@ -397,7 +402,9 @@ BookStatus OrderBook::cancel_partial(OrderId id, Quantity qty) noexcept {
     }
 
     if (qty.raw() == o.size.raw()) {
-        o.size = Quantity{};
+        // Same constraint as the full-fill path: leave o.size intact so
+        // that unlink_order subtracts the true remaining size from the
+        // level aggregate.
         o.state = OrderState::cancelled;
         detach_order(h);
         return BookStatus::ok;
