@@ -228,6 +228,11 @@ private:
     std::uint64_t one_sided_ = 0;
     std::uint64_t quotes_ = 0;
     std::uint64_t fills_ = 0;
+    std::uint64_t fill_checks_ = 0;
+    std::uint64_t bid_checks_ = 0;
+    std::uint64_t ask_checks_ = 0;
+    std::uint64_t bid_hits_ = 0;
+    std::uint64_t ask_hits_ = 0;
 };
 
 }  // namespace hft::strategy
