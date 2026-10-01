@@ -389,14 +389,11 @@ BookStatus OrderBook::cancel_partial(OrderId id, Quantity qty) noexcept {
         return BookStatus::ok;
     }
 
-    // ITCH 'X' partial cancel. Unlike a fill, nothing was executed, so
-    // the order returns to `new_order`. It keeps its place in the
-    // queue: a cancel does not promote it.
-    o.size = Quantity::from_raw(o.size.raw() - qty.raw());
-    o.state = OrderState::new_order;
-    const Handle level = o.level;
-    unlink_order(h);
-    link_order(h, level);
+    // ITCH 'X' partial cancel. Nothing was executed, so the order
+    // returns to `new_order`, and it keeps its queue position: a
+    // cancellation is not a promotion.
+    reduce_size(h, Quantity::from_raw(o.size.raw() - qty.raw()));
+    orders_[h].state = OrderState::new_order;
     return BookStatus::ok;
 }
 
