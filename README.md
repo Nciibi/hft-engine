@@ -7,7 +7,32 @@ decode-to-encode pipeline.
 
 > **Status:** reference implementation built for understanding exchange
 > mechanics, not for production deployment. See
+> [What is implemented](#what-is-implemented) and
 > [What this is not](#what-this-is-not).
+
+## What is implemented
+
+This repository is under construction. Phase 1, the walking skeleton, is
+complete and tested. The remaining phases are not built, and the
+sections below describe the intended end state rather than current
+behaviour where they say so.
+
+| Component | State |
+|---|---|
+| Fixed-point `Price`, no float constructor | done |
+| ITCH 5.0 Add Order (`'A'`) decode, zero-copy, big-endian | done |
+| Split 48-bit timestamp reassembly | done |
+| Unknown-type skip by length, truncation reporting | done |
+| Price-time priority book, slab arena, no hot-path allocation | done |
+| `execute` / `cancel_partial` / `remove`, `X` vs `D` distinct | done |
+| SPSC ring buffer, multi-shard, pre-trade risk, market maker | not started |
+| Remaining ITCH types (`E`, `C`, `X`, `D`, `U`) | not started |
+
+Correctness so far: 83 unit checks, and a differential test comparing
+the fast book against an independent naive model over **400,000
+operations, with full state comparison after every single one**, across
+five seeds. That test is what justifies trusting the latency numbers,
+and it is also how three real bugs in this repository were found.
 
 ## Results
 
