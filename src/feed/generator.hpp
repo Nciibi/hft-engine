@@ -106,19 +106,98 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
                       hft::Nanos timestamp, hft::StockLocate locate = 1,
                       hft::TrackingNumber tracking = 0) noexcept;
 
+void append_order_cancel(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Quantity shares,
+                         hft::Nanos timestamp, hft::StockLocate locate = 1,
+                         hft::TrackingNumber tracking = 0) noexcept;
+
+void append_order_delete(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Nanos timestamp,
+                         hft::StockLocate locate = 1,
+                         hft::TrackingNumber tracking = 0) noexcept;
+
+void append_order_executed(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Quantity shares,
+                           hft::Nanos timestamp, std::uint64_t match_number = 0,
+                           hft::StockLocate locate = 1, hft::TrackingNumber tracking = 0) noexcept;
+
+void append_order_executed_at_price(std::vector<std::uint8_t>& out, hft::OrderId id,
+                                    hft::Quantity shares, hft::Price execution_price,
+                                    hft::Nanos timestamp, std::uint64_t match_number = 0,
+                                    hft::StockLocate locate = 1,
+                                    hft::TrackingNumber tracking = 0) noexcept;
+
 /// Write a raw 2-byte length prefix followed by `body`.
 void append_frame(std::vector<std::uint8_t>& out, const std::uint8_t* body,
                   std::size_t body_size) noexcept;
 
 /// Write a frame whose declared length disagrees with its body. Used
 /// only by decoder tests.
-void append_frame_with_length(std::vector<std::uint8_t>& out,
-                              const std::uint8_t* body, std::size_t body_size,
+void append_frame_with_length(std::vector<std::uint8_t>& out, const std::uint8_t* body,
+                              std::size_t body_size,
                               std::uint16_t declared_length) noexcept;
 
 /// Generate `config.message_count` Add Order frames. Reserves the
 /// output up front so the generator itself is not the thing being
 /// measured when it is timed.
 std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config);
+
+// ---- Capture format -------------------------------------------------
+
+/// A capture is a sequence of records, each:
+///
+///     [4 bytes  SOUP sequence, big-endian]
+///     [2 bytes  body length, big-endian, includes the tag]
+///     [N bytes  ITCH message body]
+///
+/// The sequence number is carried per record rather than in a
+/// MoldUDP64 packet header. Full MoldUDP64 framing and its checksum are
+/// out of scope, and pretending to implement them while actually
+/// inventing a layout would be worse than naming the boundary. What
+/// this format does provide is the property the replay tool needs: a
+/// number to check contiguity against, so a dropped message is
+/// detectable rather than silent.
+inline constexpr std::size_t kCaptureSequenceSize = 4;
+
+/// A mixed feed: adds interleaved with the cancels, executes and
+/// deletes that actually remove them.
+///
+/// The generator tracks its own live orders so every mutation it emits
+/// refers to a real, still-resting order. A feed that emits cancels for
+/// orders that were never added would exercise only the rejection
+/// path, and a book that never loses an order is not a book under
+/// load.
+struct CaptureConfig {
+    std::uint64_t seed = 0xC0FF'EE00'1234'5678ULL;
+    std::size_t record_count = 1'000'000;
+    std::size_t price_levels = 64;
+    std::int64_t half_spread_raw = 5'000;
+    std::int64_t tick_raw = 100;
+    std::int64_t anchor_raw = 1'000'000;
+    std::int64_t drift_raw = 250;
+    std::int64_t reversion = 64;
+    OrderId first_order_id = 1'000'000;
+    /// Starting SOUP sequence number. Chosen near the 32-bit wrap so
+    /// the replay path exercises wrap handling by default.
+    std::uint32_t first_sequence = 0xFFFF'F000u;
+    uint32_t min_shares = 1;
+    uint32_t max_shares = 500;
+    /// Probability weights, per cent. A live book is dominated by adds
+    /// and deletes, with fewer partial cancels and fills.
+    uint32_t pct_add = 60;
+    uint32_t pct_execute = 15;
+    uint32_t pct_cancel = 15;
+    /// Remainder is delete.
+
+/// Per-record counts, so a caller can assert the generated mix rather
+/// than trusting it.
+struct CaptureStats {
+    std::size_t adds = 0;
+    std::size_t executes = 0;
+    std::size_t cancels = 0;
+    std::size_t deletes = 0;
+    std::size_t order_replace = 0;
+    std::size_t records = 0;
+};
+
+std::vector<std::uint8_t> generate_capture(const CaptureConfig& config,
+                                           CaptureStats* stats = nullptr);
 
 }  // namespace hft::feed
