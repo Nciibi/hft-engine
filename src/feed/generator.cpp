@@ -81,22 +81,25 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
     // config mistake quietly shrink the feed.
     const std::int64_t drift_raw = config.drift_raw < 0 ? 0 : config.drift_raw;
     const std::int64_t half_spread_raw = config.half_spread_raw < 0 ? 1 : config.half_spread_raw;
+    const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
 
     const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
     const std::int64_t half = levels / 2;
-    std::int64_t mid = hft::Price::kScale * 100;  // $100.00, raw
+    const std::int64_t anchor = config.anchor_raw;
+    std::int64_t mid = anchor;
     OrderId next_id = config.first_order_id;
     std::uint64_t clock = 0;
 
     for (std::size_t i = 0; i < config.message_count; ++i) {
-        // Random walk the mid so the book is not a static ladder.
+        // Random walk the mid, then pull it back toward the anchor.
+        // Without the pull-back the walk random-walks to a new price
+        // region and the book's price level pool is exhausted long
+        // before the feed is.
         const std::int64_t step =
             static_cast<std::int64_t>(rng.below(2 * static_cast<std::uint64_t>(drift_raw) + 1)) -
             drift_raw;
         mid += step;
-        if (mid < hft::Price::kScale) {
-            mid = hft::Price::kScale;  // do not walk through zero
-        }
+        mid += (anchor - mid) / reversion;
 
         // Choose a level offset within the window, then a side. Keeping
         // the side choice independent of the offset gives a book with

@@ -67,6 +67,15 @@ struct GeneratorConfig {
     std::int64_t half_spread_raw = 5'000;  // $0.50
     /// Per-step random walk magnitude on the mid, raw units.
     std::int64_t drift_raw = 250;  // $0.025
+    /// Mid price the walk reverts toward, raw units ($100.00).
+    std::int64_t anchor_raw = 1'000'000;
+    /// Each step, move 1/reversion of the way back to the anchor.
+    /// A pure random walk with no reversion invents a new price every
+    /// few hundred messages, exhausts the book's price level pool, and
+    /// turns a benchmark into a measurement of the rejection path.
+    /// Real instruments mean-revert over a trading session, and so does
+    /// this one.
+    std::int64_t reversion = 64;
     /// Starting order reference. ITCH references are day-unique and
     /// nonzero.
     OrderId first_order_id = 1'000'000;
