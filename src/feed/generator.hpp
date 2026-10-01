@@ -193,6 +193,20 @@ struct CaptureConfig {
     uint32_t pct_execute = 15;
     uint32_t pct_cancel = 15;
     /// Remainder is delete.
+    /// Probability that a mutation targets a RECENTLY added order
+    /// rather than a uniformly random one.
+    ///
+    /// Real order flow is not uniform across price levels. It clusters
+    /// hard at the touch, because that is where market orders and
+    /// aggressive quotes go. An earlier revision picked mutations
+    /// uniformly from the live set, which made the book's extremes
+    /// almost immortal: a level that held one of the first few orders
+    /// was never the one randomly cancelled, so the best bid and ask
+    /// were set in the first few hundred messages and never moved
+    /// again. The mid was therefore constant, volatility was zero, and
+    /// a market maker had nothing to price. A feed whose price never
+    /// moves cannot be used to study a strategy that trades it.
+    double pct_recent = 0.75;
     /// Emit Order Replace ('U') records. They are structurally valid
     /// but this build does not decode them, so they exercise the
     /// skip-by-length path. Off by default, so a clean replay is the
