@@ -60,22 +60,16 @@ struct GeneratorConfig {
     std::uint64_t seed = 0x5EED'1234'ABCD'0001ULL;
     /// Number of Add Order frames to emit.
     std::size_t message_count = 1'000'000;
-    /// Price levels spanned around the mid. The book is built inside
-    /// this window, so depth and width scale together.
-    std::size_t price_levels = 64;
-    /// Half-width of the initial mid, in raw 1/10000 units.
-    std::int64_t half_spread_raw = 5'000;  // $0.50
-    /// Quantise emitted prices to this grid, in raw units. Default
-    /// $0.01, which is the tick for a US equity.
+    /// Number of price levels per side around the mid.
+    std::size_t price_levels = 32;
+    /// Spacing between price levels, in raw units. This is the tick
+    /// the book is built on, and it is also the level spacing.
     ///
-    /// This bounds the number of distinct prices, and therefore the
-    /// length of the book's price ladder, to something a real
-    /// single-instrument book actually looks like. Without it, an
-    /// unquantised walk touches tens of thousands of distinct raw
-    /// values, and the ladder walks that far on every out-of-order
-    /// insert, which makes the benchmark quadratic and the result
-    /// meaningless.
-    std::int64_t tick_raw = 100;  // $0.01
+    /// The default is $0.01, the US equity tick. Level spacing and tick
+    /// are the same number here because a real book rests orders on tick
+    /// sizes; separating them would model a venue that quotes inside its
+    /// own tick.
+    std::int64_t tick_raw = 100;
     /// Per-step random walk magnitude on the mid, raw units.
     std::int64_t drift_raw = 250;  // $0.025
     /// Mid price the walk reverts toward, raw units ($100.00).
