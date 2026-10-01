@@ -659,8 +659,7 @@ void test_oms_random_invariants() {
     check(m.risk_rejected() > 0 || m.pool_full() > 0,
           "the random stream actually hit some refusals");
 
-    check(m.risk().total_rejected() > 0, "the random stream actually hit some limits");
-}
+    check(m.risk().total_rejected() > 0, "the random stream actually hit some limits");}
 
 }  // namespace
 
