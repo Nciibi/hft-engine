@@ -147,25 +147,25 @@ int main(int argc, char** argv) {
     std::printf("HFT Engine market maker\n");
     std::printf("-----------------------\n");
     std::printf("records              %zu\n", stats.records);
-    std::printf("ticks observed       %llu\n", (unsigned long long)ticks);
+    std::printf("ticks observed       %llu\n", u64(ticks);
     std::printf("two-sided book       %llu  (%.1f%%)\n",
-                (unsigned long long)mm.two_sided_observations(),
+                u64(mm.two_sided_observations(),
                 ticks == 0 ? 0.0
                            : 100.0 * static_cast<double>(mm.two_sided_observations()) /
                                  static_cast<double>(ticks));
     std::printf("one-sided book       %llu\n",
-                (unsigned long long)mm.one_sided_observations());
-    std::printf("quotes placed        %llu\n", (unsigned long long)mm.quotes());
+                u64(mm.one_sided_observations());
+    std::printf("quotes placed        %llu\n", u64(mm.quotes());
     std::printf("fill checks          %llu  (bid %llu / ask %llu)\n",
-                (unsigned long long)mm.fill_checks(),
-                (unsigned long long)mm.bid_side_checks(),
-                (unsigned long long)mm.ask_side_checks());
+                u64(mm.fill_checks(),
+                u64(mm.bid_side_checks(),
+                u64(mm.ask_side_checks());
     std::printf("fills                %llu  (bid %llu / ask %llu)\n",
-                (unsigned long long)mm.fills(), (unsigned long long)mm.bid_hits(),
-                (unsigned long long)mm.ask_hits());
+                u64(mm.fills(), u64(mm.bid_hits(),
+                u64(mm.ask_hits());
     std::printf("markout horizon      %llu ticks (~%llu us synthetic)\n",
-                (unsigned long long)(mm.adverse().horizon() / 4'000),
-                (unsigned long long)(mm.adverse().horizon() / 1'000));
+                u64((mm.adverse().horizon() / 4'000),
+                u64((mm.adverse().horizon() / 1'000));
     std::printf("volatility sigma     %.2f raw/tick (%.4f%%)\n", mm.volatility().sigma(),
                 mm.volatility().sigma_fraction() * 100.0);
     std::printf("risk term            %.6f\n", mm.quoter().risk_term());
@@ -173,12 +173,12 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("INVENTORY\n");
     std::printf("--------\n");
-    std::printf("bid shares filled    %llu\n", (unsigned long long)s.bid_shares);
-    std::printf("ask shares filled    %llu\n", (unsigned long long)s.ask_shares);
-    std::printf("net position         %lld\n", (long long)s.net_shares());
+    std::printf("bid shares filled    %llu\n", u64(s.bid_shares);
+    std::printf("ask shares filled    %llu\n", u64(s.ask_shares);
+    std::printf("net position         %lld\n", i64(s.net_shares());
     std::printf("max |position|       %lld  (limit %lld)\n",
-                (long long)mm.max_position_observed(), (long long)mm_config.max_inventory);
-    std::printf("closing position     %lld\n", (long long)p.position());
+                i64(mm.max_position_observed(), i64(mm_config.max_inventory);
+    std::printf("closing position     %lld\n", i64(p.position());
     std::printf("\n");
     std::printf("SPREADS (raw price units, 1/10000)\n");
     std::printf("------------------------------------\n");
@@ -194,8 +194,8 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("ADVERSE SELECTION\n");
     std::printf("----------------\n");
-    std::printf("resolved fills       %llu\n", (unsigned long long)s.resolved);
-    std::printf("toxic fills          %llu\n", (unsigned long long)s.toxic);
+    std::printf("resolved fills       %llu\n", u64(s.resolved);
+    std::printf("toxic fills          %llu\n", u64(s.toxic);
     std::printf("toxicity rate        %.2f%%\n", s.toxicity_rate() * 100.0);
     std::printf("adverse cost / fill  %+.2f raw  (2 * markout; positive is a cost)\n",
                 s.adverse_cost_per_fill());
@@ -211,11 +211,11 @@ int main(int argc, char** argv) {
     std::printf("\n");
     std::printf("PNL (UPPER BOUND - no queue position, no latency, no depth)\n");
     std::printf("----------------------------------------------------\n");
-    std::printf("total pnl (raw)      %lld\n", (long long)p.total_pnl());
+    std::printf("total pnl (raw)      %lld\n", i64(p.total_pnl());
     std::printf("pnl per fill (raw)   %.2f\n", p.pnl_per_fill());
-    std::printf("best step (raw)      %lld\n", (long long)p.best_step());
-    std::printf("worst step (raw)     %lld\n", (long long)p.worst_step());
-    std::printf("drawdown (raw)       %lld\n", (long long)p.drawdown());
+    std::printf("best step (raw)      %lld\n", i64(p.best_step());
+    std::printf("worst step (raw)     %lld\n", i64(p.worst_step());
+    std::printf("drawdown (raw)       %lld\n", i64(p.drawdown());
     std::printf("\n");
     std::printf("Read the markout, the toxicity rate and the inventory excursion.\n");
     std::printf("The PnL is an upper bound and the most flattering number here.\n");
