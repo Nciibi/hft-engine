@@ -102,9 +102,18 @@ public:
     static constexpr std::uint64_t kMicroTokensPerToken = 1'000'000;
 
     TokenBucket() = default;
+    /// `burst_multiplier` is the bucket depth in units of one second's
+    /// worth of orders, not an absolute token count. Passing 1 means
+    /// "burst to a full second, then hold the sustained rate", which is
+    /// the right default for catching a submission loop.
+    ///
+    /// An earlier revision treated the multiplier as the absolute token
+    /// count, so `TokenBucket(100, 1)` admitted exactly ONE order and
+    /// then refused a hundred. The rate limit still worked; it simply
+    /// did not work at the rate anyone asked for.
     TokenBucket(std::uint64_t rate_per_second, std::uint64_t burst_multiplier)
         : rate_(rate_per_second == 0 ? 1 : rate_per_second),
-          burst_tokens_(burst_multiplier == 0 ? 1 : burst_multiplier) {
+          burst_tokens_((burst_multiplier == 0 ? 1 : burst_multiplier) * rate_) {
         tokens_ = burst_tokens_ * kMicroTokensPerToken;
     }
 
