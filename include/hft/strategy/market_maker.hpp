@@ -249,6 +249,8 @@ private:
     Price resting_bid_{};
     Price resting_ask_{};
     Price last_mid_{};
+
+    Price quote_mid_{};
     std::int64_t quoted_spread_raw_ = 0;
     bool quote_valid_ = false;
     bool quote_active_ = false;
@@ -263,7 +265,8 @@ private:
     std::uint64_t bid_checks_ = 0;
     std::uint64_t ask_checks_ = 0;
     std::uint64_t bid_hits_ = 0;
-    std::uint64_t ask_hits_ = 0;`n    std::int64_t max_position_observed_ = 0;
+    std::uint64_t ask_hits_ = 0;
+    std::int64_t max_position_observed_ = 0;
 };
 
 }  // namespace hft::strategy
