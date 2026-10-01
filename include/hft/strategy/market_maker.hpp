@@ -154,6 +154,12 @@ public:
     [[nodiscard]] const VolatilityEstimator& volatility() const noexcept { return vol_; }
     [[nodiscard]] const Quoter& quoter() const noexcept { return quoter_; }
     [[nodiscard]] std::uint64_t observations() const noexcept { return observations_; }
+    /// Observations where both sides had a price. A strategy that
+    /// spends most of its time here being unable to quote is a
+    /// strategy whose feed is wrong, and this is how you find out.
+    [[nodiscard]] std::uint64_t two_sided_observations() const noexcept { return two_sided_; }
+    [[nodiscard]] std::uint64_t one_sided_observations() const noexcept { return one_sided_; }
+    [[nodiscard]] std::uint64_t fills() const noexcept { return fills_; }
     [[nodiscard]] std::uint64_t quotes() const noexcept { return quotes_; }
     [[nodiscard]] const MarketMakerConfig& config() const noexcept { return config_; }
 
