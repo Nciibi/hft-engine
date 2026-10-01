@@ -156,24 +156,6 @@ public:
     [[nodiscard]] const MarketMakerConfig& config() const noexcept { return config_; }
 
 private:
-    /// Inventory limit. Beyond it, stop quoting the side that would
-    /// increase the position. Checking the side rather than the net
-    /// means a long position stops being added to but is still allowed
-    /// to unwind, which is the behaviour that actually reduces risk.
-    [[nodiscard]] bool within_inventory(const Quote& quote) const noexcept {
-        const std::int64_t position = pnl_.position();
-        if (position >= config_.max_inventory && quote.bid > mid_hint()) {
-            return false;
-        }
-        if (position <= -config_.max_inventory && quote.ask < mid_hint()) {
-            return false;
-        }
-        return true;
-    }
-
-    /// Last known mid, retained only for the inventory check.
-    [[nodiscard]] Price mid_hint() const noexcept { return last_mid_; }
-
     void fill(Side side, Price price, Price mid, Nanos now) noexcept {
         const std::uint32_t size = config_.quote.base_size;
         pnl_.on_fill(side, price, Quantity::from_raw(size));
@@ -181,7 +163,7 @@ private:
         ++fills_;
         // The quote is consumed: one resting order fills once, and
         // leaving it up would let a single quote fill repeatedly as the
-        // mid oscillated.
+        // mid oscillated across it.
         quote_active_ = false;
     }
 
@@ -193,10 +175,12 @@ private:
 
     Price resting_bid_{};
     Price resting_ask_{};
-    std::int64_t quoted_spread_raw_ = 0;
     Price last_mid_{};
+    std::int64_t quoted_spread_raw_ = 0;
     bool quote_valid_ = false;
     bool quote_active_ = false;
+    bool bid_live_ = true;
+    bool ask_live_ = true;
     std::uint64_t observations_ = 0;
     std::uint64_t quotes_ = 0;
     std::uint64_t fills_ = 0;
