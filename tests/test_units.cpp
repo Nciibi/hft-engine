@@ -337,6 +337,7 @@ void test_decode_mutations() {
 
 void test_sequence() {
     std::printf("sequence tracker\n");
+    using namespace hft;
 
     // Contiguous stream across the 32-bit wrap, which is where naive
     // `observed == expected + 1` comparisons fail.
