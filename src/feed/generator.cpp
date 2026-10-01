@@ -102,22 +102,16 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
         mid += step;
         mid += (anchor - mid) / reversion;
 
-        // Choose a level offset within the window, then a side. Keeping
-        // the side choice independent of the offset gives a book with
-        // both sides populated at every level.
-        const std::int64_t offset = static_cast<std::int64_t>(rng.below(
-                                       static_cast<std::uint64_t>(levels))) -
-                                    half;
         const hft::Side side = (rng.next() & 1u) == 0u ? hft::Side::bid : hft::Side::ask;
 
-        // Quantise to the tick grid, rounding half away from zero.
-        // Rounding is done in integer arithmetic on purpose: this is
-        // generator-side rounding of synthetic data, deliberately kept
-        // away from the Price type that forbids it.
-        std::int64_t raw_price = mid + offset * half_spread_raw;
-        if (raw_price > 0) {
-            raw_price = ((raw_price + tick / 2) / tick) * tick;
-        }
+        // Bids strictly BELOW the mid, asks strictly ABOVE it. See the
+        // long note in generate_capture: choosing the side and the
+        // offset independently produces overlapping sides and a book
+        // whose mid never moves.
+        const std::int64_t offset =
+            1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels)));
+        const std::int64_t raw_price =
+            side == hft::Side::bid ? mid - offset * tick : mid + offset * tick;
         if (raw_price <= 0) {
             continue;
         }
