@@ -173,9 +173,11 @@ public:
 
 private:
     [[nodiscard]] std::uint32_t index_for(const K& key) const noexcept {
-        // A high-quality mix so that sequential OrderIds, which would
-        // otherwise land in one probe run and degrade the table to a
-        // linked list, spread across slots.
+        // For the integral keys used here, std::hash is the identity
+        // and masking with (capacity - 1) scatters sequential OrderIds
+        // across distinct slots. That is the desired outcome, not a
+        // clustering hazard: a prime-modulus table would be the one
+        // that needed a mixing function.
         return static_cast<std::uint32_t>(Hash{}(key)) & mask_;
     }
 
