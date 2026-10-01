@@ -226,6 +226,9 @@ void test_risk_rate_limit() {
         }
         return n;
     }();
+    if (after_wait < 4 || after_wait > 5) {
+        std::printf("  (rate limiter granted %d of 5 after 0.5s at 10/s)\n", after_wait);
+    }
     check(after_wait >= 4 && after_wait <= 5,
           "half a second buys about half the rate back");
 
