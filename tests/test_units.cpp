@@ -312,24 +312,29 @@ void test_decode_mutations() {
         std::vector<std::uint8_t> buf;
         feed::append_order_replace(buf, kId, kId + 1, Quantity::from_raw(10),
                                    Price::from_raw(100'000), 0);
-        check_eq_int(static_cast<long long>(buf.size()), 38, "replace frame is 38 bytes");
+        check_eq_int(static_cast<long long>(buf.size()), 41, "replace frame is 41 bytes");
         const auto r = itch::decode(buf.data(), buf.size());
         check(r.status == itch::DecodeStatus::unknown_type,
               "order replace is skipped, not guessed at");
         check(r.skippable(), "order replace is skippable");
-        check_eq_int(itch::frame_stride(r), 38, "replace skip stride is the full frame");
+        check_eq_int(itch::frame_stride(r), 41, "replace skip stride is the full frame");
     }
 
-    // A length that disagrees with the tag must be rejected even though
-    // the tag is known.
+    // A known tag whose declared length disagrees with its own layout
+    // must be rejected. The body has to be long enough to satisfy the
+    // declared length, or the decoder would (correctly) report
+    // truncation before ever reaching the length check.
     {
-        std::vector<std::uint8_t> good;
-        feed::append_order_delete(good, kId, 0);
+        std::vector<std::uint8_t> body;
+        feed::append_add_order(body, Side::bid, Price::from_raw(1'000'000),
+                               Quantity::from_raw(10), kId, 0);
+        // Retag as 'D' (19-byte body) while the 32-byte length stands.
+        body[2] = static_cast<std::uint8_t>(itch::MessageType::order_delete);
         std::vector<std::uint8_t> bad;
-        feed::append_frame_with_length(bad, good.data() + 2, good.size() - 2, 32);
+        feed::append_frame_with_length(bad, body.data() + 2, body.size() - 2, 32);
         const auto r = itch::decode(bad.data(), bad.size());
         check(r.status == itch::DecodeStatus::bad_length,
-              "'D' tagged with an 'E' length is rejected");
+              "'D' tagged with an 'A' length is rejected");
     }
 }
 
@@ -363,13 +368,16 @@ void test_sequence() {
         check_eq_int(t.expected(), 106, "expected advances past the gap");
     }
 
-    // Retransmit and stale packet.
+    // Retransmit and stale packet. Both are backwards jumps and the
+    // sequence number cannot distinguish them, so both report
+    // `duplicate` and neither advances the expectation.
     {
         itch::SequenceTracker t(100);
         t.observe(100);
         check(t.observe(99) == itch::SequenceTracker::State::duplicate, "99 is a duplicate");
         check_eq_int(t.expected(), 101, "a duplicate does not advance the expectation");
-        check(t.observe(50) == itch::SequenceTracker::State::out_of_order, "50 is out of order");
+        check(t.observe(50) == itch::SequenceTracker::State::duplicate, "50 is also a duplicate");
+        check(!t.clean(), "a retransmitted packet makes the stream unclean");
     }
 }
 
