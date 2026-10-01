@@ -137,8 +137,16 @@ public:
                 // Normalise the reported spread to what it would be if
                 // both sides were quoted, so the metric stays
                 // comparable between one-sided and two-sided quoting.
-                quoted_spread_raw_ = 2 * (bid_live_ ? mid.raw() - bid.raw()
-                                                     : ask.raw() - mid.raw());
+                //
+                // A MAGNITUDE, not a signed distance. With a position
+                // on one side the model's reservation shifts past the
+                // mid, and `mid - bid` comes out negative; reporting
+                // that as a "spread" produces a -121,786 effective
+                // spread and a realisation ratio of zero, which reads
+                // as a finding when it is an arithmetic slip.
+                const std::int64_t distance =
+                    bid_live_ ? mid.raw() - bid.raw() : ask.raw() - mid.raw();
+                quoted_spread_raw_ = 2 * (distance < 0 ? -distance : distance);
             }
 
             resting_bid_ = bid;
