@@ -245,18 +245,18 @@ int main(int argc, char** argv) {
             "      inconsistent with its own framing; do not trust the checksum.\n",
             malformed);
     }
-    std::printf("sequence accepted  %llu\n", static_cast<unsigned long long>(sequence.accepted());
-    std::printf("sequence gaps      %llu\n", static_cast<unsigned long long>(sequence.gaps());
-    std::printf("sequence missing   %llu\n", static_cast<unsigned long long>(sequence.missing());
-    std::printf("sequence rejects   %llu\n", static_cast<unsigned long long>(sequence.rejects());
+    std::printf("sequence accepted  %llu\n", u64(sequence.accepted()));
+    std::printf("sequence gaps      %llu\n", u64(sequence.gaps()));
+    std::printf("sequence missing   %llu\n", u64(sequence.missing()));
+    std::printf("sequence rejects   %llu\n", u64(sequence.rejects()));
     std::printf("\nbook state\n");
     std::printf("---------\n");
     std::printf("bid levels         %u\n", book.level_count(Side::bid));
     std::printf("ask levels         %u\n", book.level_count(Side::ask));
     std::printf("bid orders         %u\n", book.order_count(Side::bid));
     std::printf("ask orders         %u\n", book.order_count(Side::ask));
-    std::printf("bid resting shares %llu\n", static_cast<unsigned long long>(book.aggregate_at(Side::bid).raw());
-    std::printf("ask resting shares %llu\n", static_cast<unsigned long long>(book.aggregate_at(Side::ask).raw());
+    std::printf("bid resting shares %llu\n", u64(book.aggregate_at(Side::bid).raw()));
+    std::printf("ask resting shares %llu\n", u64(book.aggregate_at(Side::ask).raw()));
     std::printf("\nchecksum samples   %zu\n", checksummed);
     std::printf("BOOK CHECKSUM      %s\n", hex64(checksum).c_str());
 
@@ -265,7 +265,7 @@ int main(int argc, char** argv) {
             "\nWARNING: the capture was not contiguous. %llu messages missing,\n"
             "so this book does NOT reflect a complete session and its\n"
             "checksum is not comparable with a clean run.\n",
-            static_cast<unsigned long long>(sequence.missing());
+            u64(sequence.missing()));
     }
 
     std::printf(
