@@ -106,7 +106,9 @@ public:
         return missing_ == 0 && rejects_ == 0;
     }
 
-    [[nodiscard]] static constexpr std::uint32_t kHalfSpace = 0x8000'0000u;
+    // Plain constexpr, not [[nodiscard]]: it is a tuning constant, not
+    // a call, and some compilers warn about the attribute here.
+    static constexpr std::uint32_t kHalfSpace = 0x8000'0000u;
 
 private:
     std::uint32_t next_ = 0;

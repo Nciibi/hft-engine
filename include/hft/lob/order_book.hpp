@@ -127,9 +127,15 @@ public:
     // ---- Mutations ----------------------------------------------------
 
     /// Add a working order. Returns the handle, or kInvalidHandle on
-    /// rejection; `status` always explains why.
-    [[nodiscard]] Handle add(Side side, Price price, Quantity size, OrderId id,
-                             BookStatus& status) noexcept;
+    /// rejection.
+    ///
+    /// Deliberately NOT [[nodiscard]]: the status out-param is the
+    /// primary channel, and a caller that only needs to know whether
+    /// the add was accepted has no use for the handle. Marking it
+    /// nodiscard would force a cast-to-void on every such call, which
+    /// is noise that trains people to ignore the attribute.
+    Handle add(Side side, Price price, Quantity size, OrderId id,
+               BookStatus& status) noexcept;
 
     /// ITCH 'E': consume `qty` from the order. Removes the order when
     /// its remaining size reaches zero.
