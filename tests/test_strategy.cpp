@@ -265,6 +265,12 @@ void test_book_never_crosses() {
             if (b && a) {
                 ++two_sided;
                 if (b->raw() > a->raw()) {
+                    if (crossed == 0) {
+                        std::printf("  FIRST CROSSING at two-sided #%llu: bid=%lld ask=%lld "
+                                    "(over by %lld)\n",
+                                    (unsigned long long)two_sided, (long long)b->raw(),
+                                    (long long)a->raw(), (long long)(b->raw() - a->raw()));
+                    }
                     ++crossed;
                 }
                 const std::int64_t mid = (b->raw() + a->raw()) / 2;
