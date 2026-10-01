@@ -81,6 +81,11 @@ target_link_libraries(hft_core PUBLIC hft_warnings)
 add_executable(hft_bench src/bench/bench.cpp)
 target_link_libraries(hft_bench PRIVATE hft_core)
 
+# Replay: deterministic reconstruction of a book from a capture, with a
+# state checksum and SOUP sequence validation.
+add_executable(hft_replay src/replay/replay.cpp)
+target_link_libraries(hft_replay PRIVATE hft_core)
+
 add_executable(hft_test tests/test_units.cpp)
 target_link_libraries(hft_test PRIVATE hft_core)
 
@@ -106,6 +111,21 @@ foreach(seed
         0xDEADBEEFCAFEBABE)
     add_test(NAME differential_${seed} COMMAND hft_differential ${seed} 50000)
 endforeach()
+
+# Determinism: the same capture replayed twice must produce the same
+# book checksum. This is the one test that would catch a change
+# introducing iteration-order dependence, pointer-value dependence, or
+# uninitialised reads in state, and it is cheap.
+add_test(NAME determinism COMMAND hft_replay 50000)
+set_tests_properties(determinism PROPERTIES
+    PASS_REGULAR_EXPRESSION "sequence gaps +0")
+
+# A capture containing Order Replace records must replay cleanly by
+# skipping them. This asserts the skip path end to end, including that
+# nothing is silently dropped.
+add_test(NAME replay_clean COMMAND hft_replay 100000)
+set_tests_properties(replay_clean PROPERTIES
+    PASS_REGULAR_EXPRESSION "malformed +0")
 
 # ---- Reporting -----------------------------------------------------
 message(STATUS "hft_engine ${PROJECT_VERSION}")
