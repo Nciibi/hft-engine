@@ -124,6 +124,14 @@ void append_order_executed_at_price(std::vector<std::uint8_t>& out, hft::OrderId
                                     hft::StockLocate locate = 1,
                                     hft::TrackingNumber tracking = 0) noexcept;
 
+/// Order Replace ('U'). Emitted only to exercise the decoder's
+/// skip-by-length path; this build deliberately does not decode it, so
+/// this is the emitter's business and not the decoder's.
+void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original, hft::OrderId next,
+                          hft::Quantity shares, hft::Price price, hft::Nanos timestamp,
+                          hft::StockLocate locate = 1,
+                          hft::TrackingNumber tracking = 0) noexcept;
+
 /// Write a raw 2-byte length prefix followed by `body`.
 void append_frame(std::vector<std::uint8_t>& out, const std::uint8_t* body,
                   std::size_t body_size) noexcept;
