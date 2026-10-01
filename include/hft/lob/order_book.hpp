@@ -183,6 +183,19 @@ private:
     void link_order(Handle h, Handle level) noexcept;
     void unlink_order(Handle h) noexcept;
 
+    /// Change an order's remaining size, rolling the level and side
+    /// aggregates to match while leaving the order exactly where it is
+    /// in the queue.
+    ///
+    /// This is the correct path for a partial fill and for a partial
+    /// cancel. Neither event changes priority: an order that is half
+    /// filled keeps its position, and an order that is partially
+    /// cancelled is not promoted past orders ahead of it. Unlinking and
+    /// relinking to refresh the aggregate would move it to the tail of
+    /// its level, which is a real and expensive bug that a book which
+    /// only ever appends would never surface.
+    void reduce_size(Handle h, Quantity new_size) noexcept;
+
     /// Detach an order, release its handle, and drop its price level
     /// if that level became empty.
     void detach_order(Handle h) noexcept;
