@@ -40,17 +40,9 @@ enum class MessageType : std::uint8_t {
     trade = 'T',                          ///< Trade (non-cross)
     cross_trade = 'Q',                    ///< Cross Trade
     broken_trade = 'B',                   ///< Broken Trade
-    end_of_messages = 'C',                ///< NOTE: collides with 'C' above.
     end_of_market_hours = 'M',
     end_of_system_hours = 'Z',
 };
-
-// `end_of_messages` is not part of the ITCH tag space; it is listed
-// above only to document the collision and it is never used. The real
-// end-of-session marker is 'C' in some vendor dialects, which is
-// exactly the kind of ambiguity that makes tag dispatch fail loudly.
-static_assert(static_cast<std::uint8_t>(MessageType::order_executed_at_price) == 'C',
-              "'C' is Order Executed With Price in TotalView-ITCH 5.0");
 
 /// Byte offsets within a message body. Only verified layouts appear
 /// here; see the note at the top of this file.
