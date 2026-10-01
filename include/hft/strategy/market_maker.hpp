@@ -76,8 +76,10 @@ public:
             // quoting a mid you synthesised from one side is how a
             // strategy ends up leaning on a side of the market that
             // does not exist.
+            ++one_sided_;
             return;
         }
+        ++two_sided_;
 
         const Price mid = Price::from_raw((best_bid->raw() + best_ask->raw()) / 2);
         last_mid_ = mid;
