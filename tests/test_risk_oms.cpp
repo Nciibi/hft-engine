@@ -230,7 +230,8 @@ void test_risk_notional_overflow() {
     // be refused, not wrapped into a small number that sails past the
     // cap. This is the whole reason the multiply is checked.
     const Price absurd = Price::from_raw(INT64_MAX / 2);
-    const Decision d = r.check(Side::bid, absurd, Quantity::from_raw(UINT32_MAX), 1'000'000'000ULL);
+    const risk::Decision d =
+        r.check(Side::bid, absurd, Quantity::from_raw(UINT32_MAX), 1'000'000'000ULL);
     check(!d.allowed(), "an unrepresentable notional is refused");
     check(d.status == risk::LimitStatus::price_band || d.status == risk::LimitStatus::order_notional,
           "and is refused for a reason, not by accident");
