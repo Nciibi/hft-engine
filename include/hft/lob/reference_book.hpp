@@ -207,17 +207,6 @@ private:
 
     using Book = std::map<Price, std::deque<Order>>;
 
-    [[nodiscard]] Book::const_iterator begin_ordered(Side side) const {
-        const Book& book = books_[index(side)];
-        return side == Side::bid ? std::next(book.cend(), -static_cast<std::ptrdiff_t>(book.size()))
-                                 : book.cbegin();
-    }
-
-    [[nodiscard]] Book::const_iterator end_ordered(Side side) const {
-        const Book& book = books_[index(side)];
-        return side == Side::bid ? book.cend() : book.cend();
-    }
-
     Book books_[2]{};
     std::map<OrderId, Price> location_{};
     std::map<OrderId, Side> sides_{};
