@@ -33,7 +33,10 @@ public:
         }
         books_[index(side)][price].push_back(Order{id, size, OrderState::new_order});
         location_[id] = price;
-        sides_[index(side)] = side;
+        // Keyed by order id, not by index(side). Keying the side map by
+        // the book's integer index stores entries under 0 and 1 and
+        // makes every later side_of(id) lookup fail.
+        sides_[id] = side;
         return BookStatus::ok;
     }
 
