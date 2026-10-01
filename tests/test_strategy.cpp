@@ -149,13 +149,13 @@ void test_metric_identity() {
     std::printf("metrics: identity and sign conventions\n");
     // realised = effective - 2 * markout, exactly. This is the one
     // arithmetic relation a reviewer will check, so it is checked.
-    constexpr hft::int64_t fill = 1'000'100;
-    constexpr hft::int64_t mid_at = 1'000'200;
-    constexpr hft::int64_t mid_after = 1'000'050;
+    constexpr std::int64_t fill = 1'000'100;
+    constexpr std::int64_t mid_at = 1'000'200;
+    constexpr std::int64_t mid_after = 1'000'050;
 
-    const hft::int64_t effective = 2 * (fill - mid_at);
-    const hft::int64_t markout = mid_after - mid_at;
-    const hft::int64_t realised = effective - 2 * markout;
+    const std::int64_t effective = 2 * (fill - mid_at);
+    const std::int64_t markout = mid_after - mid_at;
+    const std::int64_t realised = effective - 2 * markout;
 
     check(effective == -200, "buying above the mid is a positive cost");
     check(markout == -150, "the mid falling after a buy is a negative markout");
