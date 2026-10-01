@@ -431,8 +431,20 @@ public:
         return summed == occupied;
     }
 
-    /// Number of slots holding an order, live or retired.
-    [[nodiscard]] std::size_t held_count() const noexcept { return submitted_; }
+    /// Number of slots currently holding an order, live or retired.
+    ///
+    /// Not `submitted()`. Slots are recycled, so a long-running OMS can
+    /// have submitted ten thousand orders while occupying sixty of
+    /// them, and the reconcile view is about the latter. An earlier
+    /// version of this accessor returned `submitted_`, which made the
+    /// two indistinguishable and hid the difference entirely.
+    [[nodiscard]] std::size_t held_count() const noexcept {
+        std::size_t n = 0;
+        for (const std::uint8_t h : held_) {
+            n += h;
+        }
+        return n;
+    }
 
     /// Engage the kill switch and cancel every live order.
     ///
