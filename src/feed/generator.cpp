@@ -201,9 +201,10 @@ void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original,
                           hft::Quantity shares, hft::Price price, hft::Nanos timestamp,
                           hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
     using namespace hft::itch;
-    // 2 locate + 2 track + 6 ts + 8 original + 8 new + 4 shares
-    // + 4 price + 1 type + 1 tif + 1 display + 1 participant = 36
-    constexpr std::uint16_t kReplaceBodySize = 36;
+    // Body: tag(1) + locate(2) + track(2) + ts(6) + original(8)
+    //     + new(8) + shares(4) + price(4) + type(1) + tif(1)
+    //     + display(1) + participant(1) = 39
+    constexpr std::uint16_t kReplaceBodySize = 39;
     write_be16(out, kReplaceBodySize);
     out.push_back(static_cast<std::uint8_t>(MessageType::order_replace));
     write_be16(out, locate);

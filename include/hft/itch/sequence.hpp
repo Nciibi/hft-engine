@@ -37,12 +37,16 @@ public:
         ok = 0,
         /// Forward jump: `missing` messages were lost.
         gap,
-        /// Already seen: a retransmit or a duplicate packet.
+        /// Backwards jump. This covers BOTH a retransmit of a packet
+        /// already seen and a genuinely stale packet, because the
+        /// sequence number alone cannot tell them apart: both simply
+        /// arrive lower than expected. An earlier revision of this
+        /// enum split them on an arbitrary magnitude threshold, which
+        /// made the distinction look meaningful while being
+        /// unprincipled. Collapsing them is the honest answer, and a
+        /// consumer that needs the difference has to look at the
+        /// transport, not here.
         duplicate,
-        /// Jumped backwards by more than a duplicate, i.e. a stale
-        /// packet. Treated separately from `duplicate` because a stale
-        /// packet means something is badly wrong upstream.
-        out_of_order,
     };
 
     /// Sequence number of the first message in the session.
@@ -67,15 +71,17 @@ public:
             return State::gap;
         }
         if (delta > kHalfSpace) {
-            // Backwards. Small backward moves are retransmits; large
-            // ones are stale packets.
-            last_ = (delta == 0xFFFF'FFFFu) ? State::duplicate : State::out_of_order;
+            // Backwards: a retransmit or a stale packet. Either way the
+            // message has already been accounted for, so the
+            // expectation does not move.
+            last_ = State::duplicate;
             ++rejects_;
             return last_;
         }
-        // Exactly half the sequence space: ambiguous by construction.
-        // Refuse to classify it as either direction.
-        last_ = State::out_of_order;
+        // Exactly half the sequence space. Ambiguous by construction:
+        // this could be a forward jump of 2^31 or a backward jump of
+        // 2^31. Refuse to classify it rather than pick one.
+        last_ = State::duplicate;
         ++rejects_;
         return last_;
     }

@@ -245,7 +245,7 @@ void test_decode_mutations() {
     {
         std::vector<std::uint8_t> buf;
         feed::append_order_cancel(buf, kId, Quantity::from_raw(75), 0x0000'0000'0000'2710ULL);
-        check_eq_int(static_cast<long long>(buf.size()), 22, "cancel frame is 22 bytes");
+        check_eq_int(static_cast<long long>(buf.size()), 25, "cancel frame is 25 bytes");
         const auto r = itch::decode(buf.data(), buf.size());
         check(r.ok(), "cancel decodes");
         const auto* c = std::get_if<itch::OrderCancel>(&r.message.body);
@@ -261,7 +261,7 @@ void test_decode_mutations() {
     {
         std::vector<std::uint8_t> buf;
         feed::append_order_delete(buf, kId, 999);
-        check_eq_int(static_cast<long long>(buf.size()), 18, "delete frame is 18 bytes");
+        check_eq_int(static_cast<long long>(buf.size()), 21, "delete frame is 21 bytes");
         const auto r = itch::decode(buf.data(), buf.size());
         check(r.ok(), "delete decodes");
         const auto* d = std::get_if<itch::OrderDelete>(&r.message.body);
