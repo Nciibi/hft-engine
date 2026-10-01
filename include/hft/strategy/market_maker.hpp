@@ -166,10 +166,10 @@ public:
             ++fill_checks_;
             if (bid_live_) ++bid_checks_;
             if (ask_live_) ++ask_checks_;
-            if (bid_live_ && best_bid->raw() <= resting_bid_.raw()) {                            fill(Side::bid, resting_bid_, mid, now);
+            if (bid_live_ && best_bid->raw() <= resting_bid_.raw()) {
+                fill(Side::bid, resting_bid_, now);
             } else if (ask_live_ && best_ask->raw() >= resting_ask_.raw()) {
-                ++ask_hits_;
-                fill(Side::ask, resting_ask_, mid, now);
+                fill(Side::ask, resting_ask_, now);
             }
         }
 
