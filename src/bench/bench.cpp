@@ -181,22 +181,28 @@ int main(int argc, char** argv) {
 
         if (r.ok()) {
             ++decoded;
-            hft::lob::BookStatus st{};
-            const hft::lob::Handle h =
-                book.add(r.message.add_order.side, r.message.add_order.price,
-                         r.message.add_order.size, r.message.add_order.id, st);
-            if (st == hft::lob::BookStatus::ok) {
-                ++applied;
+            // This feed is Add Order only, so a successful decode is
+            // necessarily an Add Order. Anything else reaching here
+            // would be a generator bug, and is counted rather than
+            // reinterpreted.
+            const auto* ao = std::get_if<hft::itch::AddOrder>(&r.message.body);
+            if (ao == nullptr) {
+                ++unexpected;
             } else {
-                ++rejected;
-                switch (st) {
-                    case hft::lob::BookStatus::capacity_exhausted: ++rej_capacity; break;
-                    case hft::lob::BookStatus::duplicate_order:   ++rej_duplicate; break;
-                    case hft::lob::BookStatus::zero_size:         ++rej_zero_size; break;
-                    default: break;
+                hft::lob::BookStatus st{};
+                book.add(ao->side, ao->price, ao->size, ao->id, st);
+                if (st == hft::lob::BookStatus::ok) {
+                    ++applied;
+                } else {
+                    ++rejected;
+                    switch (st) {
+                        case hft::lob::BookStatus::capacity_exhausted: ++rej_capacity; break;
+                        case hft::lob::BookStatus::duplicate_order:   ++rej_duplicate; break;
+                        case hft::lob::BookStatus::zero_size:         ++rej_zero_size; break;
+                        default: break;
+                    }
                 }
             }
-            (void)h;
         } else if (r.status == hft::itch::DecodeStatus::unknown_type) {
             ++unknown;
         } else {
