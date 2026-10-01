@@ -297,6 +297,9 @@ production software is worse than one that does not:
   be meaningless without it.
 - **No persistence or recovery.** A process restart loses all state.
   A real system needs a write-ahead log and a snapshot cadence.
+- **No market making or adverse-selection measurement.** Not started.
+  This is the gap the most engineering candidates have, per every
+  interview guide consulted, and it is the next piece of work.
 - **No self-trade prevention, no auction handling, no order book
   state message processing.**
 - **Price ladder is a sorted linked list**, so inserting a price not
