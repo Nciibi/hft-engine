@@ -164,6 +164,28 @@ clean one. The tracker handles the 32-bit wrap explicitly, because
 `observed == expected + 1` is correct everywhere except the one moment
 it is hardest to reproduce.
 
+**Time is injected, never read.** Every risk and OMS entry point that
+needs the current time takes it as a parameter. A component that called
+a clock internally could not be tested deterministically and could not
+be compared against a reference implementation, which is the property
+the rest of this repository depends on. The cost is one parameter.
+
+**Every rejection has a specific reason.** There is no catch-all limit
+verdict, because an unexplained rejection is unactionable for a trader
+and undiagnosable for an operator. Limits are also evaluated in a fixed,
+documented order, and the order is part of the contract: the kill
+switch first, so a tripped switch stops everything regardless of what
+else is true, and the price band before the rate limiter, so a
+fat-fingered order is reported as a fat finger rather than being
+silently rate-limited into a different and less actionable reason.
+
+**The OMS state machine is a table, not scattered `if`s.** It is
+exhaustively tested against an independently written 8×8 matrix, so a
+single wrong edge cannot hide. `pending_cancel` is deliberately not
+terminal: a fill can arrive while a cancel is outstanding, and treating
+that as a completed cancel silently drops the residual order and leaks
+inventory.
+
 **The price ladder is a sorted linked list, and that is a known cost.**
 Inserting a price that is not adjacent to the best walks from the head
 of the ladder, so book-update latency is proportional to ladder depth.
