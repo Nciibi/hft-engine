@@ -125,7 +125,8 @@ int main(int argc, char** argv) {
     std::printf("markout horizon      %llu ticks (~%llu us synthetic)\n",
                 (unsigned long long)(mm.adverse().horizon() / 4'000),
                 (unsigned long long)(mm.adverse().horizon() / 1'000));
-    std::printf("volatility sigma     %.8f\n", mm.volatility().sigma());
+    std::printf("volatility sigma     %.2f raw/tick (%.4f%%)\n", mm.volatility().sigma(),
+                mm.volatility().sigma_fraction() * 100.0);
     std::printf("risk term            %.6f\n", mm.quoter().risk_term());
     std::printf("half spread          %.2f raw\n", mm.quoter().half_spread());
     std::printf("\n");
