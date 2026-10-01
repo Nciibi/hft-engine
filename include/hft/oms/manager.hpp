@@ -192,6 +192,18 @@ public:
         free_slots_.pop_back();
 
         Order& o = orders_[slot];
+        // A free slot may still hold a retired order's terminal state.
+        // Reusing the slot discards that order, so its contribution to
+        // the state counters must be removed BEFORE the record is
+        // overwritten.
+        //
+        // Skipping this made the counters drift negative over a long
+        // run, because `o = Order{}` resets the state without telling
+        // the counters anything. The sum of the counters stopped
+        // equalling the number of orders, and a reconcile view showing
+        // -105 orders in live states is the kind of thing that gets
+        // discovered in production.
+        --state_counts_[static_cast<std::size_t>(o.state)];
         o = Order{};
         o.id = next_id_++;
         o.side = side;
