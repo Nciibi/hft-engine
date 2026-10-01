@@ -93,24 +93,30 @@ compiler, and `git`.
 ## Architecture
 
 ```
-  feed.itch
-      |  mmap, sequential
+  capture.itch   [seq:4][len:2][ITCH body]
+      |
       v
   [ ITCH decoder ]  zero-copy, big-endian, 48-bit timestamps
-      |  typed messages
+      |             A / E / C / X / D; others skipped by length
+      v
+  [ SOUP sequence ] gap and duplicate detection, 32-bit wrap safe
+      |
+      v
+  [ Apply layer ]   single dispatch: message -> book mutation
+      |
       v
   [ Order book ]    price-time priority, fixed-point, slab arena
       |
-      +---> [ Market data handler ]  book deltas to consumers
+      +---> [ FNV-1a state checksum ]  deterministic replay
       |
       v
-  [ Market maker ]  Avellaneda-Stoikov inventory skew
+  [ Market maker ]  not yet built
       |
       v
-  [ Pre-trade risk ]  position, notional, fat-finger, rate, kill
+  [ Pre-trade risk ]  not yet built
       |
       v
-  [ Order management ]  state machine, acknowledgements
+  [ Order management ]  not yet built
 ```
 
 ## Design decisions
