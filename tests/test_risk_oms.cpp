@@ -95,18 +95,20 @@ void test_risk_basics() {
              static_cast<int>(risk::LimitStatus::price_band),
              "the band is symmetric below the reference too");
 
-    // Notional: a $200 cap, so 20 shares at $100 is $2,000 and is
-    // refused. Uses its own limits so the notional check is the only
-    // thing that can fire.
+    // Notional is price_raw * qty in raw 1/10000 units, so 20 shares
+    // at $100.00 is 20 * 1,000,000 = 20,000,000 raw, which is $2,000.
+    // The cap below is $2,000, and the check rejects only when the
+    // notional is strictly greater, so the boundary must pass.
     {
         risk::PreTradeRisk rn(tight_notional_limits());
         rn.set_reference_price(kRef);
-        check_eq(static_cast<int>(rn.check(Side::bid, kRef, Quantity::from_raw(2'000),
-                                           1'000'000'003ULL)
+        check(rn.check(Side::bid, kRef, Quantity::from_raw(20), 1'000'000'003ULL).allowed(),
+              "an order exactly at the notional cap passes");
+        check_eq(static_cast<int>(rn.check(Side::bid, kRef, Quantity::from_raw(21),
+                                           1'000'000'004ULL)
                                       .status),
-                 static_cast<int>(risk::LimitStatus::order_notional), "notional cap is enforced");
-        check(rn.check(Side::bid, kRef, Quantity::from_raw(20), 1'000'000'004ULL).allowed(),
-              "an order just under the notional cap passes");
+                 static_cast<int>(risk::LimitStatus::order_notional),
+                 "one share over the cap is refused");
     }
 
     // Zero size has no meaning and is refused rather than admitted.
