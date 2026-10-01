@@ -96,61 +96,40 @@ public:
 
         const Quote quote = quoter_.quote(mid, pnl_.position());
         if (quote.valid) {
-            // Never quote better than the touch. See the long note
-            // below: the model prices around the mid, the book is not
-            // centred on it, and an unclamped quote sits inside the
-            // spread, which is a crossing order rather than a resting
-            // one.
-            const Price bid = quote.bid > *best_bid ? quote.bid : *best_bid;
-            const Price ask = quote.ask < *best_ask ? quote.ask : *best_ask;
+            // A passive quote is at or OUTSIDE its own touch, and
+            // never crosses.
+            //
+            //   bid = min(model_bid, best_bid)
+            //   ask = max(model_ask, best_ask)
+            //
+            // Both clamps refuse to make the strategy more aggressive
+            // than the market, which is the whole discipline of being a
+            // maker rather than a taker. The earlier clamps were the
+            // other way round (max with the bid, min with the ask),
+            // which looks symmetric and is not: they let the ask fall
+            // BELOW the bid whenever the model's inventory shift
+            // exceeded the book's spread. That produced a crossed
+            // quote that filled instantly at a terrible price and
+            // reported a -$32,000 PnL with a 0.998 realisation ratio,
+            // which is the most convincing kind of wrong.
+            //
+            // The model still does the deciding. When it wants a WIDER
+            // quote than the touch offers, the clamp is inactive and
+            // the widening happens. When it wants to be more
+            // aggressive, the clamp refuses and the strategy joins the
+            // queue instead. A long inventory therefore stops bidding
+            // far away while continuing to offer, which is inventory
+            // control expressed purely through quote placement.
+            const Price bid = quote.bid < *best_bid ? quote.bid : *best_bid;
+            const Price ask = quote.ask > *best_ask ? quote.ask : *best_ask;
 
             const std::int64_t position = pnl_.position();
-
-            if (bid < ask) {
-                // Both sides placeable. Respect the inventory limit on
-                // each side independently, so a long position stops
-                // being added to but can still be worked down.
-                bid_live_ = position < config_.max_inventory;
-                ask_live_ = position > -config_.max_inventory;
-                quoted_spread_raw_ = ask.raw() - bid.raw();
-            } else {
-                // The model wants to trade THROUGH the book: with any
-                // real inventory the reservation shift exceeds the
-                // book's own spread, so the clamped bid ends up above
-                // the clamped ask.
-                //
-                // Emitting that is not a strategy, it is a crossed
-                // quote. The only sensible action is to keep the side
-                // that REDUCES the position and drop the other. With no
-                // inventory there is no reason to prefer either side,
-                // so quote nothing rather than guess.
-                if (position > 0) {
-                    bid_live_ = false;
-                    ask_live_ = true;
-                } else if (position < 0) {
-                    bid_live_ = true;
-                    ask_live_ = false;
-                } else {
-                    bid_live_ = false;
-                    ask_live_ = false;
-                }
-                // Normalise the reported spread to what it would be if
-                // both sides were quoted, so the metric stays
-                // comparable between one-sided and two-sided quoting.
-                //
-                // A MAGNITUDE, not a signed distance. With a position
-                // on one side the model's reservation shifts past the
-                // mid, and `mid - bid` comes out negative; reporting
-                // that as a "spread" produces a -121,786 effective
-                // spread and a realisation ratio of zero, which reads
-                // as a finding when it is an arithmetic slip.
-                const std::int64_t distance =
-                    bid_live_ ? mid.raw() - bid.raw() : ask.raw() - mid.raw();
-                quoted_spread_raw_ = 2 * (distance < 0 ? -distance : distance);
-            }
+            bid_live_ = position < config_.max_inventory;
+            ask_live_ = position > -config_.max_inventory;
 
             resting_bid_ = bid;
             resting_ask_ = ask;
+            quoted_spread_raw_ = ask.raw() - bid.raw();
             quote_valid_ = quoted_spread_raw_ >= config_.min_edge_raw && (bid_live_ || ask_live_);
             if (quote_valid_) {
                 ++quotes_;
