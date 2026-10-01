@@ -81,6 +81,11 @@ target_link_libraries(hft_core PUBLIC hft_warnings)
 add_executable(hft_bench src/bench/bench.cpp)
 target_link_libraries(hft_bench PRIVATE hft_core)
 
+# Market maker: quoting model plus adverse-selection measurement over a
+# replayed capture.
+add_executable(hft_market_maker src/bench/market_maker.cpp)
+target_link_libraries(hft_market_maker PRIVATE hft_core)
+
 # Replay: deterministic reconstruction of a book from a capture, with a
 # state checksum and SOUP sequence validation.
 add_executable(hft_replay src/replay/replay.cpp)
