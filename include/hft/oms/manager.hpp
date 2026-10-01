@@ -175,7 +175,7 @@ public:
     int submit(Side side, Price price, Quantity size, Nanos now) noexcept {
         const risk::Decision decision = risk_.check(side, price, size, now);
         if (!decision.allowed()) {
-            ++rejected_;
+            ++risk_rejected_;
             return -1;
         }
 
@@ -183,7 +183,10 @@ public:
         if (slot == SIZE_MAX) {
             // Full. Refusing is the only safe answer: evicting a live
             // order to make room for a new one would strand inventory.
-            ++rejected_;
+            // Counted separately from a risk rejection, because the
+            // two call for completely different operator responses and
+            // a single combined counter hid that distinction.
+            ++pool_full_;
             return -1;
         }
         free_slots_.pop_back();
@@ -195,10 +198,12 @@ public:
         o.price = price;
         o.original_size = size;
         o.leaves_qty = size;
-        o.state = OrdState::pending_new;
         o.risk_status = risk::LimitStatus::ok;
         o.last_update = now;
         live_[slot] = 1;
+        // Counted through the same helper as every other transition,
+        // so the reconcile view cannot drift from the actual state.
+        transition(o, OrdState::pending_new);
 
         ++submitted_;
         return static_cast<int>(slot);
