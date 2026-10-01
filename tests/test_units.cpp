@@ -373,7 +373,7 @@ void test_sequence() {
     // `duplicate` and neither advances the expectation.
     {
         itch::SequenceTracker t(100);
-        t.observe(100);
+        check(t.observe(100) == itch::SequenceTracker::State::ok, "100 is ok");
         check(t.observe(99) == itch::SequenceTracker::State::duplicate, "99 is a duplicate");
         check_eq_int(t.expected(), 101, "a duplicate does not advance the expectation");
         check(t.observe(50) == itch::SequenceTracker::State::duplicate, "50 is also a duplicate");

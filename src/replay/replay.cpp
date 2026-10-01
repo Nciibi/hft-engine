@@ -72,6 +72,13 @@ std::string hex64(std::uint64_t v) {
     return std::string(buf);
 }
 
+/// Narrowing helper for printf's %llu. A lambda rather than a cast at
+/// each call site, so the cast appears once and the formatting stays
+/// readable.
+[[nodiscard]] unsigned long long u64(std::uint64_t v) noexcept {
+    return static_cast<unsigned long long>(v);
+}
+
 /// True when the argument is entirely decimal digits.
 ///
 /// The first positional argument is treated as a record count if it is
