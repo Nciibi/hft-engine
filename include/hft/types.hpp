@@ -96,8 +96,8 @@ public:
         return from_raw(raw_ > other.raw_ ? raw_ - other.raw_ : 0);
     }
 
+    // A defaulted three-way comparison supplies operator== as well.
     auto operator<=>(const Quantity&) const noexcept = default;
-    [[nodiscard]] constexpr bool operator==(const Quantity&) const noexcept = default;
 
 private:
     std::uint64_t raw_ = 0;
