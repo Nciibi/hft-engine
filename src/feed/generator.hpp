@@ -185,6 +185,12 @@ struct CaptureConfig {
     uint32_t pct_execute = 15;
     uint32_t pct_cancel = 15;
     /// Remainder is delete.
+    /// Emit Order Replace ('U') records. They are structurally valid
+    /// but this build does not decode them, so they exercise the
+    /// skip-by-length path. Off by default, so a clean replay is the
+    /// default and the skip path is opted into deliberately.
+    bool inject_order_replace = false;
+};
 
 /// Per-record counts, so a caller can assert the generated mix rather
 /// than trusting it.
