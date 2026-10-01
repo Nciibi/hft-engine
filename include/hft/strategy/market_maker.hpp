@@ -195,6 +195,17 @@ public:
     [[nodiscard]] std::uint64_t bid_hits() const noexcept { return bid_hits_; }
     [[nodiscard]] std::uint64_t ask_hits() const noexcept { return ask_hits_; }
     [[nodiscard]] std::uint64_t quotes() const noexcept { return quotes_; }
+
+    /// The quote currently resting, for diagnostics. Exposed because
+    /// "why did the strategy never fill" is a question that needs the
+    /// answer to be observable, and guessing at it from the outside
+    /// wasted several iterations.
+    [[nodiscard]] Price resting_bid() const noexcept { return resting_bid_; }
+    [[nodiscard]] Price resting_ask() const noexcept { return resting_ask_; }
+    [[nodiscard]] std::int64_t position() const noexcept { return pnl_.position(); }
+    [[nodiscard]] Price last_mid() const noexcept { return last_mid_; }
+    [[nodiscard]] bool quote_active() const noexcept { return quote_active_; }
+    [[nodiscard]] std::int64_t quoted_spread_raw() const noexcept { return quoted_spread_raw_; }
     [[nodiscard]] const MarketMakerConfig& config() const noexcept { return config_; }
 
 private:
