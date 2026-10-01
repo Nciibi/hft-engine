@@ -157,9 +157,9 @@ real depth target is known. The benchmark reports ladder depth for
 exactly this reason: a latency figure quoted without it cannot be
 interpreted.
 
-**Bugs the differential test found, kept here deliberately.** These are
-the reasons the test exists and the reasons to distrust a book that has
-never been differentially tested:
+**Bugs the tests found, kept here deliberately.** These are the
+reasons the tests exist and the reasons to distrust code that has never
+been differentially tested:
 
 - A partial fill was implemented as unlink-then-relink, which moved the
   order to the tail of its price level. A partial fill must not change
@@ -170,6 +170,22 @@ never been differentially tested:
 - The level index entry was erased unconditionally on removal, so
   removing one of two orders at the same price made a still-populated
   level unreachable. Found by review before it ever ran.
+- The ITCH Order Cancel and Order Delete body sizes were hand-written
+  as 20 and 16 and were wrong by 3 bytes each; the `static_assert`s did
+  not catch it because they compared constants to each other rather
+  than to the field offsets. The sizes are now derived from the offsets.
+- The feed generator indexed one past the end of its live-order vector
+  whenever exactly one order was resting. Heap corruption, surfacing
+  only as tens of thousands of undecodable records in the replay tool.
+- The feed generator built cancel, execute and delete frames and then
+  discarded them without emitting, while still consuming a sequence
+  number for each. The SOUP sequence check reported 79,707 missing
+  messages, which is exactly what it exists to report.
+
+The last two are worth dwelling on. Both were in the *test
+infrastructure*, both were found only because a check that should have
+been automatic actually ran, and both would have been invisible to
+anyone reading the book code alone.
 
 ## Failure modes
 
