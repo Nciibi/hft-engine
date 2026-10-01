@@ -96,22 +96,31 @@ public:
             quoted_spread_raw_ = quote.ask.raw() - quote.bid.raw();
             resting_bid_ = quote.bid;
             resting_ask_ = quote.ask;
-            quote_valid_ = quote.ask > quote.bid && quoted_spread_raw_ >= config_.min_edge_raw &&
-                           within_inventory(quote);
+            // Suppress the side that would push the position further
+            // out, while leaving the other side live so the position
+            // can still be worked down. A market maker that stops
+            // quoting entirely at its limit cannot reduce its
+            // inventory, which is the opposite of what a limit is for.
+            bid_live_ = pnl_.position() < config_.max_inventory;
+            ask_live_ = pnl_.position() > -config_.max_inventory;
+            const bool edge_ok = quoted_spread_raw_ >= config_.min_edge_raw;
+            quote_valid_ = quote.ask > quote.bid && edge_ok && (bid_live_ || ask_live_);
             if (quote_valid_) {
                 ++quotes_;
             }
         } else {
             quote_valid_ = false;
+            bid_live_ = false;
+            ask_live_ = false;
         }
 
         // (4) Test the PREVIOUS quote against the new mid. A quote
         // placed on this observation cannot fill on it: it did not
         // exist when this mid was formed.
         if (quote_active_) {
-            if (crossed_down(resting_bid_, mid)) {
+            if (bid_live_ && crossed_down(resting_bid_, mid)) {
                 fill(Side::bid, resting_bid_, mid, now);
-            } else if (crossed_up(resting_ask_, mid)) {
+            } else if (ask_live_ && crossed_up(resting_ask_, mid)) {
                 fill(Side::ask, resting_ask_, mid, now);
             }
         }
