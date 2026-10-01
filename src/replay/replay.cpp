@@ -37,7 +37,7 @@
 #include "hft/itch/sequence.hpp"
 #include "hft/lob/apply.hpp"
 #include "hft/lob/order_book.hpp"
-#include "src/replay/checksum.hpp"
+#include "replay/checksum.hpp"
 
 namespace {
 
