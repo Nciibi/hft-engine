@@ -117,7 +117,11 @@ static_assert(off::kOrderExecutedSize == 32, "ITCH Order Executed body is 32 byt
 static_assert(off::kOrderExecutedAtPriceSize == 36, "ITCH Order Exec @ Price is 36 bytes");
 static_assert(off::kOrderCancelSize == 20, "ITCH Order Cancel body is 20 bytes");
 static_assert(off::kOrderDeleteSize == 16, "ITCH Order Delete body is 16 bytes");
-static_assert(off::timestamp_high + 2 + 4 == off::kTimestampSize,
+// The timestamp ends exactly where the 6-byte field ends, and the low
+// half begins immediately after the 2-byte high half.
+static_assert(off::timestamp_low == off::timestamp_high + 2,
+              "timestamp low half must follow the 2-byte high half");
+static_assert(off::timestamp_low + 4 == off::timestamp + off::kTimestampSize,
               "48-bit timestamp is 2 high bytes + 4 low bytes");
 static_assert(off::add_order_participant + 1 == off::kAddOrderSize,
               "Add Order final field must end at the body size");

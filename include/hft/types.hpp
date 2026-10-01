@@ -58,9 +58,15 @@ public:
     // Spelled out rather than defaulted from a three-way comparison.
     // The reference book stores prices in a std::map, which needs a
     // real operator<; a defaulted `operator<=>` supplies only `==`.
+    // `>` is spelled out too rather than rewritten from `<`, because the
+    // price ladder compares in both directions and relying on
+    // rewriting makes every call site look like a mistake.
     [[nodiscard]] constexpr bool operator==(const Price&) const noexcept = default;
     [[nodiscard]] constexpr bool operator<(const Price& other) const noexcept {
         return raw_ < other.raw_;
+    }
+    [[nodiscard]] constexpr bool operator>(const Price& other) const noexcept {
+        return raw_ > other.raw_;
     }
 
 private:
