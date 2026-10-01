@@ -472,6 +472,29 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             // failure the sequence check exists to surface.
             append_capture_record(out, record_sequence, frame);
         }
+
+#ifdef HFT_DEBUG_CROSS
+        {
+            std::int64_t lo_ask = 0;
+            std::int64_t hi_bid = 0;
+            for (const Live& l : live) {
+                if (l.side == hft::Side::ask) {
+                    if (lo_ask == 0 || l.price.raw() < lo_ask) {
+                        lo_ask = l.price.raw();
+                    }
+                } else {
+                    if (hi_bid == 0 || l.price.raw() > hi_bid) {
+                        hi_bid = l.price.raw();
+                    }
+                }
+            }
+            if (lo_ask != 0 && hi_bid != 0 && hi_bid >= lo_ask) {
+                std::fprintf(stderr, "LIVE CROSSED hi_bid=%lld lo_ask=%lld live=%zu\n",
+                             (long long)hi_bid, (long long)lo_ask, live.size());
+                break;
+            }
+        }
+#endif
     }
 
     if (stats != nullptr) {
