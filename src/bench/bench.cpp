@@ -240,6 +240,13 @@ int main(int argc, char** argv) {
     std::printf("ask levels          %u\n", book.level_count(hft::Side::ask));
     std::printf("bid orders          %u\n", book.order_count(hft::Side::bid));
     std::printf("ask orders          %u\n", book.order_count(hft::Side::ask));
+    // Ladder depth is the single most important structural number in
+    // this run. The price ladder is a sorted linked list, so inserting
+    // a price that is not adjacent to the best walks from the head. The
+    // cost of book update is therefore proportional to ladder depth,
+    // and a figure quoted without it is not interpretable.
+    std::printf("ladder depth        %u bid, %u ask\n", book.level_count(hft::Side::bid),
+                book.level_count(hft::Side::ask));
     // Aggregate resting size is a share count, not a price, so it is
     // printed raw. Rendering it through Price::to_string would show
     // "100.0000" for 100 shares and quietly mislead.

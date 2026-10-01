@@ -82,6 +82,7 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
     const std::int64_t drift_raw = config.drift_raw < 0 ? 0 : config.drift_raw;
     const std::int64_t half_spread_raw = config.half_spread_raw < 0 ? 1 : config.half_spread_raw;
     const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
+    const std::int64_t tick = config.tick_raw < 1 ? 1 : config.tick_raw;
 
     const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
     const std::int64_t half = levels / 2;
@@ -109,7 +110,14 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
                                     half;
         const hft::Side side = (rng.next() & 1u) == 0u ? hft::Side::bid : hft::Side::ask;
 
-        const std::int64_t raw_price = mid + offset * half_spread_raw;
+        // Quantise to the tick grid, rounding half away from zero.
+        // Rounding is done in integer arithmetic on purpose: this is
+        // generator-side rounding of synthetic data, deliberately kept
+        // away from the Price type that forbids it.
+        std::int64_t raw_price = mid + offset * half_spread_raw;
+        if (raw_price > 0) {
+            raw_price = ((raw_price + tick / 2) / tick) * tick;
+        }
         if (raw_price <= 0) {
             continue;
         }
