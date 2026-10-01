@@ -197,6 +197,8 @@ int main(int argc, char** argv) {
             }
         } else if (r.skippable()) {
             ++skipped;
+        } else {
+            ++malformed;
         }
 
         // Checksum the book periodically rather than per record: the
@@ -220,9 +222,16 @@ int main(int argc, char** argv) {
     std::printf("-------\n");
     std::printf("applied            %zu\n", applied);
     std::printf("skipped (unknown)  %zu\n", skipped);
+    std::printf("malformed          %zu\n", malformed);
     std::printf("unknown order      %zu\n", unknown_orders);
     std::printf("over-reduce        %zu\n", over_reduce);
     std::printf("other rejects      %zu\n", other_rejects);
+    if (malformed != 0) {
+        std::printf(
+            "\nFAIL: %zu frames were neither valid nor skippable. The capture is\n"
+            "      inconsistent with its own framing; do not trust the checksum.\n",
+            malformed);
+    }
     std::printf("sequence accepted  %llu\n", (unsigned long long)sequence.accepted());
     std::printf("sequence gaps      %llu\n", (unsigned long long)sequence.gaps());
     std::printf("sequence missing   %llu\n", (unsigned long long)sequence.missing());
