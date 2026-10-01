@@ -206,6 +206,9 @@ int main(int argc, char** argv) {
     std::printf("worst step (raw)     %lld\n", (long long)p.worst_step());
     std::printf("drawdown (raw)       %lld\n", (long long)p.drawdown());
     std::printf("\n");
-    std::printf("Read the toxicity rate and realisation ratio, not the PnL.\n");
+    std::printf("\nRead the markout, the toxicity rate and the inventory excursion.
+");
+    std::printf("The PnL is an upper bound and the most flattering number here.
+");
     return 0;
 }
