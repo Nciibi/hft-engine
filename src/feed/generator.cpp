@@ -372,6 +372,14 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
                                     static_cast<hft::TrackingNumber>(i & 0xFFFFu));
                 ++local.deletes;
             }
+
+            // Emit the record. An earlier revision of this loop built
+            // the mutation frame and then forgot to write it, so every
+            // cancel, execute and delete was discarded after already
+            // consuming a sequence number. The replay tool reported it
+            // as 79,707 missing messages, which is precisely the
+            // failure the sequence check exists to surface.
+            append_capture_record(out, sequence, frame);
         }
     }
 
