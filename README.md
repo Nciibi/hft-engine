@@ -218,11 +218,15 @@ systems fail:
 If you are evaluating this repository, the three questions it was
 built to answer are:
 
-1. **Design a low-latency market data handler.** Phases 2 and 6.
-2. **Design an OMS that stays correct under high message rates.**
-   Phases 1 and 3, with the differential test as the correctness
-   argument.
-3. **Design a matching engine.** Phases 1, 4 and 5.
+1. **Design a low-latency market data handler.** Decoder, sequence
+   tracking, and the benchmark harness.
+2. **Design an OMS that stays correct under high message rates.** The
+   apply layer and the book, with the differential test as the
+   correctness argument.
+3. **Design a matching engine.** The book itself.
+
+Not yet built, and named honestly: pre-trade risk limits, the market
+making strategy with adverse-selection measurement, and sharding.
 
 ## What this is not
 
