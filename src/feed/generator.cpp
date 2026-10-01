@@ -404,8 +404,8 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
                     tail_start > 0 &&
                     static_cast<double>(rng.below(1'000'000)) / 1'000'000.0 < config.pct_recent;
                 const std::size_t lo = prefer_recent ? tail_start : 0;
-                const std::size_t span = live.size() - lo;
-                pick = lo + static_cast<std::size_t>(rng.below(span));
+                const std::size_t window = live.size() - lo;
+                pick = lo + static_cast<std::size_t>(rng.below(window));
             }
 
             Live target = live[pick];
