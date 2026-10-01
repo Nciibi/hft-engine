@@ -21,6 +21,7 @@
 //    reported, and its results are discarded.
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -94,9 +95,13 @@ int main(int argc, char** argv) {
 
     hft::lob::OrderBook book(/*order_capacity=*/1u << 20, /*level_capacity=*/1u << 16);
 
-    // Warmup: fault in the pages, prime the pools and the free lists.
-    // Discarded, and reported as discarded.
+    // ---- Warmup: fault in the pages, prime the pools -----------------
+    // Uses a throwaway book. Reusing the measured book would re-add the
+    // same OrderIds, every one of which would then be rejected as a
+    // duplicate, and the benchmark would silently be timing rejection
+    // instead of insertion.
     {
+        hft::lob::OrderBook warm(/*order_capacity=*/1u << 20, /*level_capacity=*/1u << 16);
         const std::uint8_t* p = feed.data();
         std::size_t remaining = feed.size();
         std::size_t applied = 0;
@@ -108,20 +113,18 @@ int main(int argc, char** argv) {
             }
             if (r.ok()) {
                 hft::lob::BookStatus st{};
-                book.add(r.message.add_order.side, r.message.add_order.price,
-                         r.message.add_order.size, r.message.add_order.id, st);
-                ++applied;
+                if (st == hft::lob::BookStatus::ok) {
+                    warm.add(r.message.add_order.side, r.message.add_order.price,
+                             r.message.add_order.size, r.message.add_order.id, st);
+                }
+                if (st == hft::lob::BookStatus::ok) {
+                    ++applied;
+                }
             }
             p += stride;
             remaining -= stride;
         }
         std::printf("warmup applied      %s (discarded)\n\n", humanize(applied).c_str());
-
-        // Start from a clean book so the measured pass has the same
-        // working-set shape as a long-running session would not.
-        for (const auto& o : book.orders(hft::Side::bid)) {
-            (void)o;
-        }
     }
 
     // ---- Measured pass ----------------------------------------------
@@ -201,14 +204,13 @@ int main(int argc, char** argv) {
     std::printf("ask levels          %u\n", book.level_count(hft::Side::ask));
     std::printf("bid orders          %u\n", book.order_count(hft::Side::bid));
     std::printf("ask orders          %u\n", book.order_count(hft::Side::ask));
-    std::printf("bid aggregate       %s\n",
-                hft::Price::from_raw(static_cast<std::int64_t>(book.aggregate_at(hft::Side::bid).raw()))
-                    .to_string()
-                    .c_str());
-    std::printf("ask aggregate       %s\n",
-                hft::Price::from_raw(static_cast<std::int64_t>(book.aggregate_at(hft::Side::ask).raw()))
-                    .to_string()
-                    .c_str());
+    // Aggregate resting size is a share count, not a price, so it is
+    // printed raw. Rendering it through Price::to_string would show
+    // "100.0000" for 100 shares and quietly mislead.
+    std::printf("bid resting shares  %llu\n",
+                static_cast<unsigned long long>(book.aggregate_at(hft::Side::bid).raw()));
+    std::printf("ask resting shares  %llu\n",
+                static_cast<unsigned long long>(book.aggregate_at(hft::Side::ask).raw()));
 
     std::printf("\nNOTE: this run is from a development machine.\n");
     std::printf("Committed numbers must come from the rented metal host with\n");
