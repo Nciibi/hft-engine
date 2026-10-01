@@ -460,6 +460,9 @@ private:
 
     std::vector<Order> orders_;
     std::vector<std::uint8_t> live_;
+    /// 1 when the slot holds an order, live or retired. Distinct from
+    /// `live_`, which is 1 only while the order is in the working set.
+    std::vector<std::uint8_t> held_;
     std::vector<std::size_t> free_slots_;
 
     risk::Limits limits_{};
