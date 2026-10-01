@@ -658,10 +658,16 @@ void test_oms_random_invariants() {
     }
     check_eq(still_live, 0u, "no order is left in a live state after draining");
 
+    // The counters describe slots currently holding an order, not the
+    // lifetime history: slots are recycled, so 158 submits can occupy
+    // far fewer slots. Comparing against `submitted()` here is the
+    // mistake that made this assertion meaningless.
+    check(m.submitted() > m.held_count(),
+          "slot reuse happened, so submits exceed occupied slots");
     check_eq(m.count(oms::OrdState::filled) + m.count(oms::OrdState::cancelled) +
                  m.count(oms::OrdState::rejected),
-             m.submitted(),
-             "every accepted order reached exactly one terminal state");
+             m.held_count(),
+             "every occupied slot reached a terminal state");
     check_eq(m.submitted() + m.risk_rejected() + m.pool_full(), m.submitted() + m.rejected(),
              "refusal accounting adds up");
     check(m.risk_rejected() > 0 || m.pool_full() > 0,
