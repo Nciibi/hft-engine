@@ -313,15 +313,27 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             ++next_id;
             ++local.adds;
         } else {
-            // Pick from the whole live set. An earlier revision used
-            // `1 + below(live.size() - 1)`, reserving index 0 as a
-            // "not found" sentinel, which read and wrote one element
-            // past the end whenever exactly one order was live. That
-            // is a heap corruption bug, and it showed up as tens of
-            // thousands of records failing to decode in the replay
-            // tool, which is exactly the kind of indirect symptom that
-            // costs a day.
-            const std::size_t pick = static_cast<std::size_t>(rng.below(live.size()));
+            // Pick from the live set, biased toward RECENT orders.
+            //
+            // Order flow clusters at the touch in a real book, so a
+            // mutation should usually target something quoted
+            // recently. Picking uniformly made the book's extremes
+            // effectively permanent, which held the mid constant and
+            // left any market maker with zero volatility to price.
+            //
+            // "Recent" is the high end of `live`. The container uses
+            // swap-and-pop removal, which reorders it, but new orders
+            // are always pushed at the end, so the tail is still
+            // dominated by recent arrivals.
+            const std::size_t tail_start =
+                (live.size() * 9) / 10;  // most recent tenth
+            const bool prefer_recent =
+                tail_start > 0 &&
+                static_cast<double>(rng.below(1'000'000)) / 1'000'000.0 < config.pct_recent;
+            const std::size_t lo = prefer_recent ? tail_start : 0;
+            const std::size_t span = live.size() - lo;
+            const std::size_t pick = lo + static_cast<std::size_t>(rng.below(span));
+
             Live target = live[pick];
             live[pick] = live.back();
             live.pop_back();
