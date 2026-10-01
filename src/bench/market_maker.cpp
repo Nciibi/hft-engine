@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     // liquid US equity actually looks like. Deeper is not more
     // realistic here, it is just a wider book to quote into.
     capture.price_levels = 4;
-    capture.max_live_orders = 60;
+    capture.max_live_orders = 24;
     capture.drift_raw = 200;
     hft::feed::CaptureStats stats{};
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(capture, &stats);
