@@ -382,9 +382,9 @@ void test_apply_path() {
     lob::OrderBook book(64, 16);
     constexpr OrderId kId = 777;
 
-    BookStatus st{};
+    lob::BookStatus st{};
     book.add(Side::bid, Price::from_raw(1'000'000), Quantity::from_raw(100), kId, st);
-    check(st == BookStatus::ok, "add through book api");
+    check(st == lob::BookStatus::ok, "add through book api");
 
     // Drive the same changes through decoded messages, so the apply
     // layer is covered rather than only the book API.
@@ -416,7 +416,7 @@ void test_apply_path() {
         const auto r = itch::decode(buf.data(), buf.size());
         const auto ar = lob::apply(r.message, book);
         check(!ar.applied, "delete of an absent order does not apply");
-        check(ar.detail == BookStatus::unknown_order, "and reports unknown_order");
+        check(ar.detail == lob::BookStatus::unknown_order, "and reports unknown_order");
         check(ar.ok(), "which is not treated as an error");
     }
 
