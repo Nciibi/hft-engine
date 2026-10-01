@@ -314,18 +314,16 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             if (!live.empty()) {
                 std::int64_t min_ask = 0;
                 std::int64_t max_bid = 0;
-                bool have = false;
                 for (const Live& l : live) {
                     if (l.side == hft::Side::ask) {
-                        if (!have || l.price.raw() < min_ask) {
+                        if (min_ask == 0 || l.price.raw() < min_ask) {
                             min_ask = l.price.raw();
                         }
                     } else {
-                        if (!have || l.price.raw() > max_bid) {
+                        if (max_bid == 0 || l.price.raw() > max_bid) {
                             max_bid = l.price.raw();
                         }
                     }
-                    have = true;
                 }
                 if (side == hft::Side::bid) {
                     if (min_ask != 0 && raw_price >= min_ask - tick) {
@@ -336,6 +334,20 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
                         raw_price = max_bid + tick;
                     }
                 }
+#ifdef HFT_DEBUG_CROSS
+                if (side == hft::Side::bid && min_ask != 0 && raw_price >= min_ask) {
+                    std::fprintf(stderr,
+                                 "CROSS-ADD bid=%lld min_ask=%lld max_bid=%lld live=%zu\n",
+                                 (long long)raw_price, (long long)min_ask, (long long)max_bid,
+                                 live.size());
+                }
+                if (side == hft::Side::ask && max_bid != 0 && raw_price <= max_bid) {
+                    std::fprintf(stderr,
+                                 "CROSS-ADD ask=%lld max_bid=%lld min_ask=%lld live=%zu\n",
+                                 (long long)raw_price, (long long)max_bid, (long long)min_ask,
+                                 live.size());
+                }
+#endif
             }
 
             if (raw_price <= 0) {
