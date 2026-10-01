@@ -32,9 +32,14 @@ using hft::Side;
 namespace strategy = hft::strategy;
 namespace lob = hft::lob;
 
-void print_signed(const char* label, double v, int scale_note) {
-    std::printf("  %-26s %+12.2f  raw %s\n", label, v,
-                scale_note == 0 ? "" : "");
+/// Narrowing helper for printf's %llu. A lambda rather than a cast at
+/// every call site, so the cast appears once.
+[[nodiscard]] unsigned long long u64(std::uint64_t v) noexcept {
+    return static_cast<unsigned long long>(v);
+}
+
+[[nodiscard]] long long i64(std::int64_t v) noexcept {
+    return static_cast<long long>(v);
 }
 
 }  // namespace
