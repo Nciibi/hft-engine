@@ -218,7 +218,7 @@ public:
     [[nodiscard]] const MarketMakerConfig& config() const noexcept { return config_; }
 
 private:
-    void fill(Side side, Price price, Price /*mid_now*/, Nanos now) noexcept {
+    void fill(Side side, Price price, Nanos now) noexcept {
         const std::uint32_t size = config_.quote.base_size;
         pnl_.on_fill(side, price, Quantity::from_raw(size));
         adverse_.on_fill(side, price, Quantity::from_raw(size), quote_mid_, quoted_spread_raw_,
@@ -229,11 +229,10 @@ private:
         } else {
             ++ask_hits_;
         }
-        if (pnl_.position() > max_position_observed_) {
-            max_position_observed_ = pnl_.position();
-        }
-        if (-pnl_.position() > max_position_observed_) {
-            max_position_observed_ = -pnl_.position();
+        const std::int64_t position = pnl_.position();
+        const std::int64_t magnitude = position < 0 ? -position : position;
+        if (magnitude > max_position_observed_) {
+            max_position_observed_ = magnitude;
         }
         // The quote is consumed: one resting order fills once, and
         // leaving it up would let a single quote fill repeatedly as the
