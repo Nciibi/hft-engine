@@ -88,12 +88,25 @@ int main(int argc, char** argv) {
     hft::feed::GeneratorConfig config;
     config.message_count = message_count;
     const std::vector<std::uint8_t> feed = hft::feed::generate_add_orders(config);
-    std::printf("feed bytes          %s\n", humanize(feed.size()).c_str());
-    std::printf("frames              %s\n",
+    // Pool capacity is derived from the feed, not hard-coded. An
+    // add-only benchmark keeps every order it accepts, so the book can
+    // hold at most `message_count` orders and at most that many
+    // distinct prices. Sizing the pools any smaller saturates them
+    // partway through the run, at which point the benchmark silently
+    // stops measuring insertion and starts measuring rejection.
+    const std::size_t pool = message_count;
+    const std::size_t order_bytes = pool * sizeof(hft::lob::OrderNode);
+    const std::size_t level_bytes = pool * sizeof(hft::lob::LevelNode);
+    std::printf("pool orders        %s (%zu bytes)\n", humanize(pool).c_str(), order_bytes);
+    std::printf("pool levels        %s (%zu bytes)\n", humanize(pool).c_str(), level_bytes);
+    std::printf("pool memory        %.1f MiB\n",
+                static_cast<double>(order_bytes + level_bytes) / (1024.0 * 1024.0));
+    std::printf("feed bytes         %s\n", humanize(feed.size()).c_str());
+    std::printf("frames             %s\n",
                 humanize(feed.size() / hft::itch::frame_size(hft::itch::off::kAddOrderSize))
                     .c_str());
 
-    hft::lob::OrderBook book(/*order_capacity=*/1u << 20, /*level_capacity=*/1u << 16);
+    hft::lob::OrderBook book(pool, pool);
 
     // ---- Warmup: fault in the pages, prime the pools -----------------
     // Uses a throwaway book. Reusing the measured book would re-add the
@@ -101,7 +114,7 @@ int main(int argc, char** argv) {
     // duplicate, and the benchmark would silently be timing rejection
     // instead of insertion.
     {
-        hft::lob::OrderBook warm(/*order_capacity=*/1u << 20, /*level_capacity=*/1u << 16);
+        hft::lob::OrderBook warm(pool, pool);
         const std::uint8_t* p = feed.data();
         std::size_t remaining = feed.size();
         std::size_t applied = 0;
