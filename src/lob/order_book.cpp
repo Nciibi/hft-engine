@@ -1,21 +1,26 @@
 #include "hft/lob/order_book.hpp"
 
-#include <algorithm>
 #include <cassert>
 
 namespace hft::lob {
 namespace {
 
-[[nodiscard]] util::FlatMap<Price, Handle, PriceHash>& level_index_for(
+[[nodiscard]] inline util::FlatMap<Price, Handle, PriceHash>& level_index_for(
     util::FlatMap<Price, Handle, PriceHash>& bid,
     util::FlatMap<Price, Handle, PriceHash>& ask, Side side) noexcept {
     return side == Side::bid ? bid : ask;
 }
 
-[[nodiscard]] const util::FlatMap<Price, Handle, PriceHash>& level_index_for(
+[[nodiscard]] inline const util::FlatMap<Price, Handle, PriceHash>& level_index_for(
     const util::FlatMap<Price, Handle, PriceHash>& bid,
     const util::FlatMap<Price, Handle, PriceHash>& ask, Side side) noexcept {
     return side == Side::bid ? bid : ask;
+}
+
+/// True when `candidate` ranks strictly better than `reference` for
+/// `side`: higher price for a bid, lower for an ask.
+[[nodiscard]] inline bool is_better(Side side, Price candidate, Price reference) noexcept {
+    return side == Side::bid ? candidate > reference : candidate < reference;
 }
 
 }  // namespace
@@ -26,9 +31,9 @@ OrderBook::OrderBook(std::size_t order_capacity, std::size_t level_capacity)
       order_index_(order_capacity),
       bid_level_index_(level_capacity),
       ask_level_index_(level_capacity) {
-    // Populate the free lists in reverse so that the first acquire
-    // returns handle 0. Deterministic handle assignment matters: it
-    // makes the differential test's state comparison reproducible.
+    // Populate the free lists in reverse so the first acquire returns
+    // handle 0. Deterministic handle assignment keeps the differential
+    // test's state comparison reproducible run to run.
     order_free_.reserve(order_capacity);
     for (std::size_t i = order_capacity; i-- > 0;) {
         order_free_.push_back(static_cast<Handle>(i));
@@ -47,9 +52,8 @@ Handle OrderBook::acquire_order() noexcept {
     }
     const Handle h = order_free_.back();
     order_free_.pop_back();
-    OrderNode& n = orders_[h];
-    n = OrderNode{};
-    n.allocated = true;
+    orders_[h] = OrderNode{};
+    orders_[h].allocated = true;
     return h;
 }
 
@@ -65,11 +69,10 @@ Handle OrderBook::acquire_level(Side side, Price price) noexcept {
     }
     const Handle h = level_free_.back();
     level_free_.pop_back();
-    LevelNode& n = levels_[h];
-    n = LevelNode{};
-    n.allocated = true;
-    n.side = side;
-    n.price = price;
+    levels_[h] = LevelNode{};
+    levels_[h].allocated = true;
+    levels_[h].side = side;
+    levels_[h].price = price;
     return h;
 }
 
@@ -85,10 +88,6 @@ void OrderBook::link_level(Handle h) noexcept {
     LevelNode& lv = levels_[h];
     Handle& head = (lv.side == Side::bid) ? bid_head_ : ask_head_;
 
-    // Bids descend, asks ascend. In both cases "better" means the
-    // price compares greater against the head, which is true for bids
-    // (higher is better) and false for asks (lower is better), so the
-    // two cases are genuinely different walks.
     if (head == kInvalidHandle) {
         lv.prev = kInvalidHandle;
         lv.next = kInvalidHandle;
@@ -96,51 +95,27 @@ void OrderBook::link_level(Handle h) noexcept {
         return;
     }
 
-    if (lv.side == Side::bid) {
-        if (lv.price > levels_[head].price) {
-            // New level outbids the current best: becomes the head.
-            lv.next = head;
-            lv.prev = kInvalidHandle;
-            levels_[head].prev = h;
-            head = h;
-            return;
-        }
-        // Walk to the first level this one should precede.
-        Handle cur = head;
-        while (cur != kInvalidHandle && levels_[cur].price > lv.price) {
-            cur = levels_[cur].next;
-        }
-    } else {
-        if (lv.price < levels_[head].price) {
-            lv.next = head;
-            lv.prev = kInvalidHandle;
-            levels_[head].prev = h;
-            head = h;
-            return;
-        }
-        Handle cur = head;
-        while (cur != kInvalidHandle && levels_[cur].price < lv.price) {
-            cur = levels_[cur].next;
-        }
+    // Walk from the head until `cur` is the first level that ranks at
+    // or worse than this one, tracking the node before it. Keeping the
+    // predecessor from the walk avoids a second pass to find the tail.
+    Handle cur = head;
+    Handle prev = kInvalidHandle;
+    while (cur != kInvalidHandle && is_better(lv.side, levels_[cur].price, lv.price)) {
+        prev = cur;
+        cur = levels_[cur].next;
     }
 
-    // `cur` is the first level that ranks at or worse than this one, or
-    // the end of the list. Insert immediately before it.
-    lv.prev = cur == kInvalidHandle ? kInvalidHandle : levels_[cur].prev;
+    lv.prev = prev;
     lv.next = cur;
-    if (cur == kInvalidHandle) {
-        // Appending at the tail: the previous tail becomes `lv.prev`.
-        // Recompute it, since the walk above only set `cur`.
-        Handle tail = (lv.side == Side::bid) ? bid_head_ : ask_head_;
-        while (tail != kInvalidHandle && levels_[tail].next != kInvalidHandle) {
-            tail = levels_[tail].next;
-        }
-        lv.prev = tail;
+
+    if (prev != kInvalidHandle) {
+        levels_[prev].next = h;
     } else {
-        levels_[cur].prev = h;
+        // Ranks better than everything: new head.
+        head = h;
     }
-    if (lv.prev != kInvalidHandle) {
-        levels_[lv.prev].next = h;
+    if (cur != kInvalidHandle) {
+        levels_[cur].prev = h;
     }
 }
 
@@ -165,6 +140,7 @@ void OrderBook::link_order(Handle h, Handle level) noexcept {
     OrderNode& o = orders_[h];
     LevelNode& lv = levels_[level];
 
+    o.level = level;
     o.prev = lv.tail;
     o.next = kInvalidHandle;
 
@@ -174,12 +150,11 @@ void OrderBook::link_order(Handle h, Handle level) noexcept {
         orders_[lv.tail].next = h;
     }
     // Appending at the tail is what makes this price-time priority: a
-    // later order at the same price cannot jump ahead of an earlier one.
+    // later order at the same price cannot jump an earlier one.
     lv.tail = h;
 
     lv.order_count += 1;
     lv.aggregate_size = Quantity::from_raw(lv.aggregate_size.raw() + o.size.raw());
-    o.state = OrderState::new_order;
 
     if (o.side == Side::bid) {
         bid_aggregate_ = Quantity::from_raw(bid_aggregate_.raw() + o.size.raw());
@@ -192,15 +167,9 @@ void OrderBook::link_order(Handle h, Handle level) noexcept {
 
 void OrderBook::unlink_order(Handle h) noexcept {
     OrderNode& o = orders_[h];
-    const Handle level = find_level(o.side, o.price);
-    if (level == kInvalidHandle) {
-        // The level must exist for a linked order. If it does not, the
-        // book's own invariants are broken, which is a bug we want to
-        // hear about immediately rather than a feed condition to
-        // tolerate.
-        assert(false && "linked order has no price level");
-        return;
-    }
+    const Handle level = o.level;
+    assert(level != kInvalidHandle && "unlinking an order with no level");
+    assert(level < levels_.size() && "level handle out of range");
     LevelNode& lv = levels_[level];
 
     if (o.prev != kInvalidHandle) {
@@ -213,43 +182,50 @@ void OrderBook::unlink_order(Handle h) noexcept {
     } else {
         lv.tail = o.prev;
     }
+    o.prev = kInvalidHandle;
+    o.next = kInvalidHandle;
 
     lv.aggregate_size = lv.aggregate_size.saturating_sub(o.size);
-    assert(lv.order_count > 0);
+    assert(lv.order_count > 0 && "level order_count underflow");
     lv.order_count -= 1;
 
     if (o.side == Side::bid) {
         bid_aggregate_ = bid_aggregate_.saturating_sub(o.size);
-        assert(bid_orders_ > 0);
+        assert(bid_orders_ > 0 && "bid order count underflow");
         bid_orders_ -= 1;
     } else {
         ask_aggregate_ = ask_aggregate_.saturating_sub(o.size);
-        assert(ask_orders_ > 0);
+        assert(ask_orders_ > 0 && "ask order count underflow");
         ask_orders_ -= 1;
     }
 }
 
 void OrderBook::detach_order(Handle h) noexcept {
     OrderNode& o = orders_[h];
+    const Side side = o.side;
+    const Price price = o.price;
+
     unlink_order(h);
     order_index_.erase(o.id);
-    level_index_for(bid_level_index_, ask_level_index_, o.side).erase(o.price);
 
-    // Drop the level once it is empty. Keeping empty levels in the
-    // ladder would make best_bid()/best_ask() return a price with
-    // nothing resting at it, which is a correctness bug, not a
-    // tidiness issue.
-    const Handle level = find_level(o.side, o.price);
+    // Only drop the level, and only then remove the price from the
+    // level index, if this order was the last one at the price.
+    // Erasing the index entry unconditionally is the subtle bug this
+    // function exists to avoid: if a second order remained at the same
+    // price, removing the index entry would make the level
+    // unreachable while orders still pointed at it.
+    const Handle level = o.level;
     if (level != kInvalidHandle && levels_[level].order_count == 0) {
-        if (o.side == Side::bid) {
-            assert(bid_levels_ > 0);
-            bid_levels_ -= 1;
-        } else {
-            assert(ask_levels_ > 0);
-            ask_levels_ -= 1;
-        }
+        level_index_for(bid_level_index_, ask_level_index_, side).erase(price);
         unlink_level(level);
         release_level(level);
+        if (side == Side::bid) {
+            assert(bid_levels_ > 0 && "bid level count underflow");
+            bid_levels_ -= 1;
+        } else {
+            assert(ask_levels_ > 0 && "ask level count underflow");
+            ask_levels_ -= 1;
+        }
     }
     release_order(h);
 }
@@ -271,48 +247,47 @@ Handle OrderBook::find_order(OrderId id) const noexcept {
 
 Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
                       BookStatus& status) noexcept {
-    if (id == kInvalidOrderId) {
+    if (id == kInvalidOrderId || order_index_.contains(id)) {
+        // ITCH order references are day-unique. A repeat is a replay
+        // or sequence fault, never a second live order.
         status = BookStatus::duplicate_order;
         return kInvalidHandle;
     }
     if (size.is_zero()) {
-        // A zero-size order rests no liquidity and carries no
-        // information. ITCH venues drop these; so do we, rather than
-        // creating a level that exists only to be empty.
+        // Zero size rests no liquidity. Venues drop these; creating a
+        // level that exists only to be empty would make best_bid()
+        // return a price with nothing behind it.
         status = BookStatus::zero_size;
         return kInvalidHandle;
     }
-    if (order_index_.contains(id)) {
-        status = BookStatus::duplicate_order;
-        return kInvalidHandle;
-    }
 
+    auto& index = level_index_for(bid_level_index_, ask_level_index_, side);
     Handle level = find_level(side, price);
+    bool created_level = false;
+
     if (level == kInvalidHandle) {
         level = acquire_level(side, price);
-        if (level == kInvalidHandle) {
+        if (level == kInvalidHandle || !index.insert(price, level)) {
+            if (level != kInvalidHandle) {
+                release_level(level);
+            }
             status = BookStatus::capacity_exhausted;
             return kInvalidHandle;
         }
         link_level(level);
-        if (!level_index_for(bid_level_index_, ask_level_index_, side).insert(price, level)) {
-            unlink_level(level);
-            release_level(level);
-            status = BookStatus::capacity_exhausted;
-            return kInvalidHandle;
-        }
         if (side == Side::bid) {
             bid_levels_ += 1;
         } else {
             ask_levels_ += 1;
         }
+        created_level = true;
     }
 
     const Handle h = acquire_order();
     if (h == kInvalidHandle) {
-        // Roll the level back if we created it and it is now empty.
-        if (levels_[level].order_count == 0) {
-            level_index_for(bid_level_index_, ask_level_index_, side).erase(price);
+        if (created_level) {
+            // Unwind the level we speculatively created.
+            index.erase(price);
             unlink_level(level);
             release_level(level);
             if (side == Side::bid) {
@@ -336,9 +311,6 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     link_order(h, level);
 
     if (!order_index_.insert(id, h)) {
-        // Only reachable if the index filled between the contains()
-        // check and here, which single-threaded use cannot do. Unwind
-        // rather than leave the book and the index disagreeing.
         unlink_order(h);
         release_order(h);
         status = BookStatus::capacity_exhausted;
@@ -366,21 +338,15 @@ BookStatus OrderBook::execute(OrderId id, Quantity qty) noexcept {
         return BookStatus::ok;
     }
 
-    // Partial fill. Reducing size changes the level aggregate, so the
-    // order must be unlinked and relinked rather than mutated in place.
-    // Marking state before the relink keeps the new level aggregate
-    // consistent with the remaining size.
+    // Partial fill. The level's aggregate depends on remaining size, so
+    // the order must be unlinked and relinked to keep the aggregate
+    // exact. The order keeps its queue position at the tail, which is
+    // what a real partial fill does: it does not regain priority.
     o.size = Quantity::from_raw(o.size.raw() - qty.raw());
     o.state = OrderState::partially_filled;
-    const Handle level = find_level(o.side, o.price);
-    const Side side = o.side;
-    const Price price = o.price;
+    const Handle level = o.level;
     unlink_order(h);
     link_order(h, level);
-    // link_order resets state to new_order; restore the correct one.
-    orders_[h].state = OrderState::partially_filled;
-    (void)side;
-    (void)price;
     return BookStatus::ok;
 }
 
@@ -401,16 +367,14 @@ BookStatus OrderBook::cancel_partial(OrderId id, Quantity qty) noexcept {
         return BookStatus::ok;
     }
 
-    // ITCH 'X': a partial cancel leaves the order working with a
-    // reduced size, and it keeps its place in the queue. Treated
-    // identically to a partial fill for bookkeeping, but the resulting
-    // state is `new_order` because nothing was executed.
+    // ITCH 'X' partial cancel. Unlike a fill, nothing was executed, so
+    // the order returns to `new_order`. It keeps its place in the
+    // queue: a cancel does not promote it.
     o.size = Quantity::from_raw(o.size.raw() - qty.raw());
     o.state = OrderState::new_order;
-    const Handle level = find_level(o.side, o.price);
+    const Handle level = o.level;
     unlink_order(h);
     link_order(h, level);
-    orders_[h].state = OrderState::new_order;
     return BookStatus::ok;
 }
 
@@ -422,6 +386,8 @@ BookStatus OrderBook::remove(OrderId id, Quantity* discarded) noexcept {
     if (discarded != nullptr) {
         *discarded = orders_[h].size;
     }
+    // ITCH 'D' discards whatever remains, which is why the caller
+    // needs the discarded size to reconcile aggregates.
     orders_[h].state = OrderState::cancelled;
     detach_order(h);
     return BookStatus::ok;
@@ -430,17 +396,13 @@ BookStatus OrderBook::remove(OrderId id, Quantity* discarded) noexcept {
 // ---- Queries --------------------------------------------------------
 
 std::optional<Price> OrderBook::best_bid() const noexcept {
-    if (bid_head_ == kInvalidHandle) {
-        return std::nullopt;
-    }
-    return levels_[bid_head_].price;
+    return bid_head_ == kInvalidHandle ? std::nullopt
+                                       : std::optional<Price>{levels_[bid_head_].price};
 }
 
 std::optional<Price> OrderBook::best_ask() const noexcept {
-    if (ask_head_ == kInvalidHandle) {
-        return std::nullopt;
-    }
-    return levels_[ask_head_].price;
+    return ask_head_ == kInvalidHandle ? std::nullopt
+                                       : std::optional<Price>{levels_[ask_head_].price};
 }
 
 std::optional<OrderSnapshot> OrderBook::find(OrderId id) const noexcept {
