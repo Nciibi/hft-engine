@@ -215,6 +215,12 @@ public:
     [[nodiscard]] Price last_mid() const noexcept { return last_mid_; }
     [[nodiscard]] bool quote_active() const noexcept { return quote_active_; }
     [[nodiscard]] std::int64_t quoted_spread_raw() const noexcept { return quoted_spread_raw_; }
+    /// Largest absolute inventory reached during the run. Reported
+    /// because a strategy that ends flat can still have been dangerously
+    /// one-sided in the middle, and the ending position hides that.
+    [[nodiscard]] std::int64_t max_position_observed() const noexcept {
+        return max_position_observed_;
+    }
     [[nodiscard]] const MarketMakerConfig& config() const noexcept { return config_; }
 
 private:
