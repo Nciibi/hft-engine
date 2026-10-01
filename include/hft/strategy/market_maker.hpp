@@ -190,6 +190,8 @@ private:
     bool bid_live_ = true;
     bool ask_live_ = true;
     std::uint64_t observations_ = 0;
+    std::uint64_t two_sided_ = 0;
+    std::uint64_t one_sided_ = 0;
     std::uint64_t quotes_ = 0;
     std::uint64_t fills_ = 0;
 };

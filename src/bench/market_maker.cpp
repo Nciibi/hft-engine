@@ -120,6 +120,13 @@ int main(int argc, char** argv) {
     std::printf("-----------------------\n");
     std::printf("records              %zu\n", stats.records);
     std::printf("ticks observed       %llu\n", (unsigned long long)ticks);
+    std::printf("two-sided book       %llu  (%.1f%%)\n",
+                (unsigned long long)mm.two_sided_observations(),
+                ticks == 0 ? 0.0
+                           : 100.0 * static_cast<double>(mm.two_sided_observations()) /
+                                 static_cast<double>(ticks));
+    std::printf("one-sided book       %llu\n",
+                (unsigned long long)mm.one_sided_observations());
     std::printf("quotes placed        %llu\n", (unsigned long long)mm.quotes());
     std::printf("fills                %llu\n", (unsigned long long)s.fills);
     std::printf("markout horizon      %llu ticks (~%llu us synthetic)\n",
