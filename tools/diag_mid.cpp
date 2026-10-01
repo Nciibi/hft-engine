@@ -24,9 +24,9 @@ int main() {
     hft::lob::OrderBook book(1u << 20, 1u << 16);
     std::size_t off = 0;
     std::uint64_t n = 0;
-    hft::int64_t prev_mid = 0;
+    std::int64_t prev_mid = 0;
     std::uint64_t changes = 0;
-    hft::int64_t lo = 0, hi = 0;
+    std::int64_t lo = 0, hi = 0;
 
     while (off < data.size() && n < 40'000) {
         if (data.size() - off < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
@@ -42,7 +42,7 @@ int main() {
             const auto b = book.best_bid();
             const auto a = book.best_ask();
             if (b && a) {
-                const hft::int64_t mid = (b->raw() + a->raw()) / 2;
+                const std::int64_t mid = (b->raw() + a->raw()) / 2;
                 if (n <= 15) {
                     std::printf("n=%4llu bid=%8lld ask=%8lld mid=%8lld  bLvl=%u aLvl=%u\n",
                                 (unsigned long long)n, (long long)b->raw(), (long long)a->raw(),
