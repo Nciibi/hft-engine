@@ -120,19 +120,41 @@ inline constexpr std::size_t kOrderDeleteSize = order_delete_id + kOrderIdSize;
 }  // namespace off
 
 // Guard the verified layouts. These fail at compile time, not at 3am.
+//
+// The body sizes are asserted against the offset of the final field in
+// each message, so a typo in either the offset or the size is a build
+// error rather than a silently misparsed feed.
 static_assert(off::kAddOrderSize == 32, "ITCH Add Order body is 32 bytes");
 static_assert(off::kOrderExecutedSize == 32, "ITCH Order Executed body is 32 bytes");
 static_assert(off::kOrderExecutedAtPriceSize == 36, "ITCH Order Exec @ Price is 36 bytes");
-static_assert(off::kOrderCancelSize == 20, "ITCH Order Cancel body is 20 bytes");
-static_assert(off::kOrderDeleteSize == 16, "ITCH Order Delete body is 16 bytes");
+static_assert(off::kOrderCancelSize == 23, "ITCH Order Cancel body is 23 bytes");
+static_assert(off::kOrderDeleteSize == 19, "ITCH Order Delete body is 19 bytes");
+
+// Every size must equal the end of its last field.
+static_assert(off::add_order_participant + 1 == off::kAddOrderSize,
+              "Add Order size must equal the end of its last field");
+static_assert(off::order_executed_printable + 1 == off::kOrderExecutedSize,
+              "Order Executed size must equal the end of its last field");
+static_assert(off::order_exec_price_execution_price + off::kPriceSize ==
+                  off::kOrderExecutedAtPriceSize,
+              "Order Exec @ Price size must equal the end of its last field");
+static_assert(off::order_cancel_shares + off::kSharesSize == off::kOrderCancelSize,
+              "Order Cancel size must equal the end of its last field");
+static_assert(off::order_delete_id + off::kOrderIdSize == off::kOrderDeleteSize,
+              "Order Delete size must equal the end of its last field");
+
+// The shared 8-byte order header must fit inside every order message.
+static_assert(off::order_cancel_id == off::order_delete_id,
+              "order reference sits at the same offset in all order messages");
+static_assert(off::order_delete_id + off::kOrderIdSize <= off::kOrderDeleteSize,
+              "the shared header must fit in the smallest order message");
+
 // The timestamp ends exactly where the 6-byte field ends, and the low
 // half begins immediately after the 2-byte high half.
 static_assert(off::timestamp_low == off::timestamp_high + 2,
               "timestamp low half must follow the 2-byte high half");
 static_assert(off::timestamp_low + 4 == off::timestamp + off::kTimestampSize,
               "48-bit timestamp is 2 high bytes + 4 low bytes");
-static_assert(off::add_order_participant + 1 == off::kAddOrderSize,
-              "Add Order final field must end at the body size");
 
 /// Length prefix: 2 bytes, big-endian, and it COUNTS THE TAG.
 inline constexpr std::size_t kLengthPrefixSize = 2;
