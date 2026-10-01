@@ -1,0 +1,74 @@
+# Local working document. Personal placement strategy: comp targets,
+# application timeline, target firms. Untracked by choice - it is a
+# working doc, not portfolio material. The file stays on disk.
+PLAN.md
+
+# Build output
+build/
+build-*/
+out/
+cmake-build-*/
+target/
+
+# Compiled objects and libraries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.lib.pdb
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+compile_commands.json
+.ninja_deps
+.ninja_log
+build.ninja
+Makefile
+
+# Rerunnable benchmark output.
+# NOTE: results/ is intentionally COMMITTED. Committed benchmark
+# numbers and the environment spec they were measured in are the
+# credibility signal in this repository. Only transient run output
+# is ignored here.
+bench_out/
+*.bench.tmp
+
+# Captured market data feeds. Too large for git, and licensed data
+# should not be redistributed. The generator that produces spec-
+# conformant feeds is committed instead.
+*.itch
+*.bin
+feeds/
+data/raw/
+
+# Fuzzing corpora and crash artifacts
+fuzz/artifacts/
+fuzz/corpus/
+crashes/
+
+# Editor and IDE
+.vscode/
+.idea/
+.vs/
+*.user
+*.swp
+*.swo
+*~
+.cache/
+compile_commands.json
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store

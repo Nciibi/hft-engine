@@ -1,0 +1,24 @@
+# Normalize line endings. Developed on Windows, benchmarked on Linux.
+# Without this, shell scripts committed with CRLF fail on the metal
+# instance with "\r: command not found".
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.py  text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.h text eol=lf
+*.cc text eol=lf
+
+# Binary
+*.itch binary
+*.bin binary
+*.pdb binary
+*.o binary
+*.obj binary
