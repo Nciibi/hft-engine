@@ -147,10 +147,17 @@ public:
             const std::uint64_t fill_us =
                 (burst_tokens_ * kMicroTokensPerToken) / rate_ + 1u;
             const std::uint64_t effective_us = elapsed_us > fill_us ? fill_us : elapsed_us;
-            // effective_us * rate_ is bounded by roughly
-            // burst_tokens_ * kMicroTokensPerToken, so no uint64
-            // overflow for any burst a caller can configure.
-            const std::uint64_t refill_micro = (effective_us * rate_) / 1'000u;
+            // effective_us * rate_ is the refill in MICROtokens
+            // directly: microseconds times (tokens per second) is
+            // already microtokens, because a microsecond is a
+            // millionth of a second. Dividing again here was an
+            // earlier mistake that made a 10/second limiter grant
+            // 0.005 tokens per half second instead of 5.
+            //
+            // Overflow: effective_us is bounded by fill_us, so the
+            // product is bounded by roughly burst_tokens_ *
+            // kMicroTokensPerToken, which is the bucket capacity.
+            const std::uint64_t refill_micro = effective_us * rate_;
             const std::uint64_t cap_micro = burst_tokens_ * kMicroTokensPerToken;
             tokens_ = (tokens_ + refill_micro > cap_micro) ? cap_micro : tokens_ + refill_micro;
         } else if (now < last_) {

@@ -144,7 +144,7 @@ public:
     /// the point: an OMS that grows a vector while trading is an OMS
     /// with a latency cliff exactly when it is already stressed.
     explicit Manager(std::size_t capacity = 65'536, risk::Limits limits = {})
-        : orders_(capacity), live_(capacity, 0), limits_(limits), risk_(limits) {
+        : orders_(capacity), live_(capacity, 0), held_(capacity, 0), limits_(limits), risk_(limits) {
         // Populated in reverse so the first submit takes slot 0, which
         // makes behaviour reproducible run to run and test failures
         // directly replayable.
