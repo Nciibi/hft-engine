@@ -158,7 +158,12 @@ private:
 class PreTradeRisk final {
 public:
     PreTradeRisk() = default;
-    explicit PreTradeRisk(const Limits& limits) : limits_(limits) {}
+
+    /// The rate limiter MUST be built here, not left default
+    /// constructed. A default TokenBucket has a rate of 1/second and an
+    /// empty balance, so a constructor that copies only `limits_`
+    /// silently ignores `max_order_rate` and then refuses every order.
+    explicit PreTradeRisk(const Limits& limits) { set_limits(limits); }
 
     // ---- Configuration ---------------------------------------------
 
