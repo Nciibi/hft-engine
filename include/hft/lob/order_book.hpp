@@ -72,6 +72,9 @@ struct OrderNode {
     Quantity original_size{};  ///< As added
     Side side = Side::bid;
     OrderState state = OrderState::new_order;
+    /// Owning price level. Cached so that unlinking an order does not
+    /// need a hash lookup to find the level it belongs to.
+    Handle level = kInvalidHandle;
     Handle prev = kInvalidHandle;  ///< Within the price level
     Handle next = kInvalidHandle;
     bool allocated = false;
@@ -173,11 +176,15 @@ private:
     void link_level(Handle h) noexcept;
     void unlink_level(Handle h) noexcept;
 
-    /// Append order `h` to the tail of level `level`.
+    /// Append order `h` to the tail of level `level` and roll the
+    /// aggregate counters. Does NOT set `state`: the caller owns the
+    /// order's lifecycle and must set it, so that a relink for a
+    /// partial fill does not silently reset the state to new_order.
     void link_order(Handle h, Handle level) noexcept;
     void unlink_order(Handle h) noexcept;
 
-    /// Detach an order and release its handle. Assumes it is linked.
+    /// Detach an order, release its handle, and drop its price level
+    /// if that level became empty.
     void detach_order(Handle h) noexcept;
 
     [[nodiscard]] Handle find_level(Side side, Price price) const noexcept;
