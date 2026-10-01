@@ -266,7 +266,6 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
 
     for (std::size_t i = 0; i < config.record_count; ++i) {
         const std::uint64_t roll = rng.below(100);
-        const std::uint64_t before = out.size();
         ++sequence;
         ++local.records;
 
@@ -287,8 +286,13 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             if (raw_price > 0) {
                 raw_price = ((raw_price + tick / 2) / tick) * tick;
             }
+            // Clamp rather than skip. Every iteration must emit exactly
+            // one record, because the sequence number is consumed
+            // above; skipping here would manufacture a phantom gap
+            // that the replay tool would correctly report as data
+            // loss.
             if (raw_price <= 0) {
-                continue;
+                raw_price = tick;
             }
 
             const hft::Price price = hft::Price::from_raw(raw_price);
@@ -362,10 +366,6 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
                                     static_cast<hft::TrackingNumber>(i & 0xFFFFu));
                 ++local.deletes;
             }
-        }
-
-        if (out.size() != before) {
-            continue;
         }
     }
 
