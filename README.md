@@ -143,9 +143,20 @@ wrong numbers, which is worse than stopping.
 **Unknown message types skip by length.** A live feed will always
 contain types this build does not implement. Crashing is not an option.
 
-**Determinism is a feature.** Same feed file, same checksum, any
-machine, any optimisation level. Without that property, no benchmark
-is reproducible and no bug is reproducible.
+**Determinism is a feature.** Same capture, same book, same checksum, at
+any optimisation level on any host. This is checked, not claimed: the
+suite builds the replay tool at `-O0`, `-O2`, `-O3` and `-Os` and
+compares. Without that property no benchmark is reproducible and no bug
+is reproducible, and a latency number that cannot be re-derived is an
+anecdote.
+
+**Sequence gaps are detected, never absorbed.** A gap means the book is
+missing orders the venue believes are resting, so continuing past one
+produces a book that looks healthy and is wrong. The replay tool
+reports the missing count and marks the run as not comparable with a
+clean one. The tracker handles the 32-bit wrap explicitly, because
+`observed == expected + 1` is correct everywhere except the one moment
+it is hardest to reproduce.
 
 **The price ladder is a sorted linked list, and that is a known cost.**
 Inserting a price that is not adjacent to the best walks from the head
