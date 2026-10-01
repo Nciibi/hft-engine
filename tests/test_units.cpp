@@ -12,6 +12,9 @@
 #include "feed/generator.hpp"
 #include "hft/itch/decode.hpp"
 #include "hft/itch/protocol.hpp"
+#include "hft/itch/sequence.hpp"
+#include "hft/lob/apply.hpp"
+#include "hft/lob/order_book.hpp"
 #include "hft/types.hpp"
 
 namespace {
@@ -230,6 +233,205 @@ void test_generated_feed() {
                  "consumed the whole buffer exactly");
 }
 
+// ---- The other decoded message types --------------------------------
+
+void test_decode_mutations() {
+    std::printf("decode X/D/E/C/U\n");
+    using namespace hft;
+
+    constexpr OrderId kId = 0x1111'2222'3333'4444ULL;
+
+    // ITCH 'X' Order Cancel: partial, deducts shares.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_cancel(buf, kId, Quantity::from_raw(75), 0x0000'0000'0000'2710ULL);
+        check_eq_int(static_cast<long long>(buf.size()), 22, "cancel frame is 22 bytes");
+        const auto r = itch::decode(buf.data(), buf.size());
+        check(r.ok(), "cancel decodes");
+        const auto* c = std::get_if<itch::OrderCancel>(&r.message.body);
+        check(c != nullptr, "payload is an OrderCancel");
+        if (c != nullptr) {
+            check(c->id == kId, "cancel id round trips");
+            check_eq_int(static_cast<long long>(c->shares.raw()), 75, "cancel shares round trip");
+            check(c->timestamp == 0x2710ULL, "cancel timestamp round trips");
+        }
+    }
+
+    // ITCH 'D' Order Delete: whole order, no share field at all.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_delete(buf, kId, 999);
+        check_eq_int(static_cast<long long>(buf.size()), 18, "delete frame is 18 bytes");
+        const auto r = itch::decode(buf.data(), buf.size());
+        check(r.ok(), "delete decodes");
+        const auto* d = std::get_if<itch::OrderDelete>(&r.message.body);
+        check(d != nullptr, "payload is an OrderDelete");
+        if (d != nullptr) {
+            check(d->id == kId, "delete id round trips");
+        }
+    }
+
+    // ITCH 'E' Order Executed.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_executed(buf, kId, Quantity::from_raw(40), 0x2AULL,
+                                    /*match_number=*/0xFEED'FACE'0000'0001ULL);
+        check_eq_int(static_cast<long long>(buf.size()), 34, "executed frame is 34 bytes");
+        const auto r = itch::decode(buf.data(), buf.size());
+        check(r.ok(), "executed decodes");
+        const auto* e = std::get_if<itch::OrderExecuted>(&r.message.body);
+        check(e != nullptr, "payload is an OrderExecuted");
+        if (e != nullptr) {
+            check_eq_int(static_cast<long long>(e->shares.raw()), 40, "executed shares round trip");
+            check(e->match_number == 0xFEED'FACE'0000'0001ULL, "match number round trips");
+        }
+    }
+
+    // ITCH 'C' Order Executed With Price: carries the fill price, which
+    // must NOT be applied to the resting order's own limit price.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_executed_at_price(buf, kId, Quantity::from_raw(12),
+                                              Price::from_raw(1'000'500), 7,
+                                              /*match_number=*/0xABCD'0000'0000'0001ULL);
+        check_eq_int(static_cast<long long>(buf.size()), 38, "exec@price frame is 38 bytes");
+        const auto r = itch::decode(buf.data(), buf.size());
+        check(r.ok(), "exec@price decodes");
+        const auto* e = std::get_if<itch::OrderExecutedAtPrice>(&r.message.body);
+        check(e != nullptr, "payload is an OrderExecutedAtPrice");
+        if (e != nullptr) {
+            check_eq_int(e->execution_price.raw(), 1'000'500, "execution price round trips");
+            check_eq_int(static_cast<long long>(e->shares.raw()), 12, "shares round trip");
+        }
+    }
+
+    // ITCH 'U' Order Replace: deliberately NOT decoded. The field table
+    // was not verified, so the frame must be skipped by length rather
+    // than parsed on a guess.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_replace(buf, kId, kId + 1, Quantity::from_raw(10),
+                                   Price::from_raw(100'000), 0);
+        check_eq_int(static_cast<long long>(buf.size()), 38, "replace frame is 38 bytes");
+        const auto r = itch::decode(buf.data(), buf.size());
+        check(r.status == itch::DecodeStatus::unknown_type,
+              "order replace is skipped, not guessed at");
+        check(r.skippable(), "order replace is skippable");
+        check_eq_int(itch::frame_stride(r), 38, "replace skip stride is the full frame");
+    }
+
+    // A length that disagrees with the tag must be rejected even though
+    // the tag is known.
+    {
+        std::vector<std::uint8_t> good;
+        feed::append_order_delete(good, kId, 0);
+        std::vector<std::uint8_t> bad;
+        feed::append_frame_with_length(bad, good.data() + 2, good.size() - 2, 32);
+        const auto r = itch::decode(bad.data(), bad.size());
+        check(r.status == itch::DecodeStatus::bad_length,
+              "'D' tagged with an 'E' length is rejected");
+    }
+}
+
+// ---- Sequence tracking ----------------------------------------------
+
+void test_sequence() {
+    std::printf("sequence tracker\n");
+
+    // Contiguous stream across the 32-bit wrap, which is where naive
+    // `observed == expected + 1` comparisons fail.
+    {
+        itch::SequenceTracker t(0xFFFF'FFFEu);
+        check(t.observe(0xFFFF'FFFEu) == itch::SequenceTracker::State::ok, "first is ok");
+        check(t.observe(0xFFFF'FFFFu) == itch::SequenceTracker::State::ok, "second is ok");
+        check(t.observe(0x0000'0000u) == itch::SequenceTracker::State::ok,
+              "wrap from FFFFFFFF to 00000000 is ok, not a gap");
+        check(t.observe(0x0000'0001u) == itch::SequenceTracker::State::ok, "past the wrap is ok");
+        check(t.clean(), "wrapped stream is clean");
+        check_eq_int(static_cast<long long>(t.missing()), 0, "nothing missing across the wrap");
+    }
+
+    // Forward gap.
+    {
+        itch::SequenceTracker t(100);
+        check(t.observe(100) == itch::SequenceTracker::State::ok, "100 ok");
+        check(t.observe(105) == itch::SequenceTracker::State::gap, "105 is a gap");
+        check_eq_int(static_cast<long long>(t.missing()), 4, "four messages missing");
+        check_eq_int(static_cast<long long>(t.gaps()), 1, "one gap event");
+        check(!t.clean(), "stream is not clean");
+        check_eq_int(t.expected(), 106, "expected advances past the gap");
+    }
+
+    // Retransmit and stale packet.
+    {
+        itch::SequenceTracker t(100);
+        t.observe(100);
+        check(t.observe(99) == itch::SequenceTracker::State::duplicate, "99 is a duplicate");
+        check_eq_int(t.expected(), 101, "a duplicate does not advance the expectation");
+        check(t.observe(50) == itch::SequenceTracker::State::out_of_order, "50 is out of order");
+    }
+}
+
+// ---- Book mutations through the apply path --------------------------
+
+void test_apply_path() {
+    std::printf("apply path\n");
+    using namespace hft;
+
+    lob::OrderBook book(64, 16);
+    constexpr OrderId kId = 777;
+
+    BookStatus st{};
+    book.add(Side::bid, Price::from_raw(1'000'000), Quantity::from_raw(100), kId, st);
+    check(st == BookStatus::ok, "add through book api");
+
+    // Drive the same changes through decoded messages, so the apply
+    // layer is covered rather than only the book API.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_cancel(buf, kId, Quantity::from_raw(40), 1);
+        const auto r = itch::decode(buf.data(), buf.size());
+        const auto ar = lob::apply(r.message, book);
+        check(ar.applied, "cancel applied");
+        const auto snap = book.find(kId);
+        check(snap.has_value() && snap->size.raw() == 60,
+              "partial cancel left 60, and the order kept its place");
+    }
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_executed(buf, kId, Quantity::from_raw(60), 2);
+        const auto r = itch::decode(buf.data(), buf.size());
+        const auto ar = lob::apply(r.message, book);
+        check(ar.applied, "execute applied");
+        check(!book.find(kId).has_value(), "fully executed order is gone");
+    }
+
+    // A mutation for an order that is not resting is reported, not
+    // fatal: in a live feed the add that created it may have been lost
+    // in an earlier gap.
+    {
+        std::vector<std::uint8_t> buf;
+        feed::append_order_delete(buf, kId, 3);
+        const auto r = itch::decode(buf.data(), buf.size());
+        const auto ar = lob::apply(r.message, book);
+        check(!ar.applied, "delete of an absent order does not apply");
+        check(ar.detail == BookStatus::unknown_order, "and reports unknown_order");
+        check(ar.ok(), "which is not treated as an error");
+    }
+
+    // 'X' that consumes the whole remainder must remove the order, and
+    // is still not the same operation as 'D'.
+    {
+        constexpr OrderId kId2 = 778;
+        book.add(Side::ask, Price::from_raw(1'000'100), Quantity::from_raw(50), kId2, st);
+        std::vector<std::uint8_t> buf;
+        feed::append_order_cancel(buf, kId2, Quantity::from_raw(50), 4);
+        const auto r = itch::decode(buf.data(), buf.size());
+        check(lob::apply(r.message, book).applied, "full-size partial cancel applied");
+        check(!book.find(kId2).has_value(), "full-size X removes the order");
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -238,6 +440,9 @@ int main() {
     test_timestamp48();
     test_big_endian();
     test_decode();
+    test_decode_mutations();
+    test_sequence();
+    test_apply_path();
     test_generated_feed();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
