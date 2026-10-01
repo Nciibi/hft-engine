@@ -87,8 +87,14 @@ int main(int argc, char** argv) {
     mm_config.quote.gamma = 2.5e-3;
     mm_config.quote.k = 1.5;
     mm_config.quote.horizon_ticks = 250.0;
-    mm_config.quote.base_size = 100;
-    mm_config.max_inventory = 5'000;
+    mm_config.quote.base_size = 10;
+    // A tight limit on purpose. See the note at the end: with a
+    // symmetric fill model the position is a random walk, so the limit
+    // gets reached regardless. A small limit keeps the excursion
+    // visible and the numbers honest rather than letting the position
+    // wander thousands of shares into a regime the strategy was never
+    // parameterised for.
+    mm_config.max_inventory = 500;
 
     strategy::MarketMaker mm(mm_config);
     lob::OrderBook book(1u << 20, 1u << 16);
