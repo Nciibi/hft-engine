@@ -188,8 +188,21 @@ struct CaptureConfig {
     uint32_t pct_execute = 15;
     uint32_t pct_cancel = 15;
     /// Remainder is delete.
-    /// Probability that a mutation targets a RECENTLY added order
-    /// rather than a uniformly random one.
+    /// Cap on simultaneously live orders. Zero means unbounded.
+    ///
+    /// This is what makes the book REPRICE, and it is not a
+    /// performance limit. A book that only ever accumulates never
+    /// clears a price level, so the best bid and ask are set once and
+    /// frozen: an unbounded run of 40,000 records moved its mid 24
+    /// times, because roughly 24,000 adds against 16,000 removals
+    /// across 32 levels means every level grows and none ever empties.
+    /// A price that does not move is not a market, and a strategy can
+    /// only be studied on one that does.
+    ///
+    /// Leave at zero for a deep static book, which is what the
+    /// throughput benchmark wants. Set it for anything that studies
+    /// behaviour over time.
+    std::size_t max_live_orders = 0;
     ///
     /// Real order flow is not uniform across price levels. It clusters
     /// hard at the touch, because that is where market orders and
