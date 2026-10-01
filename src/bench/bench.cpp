@@ -141,9 +141,14 @@ int main(int argc, char** argv) {
     }
 
     // ---- Measured pass ----------------------------------------------
-    LatencyHistogram decode_hist(10, 2'000'000);
-    LatencyHistogram book_hist(10, 2'000'000);
-    LatencyHistogram total_hist(10, 4'000'000);
+    // 1ns buckets. The measured clock-read overhead above has a 1ns
+    // median, so anything coarser than 1ns would quantise away the very
+    // signal being measured and report a flat p50/p99/p999.
+    constexpr std::uint32_t kBucketNs = 1;
+    constexpr std::uint32_t kMaxNs = 4'000'000;  // 4ms ceiling
+    LatencyHistogram decode_hist(kBucketNs, kMaxNs);
+    LatencyHistogram book_hist(kBucketNs, kMaxNs);
+    LatencyHistogram total_hist(kBucketNs, kMaxNs);
 
     std::uint64_t decoded = 0;
     std::uint64_t applied = 0;
