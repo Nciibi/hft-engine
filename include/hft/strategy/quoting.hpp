@@ -88,19 +88,41 @@ private:
     std::uint32_t max_size_;
 };
 
+/// Quote parameters.
+///
+/// **Units are load-bearing here.** The A-S formulas are only
+/// dimensionally coherent if:
+///
+///   * `sigma` is ABSOLUTE price volatility in raw price units per
+///     tick, not a percentage. An earlier revision used a fraction,
+///     which made the whole spread collapse to a sub-tick value: the
+///     inventory term became sigma^2*gamma*H = 0 and all that was left
+///     was the liquidity term, roughly one third of a raw unit on a
+///     $100 stock. A quote narrower than one tick cannot be placed, so
+///     the strategy silently quoted nothing at all.
+///
+///   * `horizon_ticks` counts OBSERVATIONS, matching the clock the
+///     strategy is driven with. The paper writes T-t in seconds; this
+///     implementation is driven by a synthetic per-message tick, and
+///     pretending otherwise would mean a horizon of 1.25 million
+///     "seconds" on a 200,000-message capture.
+///
+///   * `gamma` is in inverse price units. The default is chosen so the
+///     resulting spread is a few ticks wide on a $100 instrument,
+///     which is the only way to check the units are right.
 struct QuoteParams {
-    /// Risk aversion. Larger means the inventory term dominates and
-    /// the quote leans harder against a position.
-    double gamma = 0.05;
-    /// Book liquidity decay, in units of the model. Larger means the
+    /// Risk aversion, in 1/price units. Larger means the inventory
+    /// term dominates and the quote leans harder against a position.
+    double gamma = 1.0e-3;
+    /// Book liquidity decay, dimensionless. Larger means the
     /// depth-dependent term bites sooner.
     double k = 1.5;
-    /// Horizon in seconds. A longer horizon makes the inventory term
+    /// Horizon in ticks. A longer horizon makes the inventory term
     /// dominate and the strategy more conservative.
-    double horizon_seconds = 5.0;
-    /// Per-second volatility of the mid, as a fraction. Updated by the
-    /// caller; see `VolatilityEstimator`.
-    double sigma = 0.0002;
+    double horizon_ticks = 250.0;
+    /// ABSOLUTE volatility of the mid, in raw price units per tick.
+    /// Updated continuously by the caller; see `VolatilityEstimator`.
+    double sigma = 30.0;
     /// Reservation size: the inventory the strategy considers neutral.
     std::int64_t reservation_shares = 0;
     /// Displayed size used when no depth is available.
@@ -109,9 +131,11 @@ struct QuoteParams {
     /// each level. Off by default because it needs a live book and a
     /// quote with no size is a quote that does not trade.
     bool use_depth = false;
-    /// Fill probability target. The A-S order-size distribution is
-    /// skipped in favour of a fixed size, which is a simplification
-    /// and a documented one.
+    /// Smallest placeable spread, in raw price units. A spread below
+    /// one tick cannot be represented by two distinct prices, and a
+    /// quote that cannot be placed is not a quote.
+    std::int64_t min_spread_raw = 100;  // $0.01
+    /// Upper bound on the log table.
     std::uint32_t max_size = 5'000;
 };
 
