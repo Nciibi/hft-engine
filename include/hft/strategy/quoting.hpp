@@ -239,7 +239,7 @@ public:
 private:
     void recompute_constants() noexcept {
         const double sigma2 = params_.sigma * params_.sigma;
-        risk_term_ = params_.gamma * sigma2 * params_.horizon_seconds;
+        risk_term_ = params_.gamma * sigma2 * params_.horizon_ticks;
         half_spread_ = 0.5 * (0.5 * risk_term_ +
                               (1.0 / params_.gamma) * std::log1p(params_.gamma / params_.k));
     }
