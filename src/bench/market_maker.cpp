@@ -58,6 +58,14 @@ int main(int argc, char** argv) {
 
     hft::feed::CaptureConfig capture;
     capture.record_count = records;
+    // A shallow, fast-walking book. These are not arbitrary: an
+    // unbounded or deep book only accumulates, never clears a price
+    // level, and its mid is frozen for the whole run, which leaves a
+    // market maker with zero volatility to price. A book that cannot
+    // reprice cannot be used to study a strategy that trades it.
+    capture.price_levels = 10;
+    capture.max_live_orders = 120;
+    capture.drift_raw = 200;
     hft::feed::CaptureStats stats{};
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(capture, &stats);
 

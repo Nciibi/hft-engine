@@ -16,6 +16,9 @@
 int main() {
     hft::feed::CaptureConfig cfg;
     cfg.record_count = 40'000;
+    cfg.price_levels = 10;
+    cfg.max_live_orders = 120;
+    cfg.drift_raw = 200;
     hft::feed::CaptureStats st{};
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(cfg, &st);
     std::printf("records=%zu adds=%zu exec=%zu cxl=%zu del=%zu\n", st.records, st.adds,
@@ -49,8 +52,8 @@ int main() {
                                 (long long)mid, book.level_count(hft::Side::bid),
                                 book.level_count(hft::Side::ask));
                 }
-                if (prev_mid != 0 && mid != prev_mid) ++changes;
-                if (n == 1) { lo = hi = mid; }
+                if (prev_mid == 0) { lo = hi = mid; }
+                if (mid != prev_mid && prev_mid != 0) ++changes;
                 if (mid < lo) lo = mid;
                 if (mid > hi) hi = mid;
                 prev_mid = mid;

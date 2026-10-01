@@ -145,6 +145,9 @@ struct Quote {
     std::uint32_t bid_size = 0;
     std::uint32_t ask_size = 0;
     bool valid = false;
+    /// The tick grid, not the model, determined the spread. The
+    /// strategy is running at a disadvantage it did not choose.
+    bool tick_constrained = false;
 };
 
 /// Quote calculator. Construct once per parameter change, not per
@@ -192,8 +195,28 @@ public:
             static_cast<double>(mid.raw()) -
             static_cast<double>(inventory - params_.reservation_shares) * risk_term_;
 
-        double bid_offset = half_spread_;
-        double ask_offset = half_spread_;
+        // The model's spread is a wish; the tick size is a law.
+        //
+        // When A-S produces something narrower than one tick, the quote
+        // must be widened to the minimum placeable spread. Declaring it
+        // invalid and standing aside is wrong: it silently stops the
+        // strategy, which is how this build first presented, reporting
+        // zero quotes and zero fills on a feed where the model wanted a
+        // 20 raw-unit spread against a 100 raw-unit tick.
+        //
+        // The widening is not free: the edge the model expected above
+        // the touch is edge the strategy does not get, which is exactly
+        // why tick size is a real constraint on market making
+        // profitability and not a formatting detail. When the model
+        // wants WIDER than a tick, the model wins and the extra is
+        // taken.
+        const double effective_half =
+            half_spread_ > 0.5 * static_cast<double>(params_.min_spread_raw)
+                ? half_spread_
+                : 0.5 * static_cast<double>(params_.min_spread_raw);
+
+        double bid_offset = effective_half;
+        double ask_offset = effective_half;
 
         if (params_.use_depth) {
             // ln(q/r) = ln(q) - ln(r), both table lookups.
@@ -222,13 +245,13 @@ public:
         q.ask = Price::from_raw(round_to_raw(ask_raw));
         q.bid_size = params_.base_size;
         q.ask_size = params_.base_size;
-        // Valid only if the two sides are genuinely distinct AND the
-        // spread is at least one placeable tick. A mathematically
-        // valid but sub-tick quote is unplaceable, and reporting it as
-        // valid is how a strategy ends up "running" while never
-        // quoting anything.
-        q.valid = q.ask > q.bid &&
-                  (q.ask.raw() - q.bid.raw()) >= params_.min_spread_raw;
+        // Now valid whenever the two sides are distinct, because the
+        // spread has already been widened to a placeable one above.
+        q.valid = q.ask > q.bid;
+        // True when the tick grid, not the model, set the spread. Worth
+        // reporting: a strategy whose spread is tick-bound on every
+        // quote is a strategy whose expected edge has been clipped.
+        q.tick_constrained = effective_half > half_spread_;
         return q;
     }
 

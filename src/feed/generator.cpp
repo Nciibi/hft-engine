@@ -266,7 +266,12 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
         ++local.records;
 
         const bool may_mutate = !live.empty();
-        if (!may_mutate || roll < config.pct_add) {
+        // A full live set forces a mutation. Without this the book only
+        // accumulates, no price level ever empties, and the mid is
+        // frozen for the whole run.
+        const bool at_capacity = config.max_live_orders != 0 &&
+                                 live.size() >= config.max_live_orders;
+        if (!may_mutate || (!at_capacity && roll < config.pct_add)) {
             mid += static_cast<std::int64_t>(
                        rng.below(2 * static_cast<std::uint64_t>(drift) + 1)) -
                    drift;

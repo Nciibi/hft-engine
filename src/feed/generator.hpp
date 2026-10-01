@@ -203,6 +203,9 @@ struct CaptureConfig {
     /// throughput benchmark wants. Set it for anything that studies
     /// behaviour over time.
     std::size_t max_live_orders = 0;
+
+    /// Probability that a mutation targets a RECENTLY added order
+    /// rather than a uniformly random one.
     ///
     /// Real order flow is not uniform across price levels. It clusters
     /// hard at the touch, because that is where market orders and

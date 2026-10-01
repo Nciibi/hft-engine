@@ -116,13 +116,21 @@ public:
             ask_live_ = false;
         }
 
-        // (4) Test the PREVIOUS quote against the new mid. A quote
+        // (4) Test the PREVIOUS quote against the new book. A quote
         // placed on this observation cannot fill on it: it did not
-        // exist when this mid was formed.
+        // exist when this touch was formed.
+        //
+        // Fill detection watches the TOUCH, not the mid. The mid of a
+        // book that is 13 ticks wide is a heavily smoothed number: it
+        // almost never moves a full tick in one direction, so testing
+        // against it produced a strategy that quoted every tick and
+        // filled never. A resting bid is hit when the market trades
+        // DOWN to its level, which shows up as the best bid moving
+        // through it.
         if (quote_active_) {
-            if (bid_live_ && crossed_down(resting_bid_, mid)) {
+            if (bid_live_ && best_bid->raw() <= resting_bid_.raw()) {
                 fill(Side::bid, resting_bid_, mid, now);
-            } else if (ask_live_ && crossed_up(resting_ask_, mid)) {
+            } else if (ask_live_ && best_ask->raw() >= resting_ask_.raw()) {
                 fill(Side::ask, resting_ask_, mid, now);
             }
         }
@@ -130,17 +138,6 @@ public:
         // (5) The current quote becomes the resting one for the next
         // observation.
         quote_active_ = quote_valid_;
-    }
-
-    /// Whether the mid traded at or through a resting bid. A passive
-    /// bid is hit when the market sells down to it, so the condition is
-    /// that the mid fell to or below our price.
-    [[nodiscard]] static bool crossed_down(Price our_bid, Price mid) noexcept {
-        return mid <= our_bid;
-    }
-
-    [[nodiscard]] static bool crossed_up(Price our_ask, Price mid) noexcept {
-        return mid >= our_ask;
     }
 
     /// Resolve outstanding markouts at the final mid.
