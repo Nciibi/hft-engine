@@ -135,14 +135,21 @@ public:
             if (elapsed_us == 0) {
                 return;
             }
-            // Clamp the interval so a long idle period cannot overflow
-            // the multiply. Any value past the full refill time is
-            // equivalent anyway, because the bucket saturates.
-            const std::uint64_t cap_us = kMicroTokensPerToken / rate_ + 1u;
-            const std::uint64_t effective_us = elapsed_us > cap_us ? cap_us : elapsed_us;
-            // elapsed_us * rate_ is bounded by cap_us * rate_, and
-            // cap_us is microtokens/rate + 1, so the product is just
-            // over kMicroTokensPerToken: no overflow in uint64.
+            // Clamp the interval to the time it takes to fill the bucket
+            // from empty. Beyond that the bucket saturates anyway, so
+            // the extra time is genuinely unobservable.
+            //
+            // The bound must be the time to fill the WHOLE bucket, not
+            // the time to add one token. An earlier revision clamped to
+            // one token's worth, which silently cut any interval longer
+            // than a fraction of a second and made a 10/second limiter
+            // refill at roughly 1/second.
+            const std::uint64_t fill_us =
+                (burst_tokens_ * kMicroTokensPerToken) / rate_ + 1u;
+            const std::uint64_t effective_us = elapsed_us > fill_us ? fill_us : elapsed_us;
+            // effective_us * rate_ is bounded by roughly
+            // burst_tokens_ * kMicroTokensPerToken, so no uint64
+            // overflow for any burst a caller can configure.
             const std::uint64_t refill_micro = (effective_us * rate_) / 1'000u;
             const std::uint64_t cap_micro = burst_tokens_ * kMicroTokensPerToken;
             tokens_ = (tokens_ + refill_micro > cap_micro) ? cap_micro : tokens_ + refill_micro;
