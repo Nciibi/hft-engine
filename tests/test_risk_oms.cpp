@@ -360,7 +360,7 @@ void test_transition_table() {
 ///
 /// Returns -1 on failure. Callers check.
 [[nodiscard]] int submit_or_fail(oms::Manager& m, Side side, Price price, Quantity size,
-                                 Nanos now, const char* what) {
+                                 hft::Nanos now, const char* what) {
     const int slot = m.submit(side, price, size, now);
     check(slot >= 0, what);
     return slot;
