@@ -166,9 +166,7 @@ public:
             ++fill_checks_;
             if (bid_live_) ++bid_checks_;
             if (ask_live_) ++ask_checks_;
-            if (bid_live_ && best_bid->raw() <= resting_bid_.raw()) {
-                ++bid_hits_;
-                fill(Side::bid, resting_bid_, mid, now);
+            if (bid_live_ && best_bid->raw() <= resting_bid_.raw()) {                            fill(Side::bid, resting_bid_, mid, now);
             } else if (ask_live_ && best_ask->raw() >= resting_ask_.raw()) {
                 ++ask_hits_;
                 fill(Side::ask, resting_ask_, mid, now);
@@ -266,7 +264,7 @@ private:
     std::uint64_t bid_checks_ = 0;
     std::uint64_t ask_checks_ = 0;
     std::uint64_t bid_hits_ = 0;
-    std::uint64_t ask_hits_ = 0;
+    std::uint64_t ask_hits_ = 0;`n    std::int64_t max_position_observed_ = 0;
 };
 
 }  // namespace hft::strategy
