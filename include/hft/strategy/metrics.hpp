@@ -106,12 +106,26 @@ struct Stats {
         return resolved == 0 ? 0.0
                              : static_cast<double>(toxic) / static_cast<double>(resolved);
     }
-    /// How much of the quoted spread survived adverse selection. 1.0
-    /// means fills were at least as good as quoted; below 1.0 means the
-    /// strategy is systematically filled on the wrong side.
-    [[nodiscard]] double realisation_ratio() const noexcept {
-        const double q = mean_quoted_spread();
-        return q <= 0.0 ? 0.0 : mean_realised_spread() / q;
+
+    /// Adverse selection cost per fill, in raw price units, positive
+    /// when it is a cost.
+    ///
+    /// This is 2 * mean markout, and it is the number that matters for
+    /// a market maker. A passive fill at the bid makes the EFFECTIVE
+    /// spread negative by construction, because a bid is below the mid
+    /// and the formula 2*sign*(fill - mid) is measuring exactly that.
+    /// Reading a negative effective spread as "we beat the mid" is a
+    /// misreading: the profit is in the round trip, not in the
+    /// per-leg comparison against the mid. What actually costs money
+    /// is the price moving against us after we are filled, and that is
+    /// the markout.
+    ///
+    /// An earlier revision of this file reported a "realisation ratio"
+    /// of realised to quoted spread. For a market maker that ratio is
+    /// negative whenever fills are passive, which is always, so it
+    /// carried no information and read as a finding.
+    [[nodiscard]] double adverse_cost_per_fill() const noexcept {
+        return 2.0 * mean_markout();
     }
 };
 
