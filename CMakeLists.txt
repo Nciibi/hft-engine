@@ -112,6 +112,12 @@ add_test(NAME units COMMAND hft_test)
 # runs 60,000 randomised operations, so it needs no separate entry.
 add_test(NAME risk_oms COMMAND hft_risk_oms)
 
+# Quoting model, adverse-selection metrics, and the book invariant
+# (the generated book must never cross). Header-only.
+add_executable(hft_strategy tests/test_strategy.cpp)
+target_link_libraries(hft_strategy PRIVATE hft_core)
+add_test(NAME strategy COMMAND hft_strategy)
+
 add_test(NAME differential_default COMMAND hft_differential)
 
 # Several seeds, because a differential test that only passes on one
