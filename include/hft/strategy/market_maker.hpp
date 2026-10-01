@@ -96,31 +96,53 @@ public:
 
         const Quote quote = quoter_.quote(mid, pnl_.position());
         if (quote.valid) {
-            // Never quote better than the touch.
-            //
-            // The model places quotes around the MID. The book is not
-            // centred on that mid: it is 13 ticks wide, so the model's
-            // bid sits hundreds of raw units ABOVE the best bid. Left
-            // unclamped, that quote is inside the spread, which in a
-            // real market is an aggressive order that would cross, not
-            // a passive one that would rest. It then "filled" 600 raw
-            // units through the mid and reported a 13 dollar effective
-            // spread, which is not a market maker, it is a bug with a
-            // plausible-looking output.
-            //
-            // Clamping each side toward its own touch is what joining
-            // the queue actually means, and it is why the effective and
-            // quoted spreads come out the same order of magnitude.
+            // Never quote better than the touch. See the long note
+            // below: the model prices around the mid, the book is not
+            // centred on it, and an unclamped quote sits inside the
+            // spread, which is a crossing order rather than a resting
+            // one.
             const Price bid = quote.bid > *best_bid ? quote.bid : *best_bid;
             const Price ask = quote.ask < *best_ask ? quote.ask : *best_ask;
 
+            const std::int64_t position = pnl_.position();
+
+            if (bid < ask) {
+                // Both sides placeable. Respect the inventory limit on
+                // each side independently, so a long position stops
+                // being added to but can still be worked down.
+                bid_live_ = position < config_.max_inventory;
+                ask_live_ = position > -config_.max_inventory;
+                quoted_spread_raw_ = ask.raw() - bid.raw();
+            } else {
+                // The model wants to trade THROUGH the book: with any
+                // real inventory the reservation shift exceeds the
+                // book's own spread, so the clamped bid ends up above
+                // the clamped ask.
+                //
+                // Emitting that is not a strategy, it is a crossed
+                // quote. The only sensible action is to keep the side
+                // that REDUCES the position and drop the other. With no
+                // inventory there is no reason to prefer either side,
+                // so quote nothing rather than guess.
+                if (position > 0) {
+                    bid_live_ = false;
+                    ask_live_ = true;
+                } else if (position < 0) {
+                    bid_live_ = true;
+                    ask_live_ = false;
+                } else {
+                    bid_live_ = false;
+                    ask_live_ = false;
+                }
+                // Normalise the reported spread to what it would be if
+                // both sides were quoted, so the metric stays
+                // comparable between one-sided and two-sided quoting.
+                quoted_spread_raw_ = 2 * (bid_live_ ? mid.raw() - bid.raw()
+                                                     : ask.raw() - mid.raw());
+            }
+
             resting_bid_ = bid;
             resting_ask_ = ask;
-            quoted_spread_raw_ = ask.raw() - bid.raw();
-
-            bid_live_ = pnl_.position() < config_.max_inventory;
-            ask_live_ = pnl_.position() > -config_.max_inventory;
-
             quote_valid_ = quoted_spread_raw_ >= config_.min_edge_raw && (bid_live_ || ask_live_);
             if (quote_valid_) {
                 ++quotes_;
