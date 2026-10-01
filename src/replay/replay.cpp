@@ -158,6 +158,12 @@ int main(int argc, char** argv) {
     std::size_t unknown_orders = 0;
     std::size_t over_reduce = 0;
     std::size_t other_rejects = 0;
+    // Frames that decoded to neither ok nor skippable. An earlier
+    // revision dropped these silently, which let a heap-corrupting bug
+    // in the feed generator masquerade as merely "some records did not
+    // apply" instead of "this pipeline is broken". Any non-zero value
+    // here is a hard failure.
+    std::size_t malformed = 0;
     std::uint64_t checksum = 0;
     std::size_t checksummed = 0;
 
