@@ -364,9 +364,15 @@ production software is worse than one that does not:
   be meaningless without it.
 - **No persistence or recovery.** A process restart loses all state.
   A real system needs a write-ahead log and a snapshot cadence.
-- **No market making or adverse-selection measurement.** Not started.
-  This is the gap the most engineering candidates have, per every
-  interview guide consulted, and it is the next piece of work.
+- **The market making backtest is an upper bound.** No queue position,
+  no latency, no size at level. Its fill model is also *symmetric*,
+  which means the position is a random walk the inventory term cannot
+  damp, so the strategy reaches its inventory limit and stays there.
+  Real inventory control depends on fills being asymmetric, which
+  requires order-flow toxicity as a model input. The adverse-selection
+  metrics do not depend on this and stand on their own; the inventory
+  numbers demonstrate the mechanism is wired up, not that the strategy
+  controls inventory.
 - **No self-trade prevention, no auction handling, no order book
   state message processing.**
 - **Price ladder is a sorted linked list**, so inserting a price not
