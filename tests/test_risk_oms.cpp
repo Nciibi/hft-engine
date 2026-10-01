@@ -68,9 +68,11 @@ risk::Limits small_limits() {
 }
 
 /// Limits with the notional cap as the binding constraint.
+/// 20 shares at $100.00 is 20 * 1,000,000 raw = $2,000, so this cap
+/// is exactly one boundary case wide.
 risk::Limits tight_notional_limits() {
     risk::Limits l = small_limits();
-    l.max_order_notional_raw = 2'000'000;  // $200
+    l.max_order_notional_raw = 20'000'000;  // $2,000
     return l;
 }
 
@@ -650,8 +652,12 @@ void test_oms_random_invariants() {
 
     check_eq(m.count(oms::OrdState::filled) + m.count(oms::OrdState::cancelled) +
                  m.count(oms::OrdState::rejected),
-             m.submitted() - m.rejected(),
+             m.submitted(),
              "every accepted order reached exactly one terminal state");
+    check_eq(m.submitted() + m.risk_rejected() + m.pool_full(), m.submitted() + m.rejected(),
+             "refusal accounting adds up");
+    check(m.risk_rejected() > 0 || m.pool_full() > 0,
+          "the random stream actually hit some refusals");
 
     check(m.risk().total_rejected() > 0, "the random stream actually hit some limits");
 }
