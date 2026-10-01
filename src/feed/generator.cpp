@@ -80,12 +80,10 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
     // would then silently skip. Clamp once, loudly, rather than let a
     // config mistake quietly shrink the feed.
     const std::int64_t drift_raw = config.drift_raw < 0 ? 0 : config.drift_raw;
-    const std::int64_t half_spread_raw = config.half_spread_raw < 0 ? 1 : config.half_spread_raw;
-    const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
     const std::int64_t tick = config.tick_raw < 1 ? 1 : config.tick_raw;
+    const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
 
-    const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
-    const std::int64_t half = levels / 2;
+    const std::size_t levels = config.price_levels == 0 ? 1 : config.price_levels;
     const std::int64_t anchor = config.anchor_raw;
     std::int64_t mid = anchor;
     OrderId next_id = config.first_order_id;
