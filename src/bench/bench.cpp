@@ -125,10 +125,10 @@ int main(int argc, char** argv) {
                 break;
             }
             if (r.ok()) {
+                const auto& ao = std::get<hft::itch::AddOrder>(r.message.body);
                 hft::lob::BookStatus st{};
                 if (st == hft::lob::BookStatus::ok) {
-                    warm.add(r.message.add_order.side, r.message.add_order.price,
-                             r.message.add_order.size, r.message.add_order.id, st);
+                    warm.add(ao.side, ao.price, ao.size, ao.id, st);
                 }
                 if (st == hft::lob::BookStatus::ok) {
                     ++applied;
