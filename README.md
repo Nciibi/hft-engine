@@ -342,8 +342,8 @@ built to answer are:
    correctness argument.
 3. **Design a matching engine.** The book itself.
 
-Not yet built, and named honestly: the market making strategy with
-adverse-selection measurement, sharding, and MoldUDP64 framing.
+Not yet built, and named honestly: sharding, the SPSC ring buffer, and
+MoldUDP64 framing.
 
 ## What this is not
 
