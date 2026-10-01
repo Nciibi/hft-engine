@@ -72,13 +72,40 @@ std::string hex64(std::uint64_t v) {
     return std::string(buf);
 }
 
+/// True when the argument is entirely decimal digits.
+///
+/// The first positional argument is treated as a record count if it is
+/// numeric and as a path otherwise. A flag would be less clever and
+/// less convenient, and a replay tool gets invoked far more often than
+/// it gets documented.
+[[nodiscard]] bool looks_numeric(const char* s) noexcept {
+    if (s == nullptr || *s == '\0') {
+        return false;
+    }
+    for (const char* p = s; *p != '\0'; ++p) {
+        if (*p < '0' || *p > '9') {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
+// Usage:
+//   hft_replay                     generate a capture in memory and replay it
+//   hft_replay [records]           same, with a chosen record count
+//   hft_replay <file>              replay a capture from disk
+//   hft_replay <file> [records]    replay from disk, with a record cap
 int main(int argc, char** argv) {
     std::size_t record_count = 200'000;
     const char* path = nullptr;
     if (argc > 1) {
-        path = argv[1];
+        if (looks_numeric(argv[1])) {
+            record_count = std::strtoull(argv[1], nullptr, 10);
+        } else {
+            path = argv[1];
+        }
     }
     if (argc > 2) {
         record_count = std::strtoull(argv[2], nullptr, 10);
