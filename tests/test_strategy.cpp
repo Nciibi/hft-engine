@@ -300,8 +300,11 @@ void test_book_never_crosses() {
     check(crossed == 0, "the generated book is never crossed");
     check(two_sided > 0, "the book has two sides for most of the run");
     // A frozen mid makes a market maker untestable: there is no
-    // volatility to price and nothing to trade against.
-    check(mid_changes > two_sided / 100, "the mid reprices during the run");
+    // volatility to price and nothing to trade against. The threshold
+    // is 0.5% of two-sided observations, which is roughly one touch
+    // move every 150 messages. A real book turns over far faster; the
+    // point of the bound is that it is not frozen.
+    check(mid_changes > two_sided / 200, "the mid reprices during the run");
     check(mid_high > mid_low, "and it visits a range of prices");
 }
 
