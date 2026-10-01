@@ -232,7 +232,12 @@ void test_book_never_crosses() {
     hft::feed::CaptureConfig cfg;
     cfg.record_count = 120'000;
     cfg.price_levels = 4;
-    cfg.max_live_orders = 60;
+    // Shallow on purpose. With more orders resting per level, a level
+    // takes hundreds of messages to clear, the best bid and ask are set
+    // rarely, and the price stops repricing at a frequency anything can
+    // trade against. A real book turns over its touch many times a
+    // second; a synthetic one has to be told to.
+    cfg.max_live_orders = 24;
     cfg.drift_raw = 200;
 
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(cfg);
