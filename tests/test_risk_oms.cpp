@@ -414,7 +414,11 @@ void test_oms_fill_races_cancel() {
     oms::Manager m = make_manager();
     m.set_reference_price(kRef);
 
-    const int slot = m.submit(Side::bid, kRef, Quantity::from_raw(100), 1'000);
+    const int slot = submit_or_fail(m, Side::bid, kRef, Quantity::from_raw(100), 1'000,
+                                    "submit for the cancel race");
+    if (slot < 0) {
+        return;
+    }
     m.on_ack(slot, 1, 1'001);
     check_eq(static_cast<int>(m.request_cancel(slot, 1'002)), static_cast<int>(oms::OmsStatus::ok),
              "cancel requested");
@@ -443,7 +447,11 @@ void test_oms_fill_beats_cancel() {
     oms::Manager m = make_manager();
     m.set_reference_price(kRef);
 
-    const int slot = m.submit(Side::ask, kRef, Quantity::from_raw(50), 1'000);
+    const int slot = submit_or_fail(m, Side::ask, kRef, Quantity::from_raw(50), 1'000,
+                                    "submit for the fill-beats-cancel case");
+    if (slot < 0) {
+        return;
+    }
     m.on_ack(slot, 1, 1'001);
     m.request_cancel(slot, 1'002);
     m.on_fill(slot, Quantity::from_raw(50), kRef, 1'003);
@@ -461,7 +469,11 @@ void test_oms_overfill() {
     std::printf("oms: over-fill\n");
     oms::Manager m = make_manager();
     m.set_reference_price(kRef);
-    const int slot = m.submit(Side::bid, kRef, Quantity::from_raw(10), 1'000);
+    const int slot = submit_or_fail(m, Side::bid, kRef, Quantity::from_raw(10), 1'000,
+                                    "submit for the over-fill case");
+    if (slot < 0) {
+        return;
+    }
     m.on_ack(slot, 1, 1'001);
 
     check(m.on_fill(slot, Quantity::from_raw(11), kRef, 1'002) == oms::OmsStatus::illegal_transition,
