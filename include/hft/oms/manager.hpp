@@ -411,6 +411,29 @@ public:
     }
     [[nodiscard]] std::uint64_t fills() const noexcept { return fills_; }
 
+    /// True when the state counters exactly describe the slots that
+    /// hold an order.
+    ///
+    /// This is the invariant that actually matters for a reconcile
+    /// view, and it is not automatically maintained: a slot reused
+    /// while holding a retired order has to have its old contribution
+    /// removed, which is bookkeeping no compiler checks. Exposed so a
+    /// test can assert it rather than trusting it.
+    [[nodiscard]] bool counters_consistent() const noexcept {
+        std::size_t summed = 0;
+        for (const std::size_t c : state_counts_) {
+            summed += c;
+        }
+        std::size_t occupied = 0;
+        for (const std::uint8_t h : held_) {
+            occupied += h;
+        }
+        return summed == occupied;
+    }
+
+    /// Number of slots holding an order, live or retired.
+    [[nodiscard]] std::size_t held_count() const noexcept { return submitted_; }
+
     /// Engage the kill switch and cancel every live order.
     ///
     /// Cancelling in the same call is deliberate. A switch that stops

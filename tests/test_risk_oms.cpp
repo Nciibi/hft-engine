@@ -642,6 +642,9 @@ void test_oms_random_invariants() {
     }
 
     // ---- Invariants ----
+    check(m.counters_consistent(),
+          "the state counters sum to the number of occupied slots");
+
     check_eq(m.risk().position(Side::bid), expected_bid_filled,
              "the OMS bid position equals an independent tally of fills");
     check_eq(m.risk().position(Side::ask), expected_ask_filled,
