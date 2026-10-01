@@ -67,9 +67,9 @@ int main(int argc, char** argv) {
     // reckless against this feed's volatility. They are defaults, not
     // fitted values: fitting them to the capture would be fitting to
     // the noise and would flatter the result.
-    mm_config.quote.gamma = 0.05;
+    mm_config.quote.gamma = 1.0e-3;   // 1/price units
     mm_config.quote.k = 1.5;
-    mm_config.quote.horizon_seconds = 5.0;
+    mm_config.quote.horizon_ticks = 250.0;   // observations, not seconds
     mm_config.quote.base_size = 100;
     mm_config.max_inventory = 5'000;
 
