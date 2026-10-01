@@ -138,6 +138,13 @@ int main(int argc, char** argv) {
     std::uint64_t unknown = 0;
     std::uint64_t malformed = 0;
 
+    // Rejection reasons are counted individually. A run where most adds
+    // are refused is measuring the refusal path, and a single
+    // "rejected" total would let that pass as a throughput win.
+    std::uint64_t rej_capacity = 0;
+    std::uint64_t rej_duplicate = 0;
+    std::uint64_t rej_zero_size = 0;
+
     Timer total_timer;
     const std::uint8_t* p = feed.data();
     std::size_t remaining = feed.size();
@@ -164,6 +171,12 @@ int main(int argc, char** argv) {
                 ++applied;
             } else {
                 ++rejected;
+                switch (st) {
+                    case hft::lob::BookStatus::capacity_exhausted: ++rej_capacity; break;
+                    case hft::lob::BookStatus::duplicate_order:   ++rej_duplicate; break;
+                    case hft::lob::BookStatus::zero_size:         ++rej_zero_size; break;
+                    default: break;
+                }
             }
             (void)h;
         } else if (r.status == hft::itch::DecodeStatus::unknown_type) {
@@ -191,6 +204,16 @@ int main(int argc, char** argv) {
     std::printf("decoded             %s\n", humanize(decoded).c_str());
     std::printf("applied             %s\n", humanize(applied).c_str());
     std::printf("rejected            %s\n", humanize(rejected).c_str());
+    if (rejected != 0) {
+        std::printf("  capacity          %s\n", humanize(rej_capacity).c_str());
+        std::printf("  duplicate id      %s\n", humanize(rej_duplicate).c_str());
+        std::printf("  zero size         %s\n", humanize(rej_zero_size).c_str());
+        if (rej_capacity != 0) {
+            std::printf(
+                "  WARNING: the level or order pool saturated. This run does\n"
+                "           NOT measure sustained insertion throughput.\n");
+        }
+    }
     std::printf("unknown type        %s\n", humanize(unknown).c_str());
     std::printf("malformed           %s\n", humanize(malformed).c_str());
     std::printf("elapsed             %.6f s\n", static_cast<double>(elapsed_ns) / 1e9);
