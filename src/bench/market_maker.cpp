@@ -176,12 +176,18 @@ int main(int argc, char** argv) {
     std::printf("%-24s %12.2f\n", "mean realised", s.mean_realised_spread());
     std::printf("%-24s %12.2f\n", "mean markout", s.mean_markout());
     std::printf("\n");
+    std::printf("A negative EFFECTIVE spread is correct here, not a bug:\n");
+    std::printf("a passive fill buys at the bid, which is below the mid, so\n");
+    std::printf("2*sign*(fill-mid) is negative by construction. The profit is\n");
+    std::printf("in the round trip. What costs money is adverse selection.\n");
+    std::printf("\n");
     std::printf("ADVERSE SELECTION\n");
     std::printf("----------------\n");
     std::printf("resolved fills       %llu\n", (unsigned long long)s.resolved);
     std::printf("toxic fills          %llu\n", (unsigned long long)s.toxic);
     std::printf("toxicity rate        %.2f%%\n", s.toxicity_rate() * 100.0);
-    std::printf("realisation ratio    %.3f  (realised / quoted)\n", s.realisation_ratio());
+    std::printf("adverse cost / fill  %+.2f raw  (2 * markout; positive is a cost)\n",
+                s.adverse_cost_per_fill());
     std::printf("\n");
     std::printf("IDENTITY CHECK\n");
     std::printf("--------------\n");
