@@ -209,8 +209,7 @@ int main(int argc, char** argv) {
     std::printf("----------------------------------------------------\n");
     std::printf("total pnl (raw)      %lld\n", i64(p.total_pnl()));
     std::printf("pnl per fill (raw)   %.2f\n", p.pnl_per_fill());
-    std::printf("best step (raw)      %lld\n", i64(p.best_step());
-    std::printf("worst step (raw)     %lld\n", i64(p.worst_step());
+    std::printf("best step (raw)      %lld\n", i64(p.worst_step());
     std::printf("drawdown (raw)       %lld\n", i64(p.drawdown());
     std::printf("\n");
     std::printf("Read the markout, the toxicity rate and the inventory excursion.\n");
