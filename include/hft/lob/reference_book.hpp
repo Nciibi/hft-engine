@@ -54,7 +54,7 @@ public:
         }
         if (qty.raw() == o.size.raw()) {
             level.erase(find_in(level, id));
-            location_.erase(loc);
+            location_.erase(loc);            sides_.erase(id);
             if (level.empty()) {
                 books_[index(side)].erase(price);
             }
@@ -82,7 +82,7 @@ public:
         }
         if (qty.raw() == o.size.raw()) {
             level.erase(pos);
-            location_.erase(loc);
+            location_.erase(loc);            sides_.erase(id);
             if (level.empty()) {
                 books_[index(side)].erase(price);
             }
@@ -107,7 +107,7 @@ public:
             *discarded = pos->size;
         }
         level.erase(pos);
-        location_.erase(loc);
+        location_.erase(loc);        sides_.erase(id);
         if (level.empty()) {
             books_[index(side)].erase(price);
         }
