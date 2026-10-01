@@ -162,6 +162,8 @@ private:
         OrderState state;
     };
 
+    using Book = std::map<Price, std::deque<Order>>;
+
     /// Visit each price level in display priority: best first.
     template <class F>
     void for_each_level_ordered(Side side, F&& visit) const {
@@ -204,8 +206,6 @@ private:
         return side == Side::bid ? std::optional<Price>{book.rbegin()->first}
                                 : std::optional<Price>{book.begin()->first};
     }
-
-    using Book = std::map<Price, std::deque<Order>>;
 
     Book books_[2]{};
     std::map<OrderId, Price> location_{};
