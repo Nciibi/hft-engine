@@ -227,10 +227,17 @@ private:
     /// is small but it is systematic, and systematic is the thing that
     /// shows up as a strategy that mysteriously loses.
     [[nodiscard]] static std::int64_t round_to_raw(double value) noexcept {
-        if (value >= 9.223'372'036'854'775'808.0) {
+        // Bounds are written as scientific notation because a digit
+        // separator inside the fraction of a floating literal is not
+        // valid C++, and because the exact bound is 9.223...e18, which
+        // is not representable as a double anyway. 9.2e18 sits safely
+        // inside the representable range of int64.
+        constexpr double kMax = 9.2e18;
+        constexpr double kMin = -9.2e18;
+        if (value >= kMax) {
             return INT64_MAX;
         }
-        if (value <= -9.223'372'036'854'775'808.0) {
+        if (value <= kMin) {
             return INT64_MIN;
         }
         return static_cast<std::int64_t>(std::llround(value));
