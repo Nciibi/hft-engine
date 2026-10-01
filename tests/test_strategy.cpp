@@ -121,15 +121,23 @@ void test_inventory_skew() {
     check(short_pos.bid > flat.bid, "a short position raises the bid");
     check(short_pos.ask > flat.ask, "a short position raises the ask");
 
-    // Symmetric, which is the property a directional bias would break.
-    check(flat.bid.raw() + flat.ask.raw() == long_pos.bid.raw() + long_pos.ask.raw() * 0 + 
-              (2 * mid.raw() - (long_pos.bid.raw() + long_pos.ask.raw())),
-          "the skew shifts both sides by the same amount");
+    // Symmetric: the inventory term shifts BOTH sides by the same
+    // amount and leaves the spread alone. A model that widened instead
+    // of shifted would be responding to inventory the wrong way.
+    check(flat.ask.raw() - flat.bid.raw() == long_pos.ask.raw() - long_pos.bid.raw(),
+          "inventory shifts the quote, it does not widen it");
+    check(flat.ask.raw() - flat.bid.raw() == short_pos.ask.raw() - short_pos.bid.raw(),
+          "and does so symmetrically for a short");
 
-    // And the skew must scale with inventory, linearly.
-    const double skew_flat = static_cast<double>(flat.bid.raw()) - mid.raw();
-    const double skew_long = static_cast<double>(long_pos.bid.raw()) - mid.raw();
-    check(skew_long < skew_flat, "more inventory, more skew");
+    // The shift scales with inventory.
+    const std::int64_t flat_bid = flat.bid.raw();
+    const std::int64_t long_bid = long_pos.bid.raw();
+    const std::int64_t shift_1k = flat_bid - long_bid;
+    const strategy::Quote longer_pos = q.quote(mid, 2'000);
+    const std::int64_t shift_2k = flat_bid - longer_pos.bid.raw();
+    check(shift_1k > 0, "more inventory, more skew");
+    check_near(static_cast<double>(shift_2k), 2.0 * static_cast<double>(shift_1k), 1.0,
+               "the skew is linear in inventory");
 }
 
 void test_volatility_estimator() {
