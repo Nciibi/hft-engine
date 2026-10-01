@@ -120,7 +120,11 @@ int main(int argc, char** argv) {
             break;
         }
         if (r.ok()) {
-            hft::lob::apply(r.message, book);
+            // The apply result is deliberately discarded here. A
+            // mutation for an order the book has never seen is
+            // reported, not fatal, and the replay tool is where that
+            // count is examined.
+            (void)hft::lob::apply(r.message, book);
             // Each message advances the clock. A fixed tick per message
             // is synthetic, and the markout horizon is therefore a
             // number of messages rather than a real duration. Stated
