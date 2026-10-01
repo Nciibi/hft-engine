@@ -89,8 +89,10 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ./build/hft_test           # codec, values, sequence tracking
 ./build/hft_risk_oms       # pre-trade risk and the OMS
+./build/hft_strategy       # quoting model, adverse selection, book invariant
 ./build/hft_differential   # fast book vs naive model, full state compare
 ./build/hft_replay         # deterministic replay, prints the book checksum
+./build/hft_market_maker   # market maker over a replay, prints toxicity
 ./build/hft_bench          # latency and throughput table
 ctest --test-dir build     # everything
 ```
