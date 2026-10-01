@@ -505,7 +505,11 @@ void test_oms_risk_integration() {
     // ones is a suggestion, not a kill switch.
     m.risk().reset_kill_switch();
     m.risk().reset_positions();
-    const int slot = m.submit(Side::bid, kRef, Quantity::from_raw(50), 3'000);
+    const int slot = submit_or_fail(m, Side::bid, kRef, Quantity::from_raw(50), 3'000,
+                                    "submit before the second kill");
+    if (slot < 0) {
+        return;
+    }
     m.on_ack(slot, 1, 3'001);
     check_eq(m.count(oms::OrdState::working), 1u, "one order working");
     m.kill_all("second incident", 3'100);
