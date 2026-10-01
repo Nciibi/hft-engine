@@ -200,6 +200,31 @@ void OrderBook::unlink_order(Handle h) noexcept {
     }
 }
 
+void OrderBook::reduce_size(Handle h, Quantity new_size) noexcept {
+    OrderNode& o = orders_[h];
+    const Handle level = o.level;
+    assert(level != kInvalidHandle && "reducing an order with no level");
+
+    const std::uint64_t before = o.size.raw();
+    const std::uint64_t after = new_size.raw();
+    assert(after <= before && "reduce_size may only shrink an order");
+
+    const std::uint64_t delta = before - after;
+    o.size = new_size;
+
+    LevelNode& lv = levels_[level];
+    lv.aggregate_size = Quantity::from_raw(
+        lv.aggregate_size.raw() >= delta ? lv.aggregate_size.raw() - delta : 0);
+
+    if (o.side == Side::bid) {
+        bid_aggregate_ = Quantity::from_raw(
+            bid_aggregate_.raw() >= delta ? bid_aggregate_.raw() - delta : 0);
+    } else {
+        ask_aggregate_ = Quantity::from_raw(
+            ask_aggregate_.raw() >= delta ? ask_aggregate_.raw() - delta : 0);
+    }
+}
+
 void OrderBook::detach_order(Handle h) noexcept {
     OrderNode& o = orders_[h];
     const Side side = o.side;
@@ -338,15 +363,12 @@ BookStatus OrderBook::execute(OrderId id, Quantity qty) noexcept {
         return BookStatus::ok;
     }
 
-    // Partial fill. The level's aggregate depends on remaining size, so
-    // the order must be unlinked and relinked to keep the aggregate
-    // exact. The order keeps its queue position at the tail, which is
-    // what a real partial fill does: it does not regain priority.
-    o.size = Quantity::from_raw(o.size.raw() - qty.raw());
-    o.state = OrderState::partially_filled;
-    const Handle level = o.level;
-    unlink_order(h);
-    link_order(h, level);
+    // Partial fill. The order keeps its position in the queue: a
+    // partially filled order is not demoted to the back of its price
+    // level, and treating it as though it were would change the
+    // priority of every order behind it.
+    reduce_size(h, Quantity::from_raw(o.size.raw() - qty.raw()));
+    orders_[h].state = OrderState::partially_filled;
     return BookStatus::ok;
 }
 
