@@ -275,8 +275,8 @@ built to answer are:
    correctness argument.
 3. **Design a matching engine.** The book itself.
 
-Not yet built, and named honestly: pre-trade risk limits, the market
-making strategy with adverse-selection measurement, and sharding.
+Not yet built, and named honestly: the market making strategy with
+adverse-selection measurement, sharding, and MoldUDP64 framing.
 
 ## What this is not
 
