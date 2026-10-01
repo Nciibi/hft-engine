@@ -25,8 +25,9 @@ decode-to-encode pipeline.
 | Deterministic replay, FNV-1a book-state checksum | done |
 | Pre-trade risk: position, gross, notional, price band, rate, kill switch | done |
 | OMS: order state machine, slot pool, reconcile counters | done |
+| Avellaneda-Stoikov quoting, no transcendental in the loop | done |
+| Adverse selection: markout, effective/realised spread, toxicity | done |
 | Order Replace (`U`) decode | deliberately **not** done, see below |
-| Market maker, adverse-selection measurement | not started |
 | SPSC ring buffer, multi-shard | not started |
 | MoldUDP64 packet framing and checksum | not started |
 
@@ -37,13 +38,14 @@ message is recoverable; a decoder that reads the wrong bytes is not.
 This is the one place the decoder declines to be complete on purpose,
 and the reason is recorded in `include/hft/itch/protocol.hpp`.
 
-Verified: **137 unit checks, 156 risk/OMS checks**, and a differential
-test comparing the fast book against an independent naive model over
-**400,000 operations with full state comparison after every one**,
-across five seeds. The OMS is additionally driven through **60,000
-randomised operations** with invariant checks against an independent
-tally. Determinism is checked too: the same capture replayed at `-O0`,
-`-O2`, `-O3` and `-Os` produces an identical book checksum.
+Verified: **137 unit + 156 risk/OMS + 47 strategy = 340 checks**, and a
+differential test comparing the fast book against an independent naive
+model over **400,000 operations with full state comparison after every
+one**, across five seeds. The OMS is additionally driven through
+**60,000 randomised operations** with invariant checks against an
+independent tally. Determinism is checked too: the same capture replayed
+at `-O0`, `-O2`, `-O3`, `-Os` and `-Oz` produces an identical book
+checksum.
 
 ## Results
 
