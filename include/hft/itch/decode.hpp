@@ -101,7 +101,11 @@ struct DecodeResult {
 
 /// Advance past the current frame, or return 0 if the buffer cannot
 /// even supply a length prefix.
-[[nodiscard]] std::size_t frame_stride(const DecodeResult& result) noexcept {
+///
+/// `inline` because this is defined in a header: without it every
+/// translation unit emits a definition and the link fails with a
+/// duplicate symbol.
+[[nodiscard]] inline std::size_t frame_stride(const DecodeResult& result) noexcept {
     return result.status == DecodeStatus::truncated
                ? 0
                : static_cast<std::size_t>(kLengthPrefixSize) + result.length;
