@@ -230,7 +230,6 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
     SplitMix64 rng(config.seed);
     CaptureStats local{};
 
-    const std::int64_t levels = static_cast<std::int64_t>(config.price_levels);
     const std::int64_t tick = config.tick_raw < 1 ? 1 : config.tick_raw;
     const std::int64_t drift = config.drift_raw < 0 ? 0 : config.drift_raw;
     const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
