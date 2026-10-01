@@ -292,8 +292,52 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             // ticks, and a market maker had zero volatility to price.
             const std::int64_t offset =
                 1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels)));
-            const std::int64_t raw_price =
+            std::int64_t raw_price =
                 side == hft::Side::bid ? mid - offset * tick : mid + offset * tick;
+
+            // NEVER cross the book. This is an invariant, not a
+            // parameter choice, and it is enforced here rather than
+            // hoped for via tuning.
+            //
+            // The generator's mid is a random walk while the book
+            // spans only `levels * tick`. Any walk wider than the book
+            // guarantees a crossing: an ask placed when the mid was
+            // high survives while a bid placed after it walked down
+            // arrives beneath it. A crossed book cannot occur in a real
+            // market, and every measurement taken from one is
+            // meaningless rather than merely wrong.
+            //
+            // Scanning the live set is O(n) on a book capped in the
+            // tens of orders. The alternative is relying on the
+            // parameters happening to satisfy the invariant, which is
+            // not an invariant.
+            if (!live.empty()) {
+                std::int64_t min_ask = 0;
+                std::int64_t max_bid = 0;
+                bool have = false;
+                for (const Live& l : live) {
+                    if (l.side == hft::Side::ask) {
+                        if (!have || l.price.raw() < min_ask) {
+                            min_ask = l.price.raw();
+                        }
+                    } else {
+                        if (!have || l.price.raw() > max_bid) {
+                            max_bid = l.price.raw();
+                        }
+                    }
+                    have = true;
+                }
+                if (side == hft::Side::bid) {
+                    if (min_ask != 0 && raw_price >= min_ask - tick) {
+                        raw_price = min_ask - tick;
+                    }
+                } else {
+                    if (max_bid != 0 && raw_price <= max_bid + tick) {
+                        raw_price = max_bid + tick;
+                    }
+                }
+            }
+
             if (raw_price <= 0) {
                 continue;  // only reachable if the mid walked to zero
             }
