@@ -118,13 +118,18 @@ compiler, and `git`.
       +---> [ FNV-1a state checksum ]  deterministic replay
       |
       v
-  [ Pre-trade risk ] position, gross, notional, band, rate, kill
-      |
-      v
   [ Order management ] state machine, slot pool, reconcile counters
       |
       v
-  [ Market maker ]   not yet built
+  [ Pre-trade risk ]  position, gross, notional, band, rate, kill
+      |
+      v
+  [ Market maker ]   Avellaneda-Stoikov, tick-aware
+      |
+      +---> [ Adverse selection ]  markout, toxicity, realised spread
+      |
+      v
+  [ PnL ]  marked to market, inventory aware
 ```
 
 ## Design decisions
