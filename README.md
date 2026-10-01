@@ -133,6 +133,30 @@ contain types this build does not implement. Crashing is not an option.
 machine, any optimisation level. Without that property, no benchmark
 is reproducible and no bug is reproducible.
 
+**The price ladder is a sorted linked list, and that is a known cost.**
+Inserting a price that is not adjacent to the best walks from the head
+of the ladder, so book-update latency is proportional to ladder depth.
+At the ~3,200 levels per side in the development run this is
+comfortably inside the tail, but it is O(levels), not O(1), and it is
+the first thing to replace with a price-ladder array or a tree once a
+real depth target is known. The benchmark reports ladder depth for
+exactly this reason: a latency figure quoted without it cannot be
+interpreted.
+
+**Bugs the differential test found, kept here deliberately.** These are
+the reasons the test exists and the reasons to distrust a book that has
+never been differentially tested:
+
+- A partial fill was implemented as unlink-then-relink, which moved the
+  order to the tail of its price level. A partial fill must not change
+  queue priority. Caught by the first partial fill in the run.
+- Full fills and full cancels zeroed the order size *before*
+  detaching, so the level aggregate subtracted zero and was left
+  permanently inflated. Caught 37 operations in.
+- The level index entry was erased unconditionally on removal, so
+  removing one of two orders at the same price made a still-populated
+  level unreachable. Found by review before it ever ran.
+
 ## Failure modes
 
 Things this build handles explicitly, because they are where real
