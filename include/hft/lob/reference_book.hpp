@@ -127,19 +127,19 @@ public:
         return total;
     }
 
-    /// Best first, matching the fast book's ladder order.
+    /// Best first, matching the fast book's ladder order. Bids are
+    /// walked from the highest price down; asks from the lowest up.
+    /// std::map<Price> is ascending, so those are opposite directions.
     [[nodiscard]] std::vector<LevelSnapshot> levels(Side side) const {
         std::vector<LevelSnapshot> out;
-        const auto& book = books_[index(side)];
-        for (auto it = begin_ordered(side); it != end_ordered(side); ++it) {
+        for_each_level_ordered(side, [&](Price price, const std::deque<Order>& resting) {
             Quantity total{};
-            for (const Order& o : it->second) {
+            for (const Order& o : resting) {
                 total = Quantity::from_raw(total.raw() + o.size.raw());
             }
-            out.push_back(LevelSnapshot{it->first, total,
-                                        static_cast<std::uint32_t>(it->second.size())});
-        }
-        (void)book;
+            out.push_back(
+                LevelSnapshot{price, total, static_cast<std::uint32_t>(resting.size())});
+        });
         return out;
     }
 
@@ -147,11 +147,11 @@ public:
     /// book produces, so the two can be compared element by element.
     [[nodiscard]] std::vector<OrderSnapshot> orders(Side side) const {
         std::vector<OrderSnapshot> out;
-        for (auto it = begin_ordered(side); it != end_ordered(side); ++it) {
-            for (const Order& o : it->second) {
-                out.push_back(OrderSnapshot{o.id, it->first, o.size, o.state});
+        for_each_level_ordered(side, [&](Price price, const std::deque<Order>& resting) {
+            for (const Order& o : resting) {
+                out.push_back(OrderSnapshot{o.id, price, o.size, o.state});
             }
-        }
+        });
         return out;
     }
 
@@ -161,6 +161,21 @@ private:
         Quantity size;
         OrderState state;
     };
+
+    /// Visit each price level in display priority: best first.
+    template <class F>
+    void for_each_level_ordered(Side side, F&& visit) const {
+        const Book& book = books_[index(side)];
+        if (side == Side::bid) {
+            for (auto it = book.rbegin(); it != book.rend(); ++it) {
+                visit(it->first, it->second);
+            }
+        } else {
+            for (auto it = book.cbegin(); it != book.cend(); ++it) {
+                visit(it->first, it->second);
+            }
+        }
+    }
 
     static constexpr int index(Side s) noexcept {
         return s == Side::bid ? 0 : 1;
