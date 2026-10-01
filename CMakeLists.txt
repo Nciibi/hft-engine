@@ -103,6 +103,10 @@ enable_testing()
 
 add_test(NAME units COMMAND hft_test)
 
+# Risk and OMS. The random invariant test lives inside this binary and
+# runs 60,000 randomised operations, so it needs no separate entry.
+add_test(NAME risk_oms COMMAND hft_risk_oms)
+
 add_test(NAME differential_default COMMAND hft_differential)
 
 # Several seeds, because a differential test that only passes on one
