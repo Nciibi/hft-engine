@@ -55,7 +55,13 @@ public:
     /// Render as a decimal string with exactly four fractional digits.
     [[nodiscard]] std::string to_string() const;
 
-    auto operator<=>(const Price&) const noexcept = default;
+    // Spelled out rather than defaulted from a three-way comparison.
+    // The reference book stores prices in a std::map, which needs a
+    // real operator<; a defaulted `operator<=>` supplies only `==`.
+    [[nodiscard]] constexpr bool operator==(const Price&) const noexcept = default;
+    [[nodiscard]] constexpr bool operator<(const Price& other) const noexcept {
+        return raw_ < other.raw_;
+    }
 
 private:
     std::int64_t raw_ = 0;
@@ -91,6 +97,7 @@ public:
     }
 
     auto operator<=>(const Quantity&) const noexcept = default;
+    [[nodiscard]] constexpr bool operator==(const Quantity&) const noexcept = default;
 
 private:
     std::uint64_t raw_ = 0;
