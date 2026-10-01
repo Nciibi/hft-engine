@@ -267,6 +267,11 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
 
     for (std::size_t i = 0; i < config.record_count; ++i) {
         const std::uint64_t roll = rng.below(100);
+        // The sequence number of THIS record, then advance for the
+        // next. Incrementing first would make the first record carry
+        // first_sequence + 1, which a consumer seeded with
+        // first_sequence would correctly report as a lost message.
+        const std::uint32_t record_sequence = sequence;
         ++sequence;
         ++local.records;
 
