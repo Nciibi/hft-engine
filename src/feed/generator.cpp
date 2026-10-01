@@ -310,26 +310,47 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             ++next_id;
             ++local.adds;
         } else {
-            // Pick from the live set, biased toward RECENT orders.
+            // Choose WHICH live order to mutate.
             //
-            // Order flow clusters at the touch in a real book, so a
-            // mutation should usually target something quoted
-            // recently. Picking uniformly made the book's extremes
-            // effectively permanent, which held the mid constant and
-            // left any market maker with zero volatility to price.
+            // When the book is at capacity, remove the order furthest
+            // from the current mid: that is the stale one, and in a
+            // real market it is either cancelled or traded through
+            // first. Without this the book CROSSES.
             //
-            // "Recent" is the high end of `live`. The container uses
-            // swap-and-pop removal, which reorders it, but new orders
-            // are always pushed at the end, so the tail is still
-            // dominated by recent arrivals.
-            const std::size_t tail_start =
-                (live.size() * 9) / 10;  // most recent tenth
-            const bool prefer_recent =
-                tail_start > 0 &&
-                static_cast<double>(rng.below(1'000'000)) / 1'000'000.0 < config.pct_recent;
-            const std::size_t lo = prefer_recent ? tail_start : 0;
-            const std::size_t span = live.size() - lo;
-            const std::size_t pick = lo + static_cast<std::size_t>(rng.below(span));
+            // Crossing is the failure that matters here, and it is
+            // silent. Orders placed when the generator's mid was high
+            // survive as asks; orders placed after it walked down
+            // arrive as bids below them. The best bid ends up above the
+            // best ask by thousands of raw units, which cannot happen
+            // in a real market, and every downstream number computed
+            // from that book is meaningless: the mid, the volatility,
+            // the markout, the PnL. A crossed book is not a slightly
+            // wrong book, it is not a book.
+            //
+            // Removing the stalest order also keeps the book tight
+            // around the mid, which is what makes the touch move and
+            // gives a market maker something to trade against.
+            std::size_t pick = 0;
+            if (at_capacity) {
+                std::int64_t worst_distance = -1;
+                for (std::size_t k = 0; k < live.size(); ++k) {
+                    const std::int64_t distance =
+                        live[k].price.raw() - mid;
+                    const std::int64_t magnitude = distance < 0 ? -distance : distance;
+                    if (magnitude > worst_distance) {
+                        worst_distance = magnitude;
+                        pick = k;
+                    }
+                }
+            } else {
+                const std::size_t tail_start = (live.size() * 9) / 10;
+                const bool prefer_recent =
+                    tail_start > 0 &&
+                    static_cast<double>(rng.below(1'000'000)) / 1'000'000.0 < config.pct_recent;
+                const std::size_t lo = prefer_recent ? tail_start : 0;
+                const std::size_t span = live.size() - lo;
+                pick = lo + static_cast<std::size_t>(rng.below(span));
+            }
 
             Live target = live[pick];
             live[pick] = live.back();
