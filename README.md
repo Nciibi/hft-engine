@@ -23,8 +23,11 @@ decode-to-encode pipeline.
 | `execute` / `cancel_partial` / `remove`, `X` vs `D` distinct | done |
 | Apply layer, single dispatch point from message to book | done |
 | Deterministic replay, FNV-1a book-state checksum | done |
+| Pre-trade risk: position, gross, notional, price band, rate, kill switch | done |
+| OMS: order state machine, slot pool, reconcile counters | done |
 | Order Replace (`U`) decode | deliberately **not** done, see below |
-| SPSC ring buffer, multi-shard, pre-trade risk, market maker | not started |
+| Market maker, adverse-selection measurement | not started |
+| SPSC ring buffer, multi-shard | not started |
 | MoldUDP64 packet framing and checksum | not started |
 
 **Order Replace is skipped on purpose.** Its field table was not
@@ -34,11 +37,13 @@ message is recoverable; a decoder that reads the wrong bytes is not.
 This is the one place the decoder declines to be complete on purpose,
 and the reason is recorded in `include/hft/itch/protocol.hpp`.
 
-Verified: **136 unit checks**, and a differential test comparing the
-fast book against an independent naive model over **400,000 operations
-with full state comparison after every one**, across five seeds.
-Determinism is checked too: the same capture replayed at `-O0`, `-O2`,
-`-O3` and `-Os` produces an identical book checksum.
+Verified: **137 unit checks, 156 risk/OMS checks**, and a differential
+test comparing the fast book against an independent naive model over
+**400,000 operations with full state comparison after every one**,
+across five seeds. The OMS is additionally driven through **60,000
+randomised operations** with invariant checks against an independent
+tally. Determinism is checked too: the same capture replayed at `-O0`,
+`-O2`, `-O3` and `-Os` produces an identical book checksum.
 
 ## Results
 
