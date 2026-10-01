@@ -162,6 +162,7 @@ int main(int argc, char** argv) {
     std::uint64_t rej_capacity = 0;
     std::uint64_t rej_duplicate = 0;
     std::uint64_t rej_zero_size = 0;
+    std::uint64_t unexpected = 0;
 
     Timer total_timer;
     const std::uint8_t* p = feed.data();
@@ -240,6 +241,10 @@ int main(int argc, char** argv) {
     }
     std::printf("unknown type        %s\n", humanize(unknown).c_str());
     std::printf("malformed           %s\n", humanize(malformed).c_str());
+    if (unexpected != 0) {
+        std::printf("unexpected type     %s (generator emitted a non-add)\n",
+                    humanize(unexpected).c_str());
+    }
     std::printf("elapsed             %.6f s\n", static_cast<double>(elapsed_ns) / 1e9);
     if (elapsed_ns > 0) {
         std::printf("throughput          %.0f msg/s\n",
