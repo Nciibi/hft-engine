@@ -70,12 +70,6 @@ public:
     [[nodiscard]] std::size_t capacity() const noexcept { return capacity_; }
     [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
 
-    /// True when the map is at its configured ceiling. Callers that
-    /// must not lose entries check this before inserting.
-    [[nodiscard]] bool full() const noexcept {
-        return size_ + tombstones_ >= capacity_;
-    }
-
     [[nodiscard]] std::uint32_t find(const K& key) const noexcept {
         if (capacity_ == 0) {
             return kNoHandle;
@@ -155,21 +149,16 @@ public:
         return true;
     }
 
-    /// Read a value. The caller is responsible for having checked
-    /// `contains`; there is no optional-returning accessor because
-    /// that would cost a redundant probe on the hot path.
-    [[nodiscard]] const V& operator[](const K& key) const noexcept {
-        return values_[find(key)];
-    }
-
+    /// Read a value by slot index, from a `find` that returned
+    /// something other than kNoHandle.
+    ///
+    /// There is deliberately no `operator[]`. A key-indexed accessor
+    /// would either re-probe or index with kNoHandle on a miss, and
+    /// kNoHandle is 0xFFFFFFFF, which is out of range for every real
+    /// capacity. That is a silent out-of-bounds read waiting for the
+    /// one caller who forgets to check.
     [[nodiscard]] V& value_at(std::uint32_t slot) noexcept { return values_[slot]; }
     [[nodiscard]] const V& value_at(std::uint32_t slot) const noexcept { return values_[slot]; }
-
-    /// Total slots consumed, including tombstones. Useful for deciding
-    /// when to rebuild a heavily churned table.
-    [[nodiscard]] std::size_t occupied_slots() const noexcept {
-        return size_ + tombstones_;
-    }
 
 private:
     [[nodiscard]] std::uint32_t index_for(const K& key) const noexcept {

@@ -28,7 +28,6 @@ namespace {
     DecodeResult r;
     r.status = DecodeStatus::unknown_type;
     r.length = length;
-    r.message.type = static_cast<MessageType>(0);
     return r;
 }
 
