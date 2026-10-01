@@ -80,6 +80,7 @@ public:
         }
 
         const Price mid = Price::from_raw((best_bid->raw() + best_ask->raw()) / 2);
+        last_mid_ = mid;
 
         // (1) Resolve outstanding markouts against the CURRENT mid,
         // before this observation's own fill is added.
