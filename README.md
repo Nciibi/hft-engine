@@ -231,9 +231,13 @@ production software is worse than one that does not:
 
 - **No live exchange connectivity.** TotalView-ITCH requires a Nasdaq
   market-data agreement. This runs on captured or generated feeds.
-- **No multi-shard scaling.** Designed for one instrument per book.
-  Sharding by symbol needs a sequencer and a partition scheme that are
-  not here.
+- **No MoldUDP64 framing.** The capture format carries one sequence
+  number per record; the transport's own packet header and checksum are
+  not parsed. See the format note in `src/feed/generator.hpp`.
+- **No Order Replace.** Deliberate, not accidental: an unverified field
+  table is skipped rather than guessed.
+- **No multi-shard scaling.** One instrument per book. Sharding by
+  symbol needs a sequencer and a partition scheme that are not here.
 - **No clock synchronisation.** No PTP, no NTP discipline, no
   cross-machine timestamp alignment. Cross-host latency claims would
   be meaningless without it.
@@ -241,6 +245,8 @@ production software is worse than one that does not:
   A real system needs a write-ahead log and a snapshot cadence.
 - **No self-trade prevention, no auction handling, no order book
   state message processing.**
+- **Price ladder is a sorted linked list**, so inserting a price not
+  adjacent to the best is O(ladder depth). See the design note above.
 - **Benchmarks are single-socket.** No kernel bypass, no io_uring, no
   DPDK. Real shops measure the syscall layer separately because it
   dominates.
