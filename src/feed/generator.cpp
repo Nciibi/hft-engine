@@ -307,7 +307,7 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             clock += 1 + rng.below(4'000);
             append_add_order(frame, side, price, hft::Quantity::from_raw(shares), next_id, clock, 1,
                              static_cast<hft::TrackingNumber>(i & 0xFFFFu));
-            append_capture_record(out, sequence, frame);
+            append_capture_record(out, record_sequence, frame);
 
             live.push_back(Live{next_id, price, side, shares});
             ++next_id;
@@ -384,7 +384,7 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             // consuming a sequence number. The replay tool reported it
             // as 79,707 missing messages, which is precisely the
             // failure the sequence check exists to surface.
-            append_capture_record(out, sequence, frame);
+            append_capture_record(out, record_sequence, frame);
         }
     }
 
