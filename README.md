@@ -115,13 +115,13 @@ compiler, and `git`.
       +---> [ FNV-1a state checksum ]  deterministic replay
       |
       v
-  [ Market maker ]  not yet built
+  [ Pre-trade risk ] position, gross, notional, band, rate, kill
       |
       v
-  [ Pre-trade risk ]  not yet built
+  [ Order management ] state machine, slot pool, reconcile counters
       |
       v
-  [ Order management ]  not yet built
+  [ Market maker ]   not yet built
 ```
 
 ## Design decisions
