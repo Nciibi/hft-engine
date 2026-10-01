@@ -286,6 +286,35 @@ A rate limiter that quietly admits one order per second, and a
 reconciliation counter that goes negative, are both the kind of defect
 that reaches production. Neither is the kind that code review catches.
 
+Phase 4 added six more, and two of them are worth reading twice:
+
+- The feed generator chose the side and the price offset
+  **independently**, so bids and asks were drawn from the same wide
+  band and overlapped. The best ask sat **$15 below the best bid**. A
+  crossed book cannot occur in a real market, and every measurement
+  taken from one — mid, volatility, markout, PnL — is meaningless
+  rather than merely wrong. It was invisible until the resting quote
+  was printed next to the touch.
+- The fix for that had its own bug: a single `have` flag was guarding
+  **both** sides of the clamp, so the minimum ask was never recorded
+  and the bid clamp never fired. The first fix appeared to work and
+  did nothing.
+- A book that only ever accumulates never clears a price level, so
+  its mid is frozen: **24 moves in 40,000 messages**. A price that does
+  not move is not a market, and a strategy cannot be studied on one.
+- Avellaneda-Stoikov was implemented with a *fractional* sigma. The
+  model is dimensionally incoherent that way, the inventory term
+  collapses to zero, and the spread became a third of a tick — so the
+  strategy quoted nothing at all, silently.
+- The markout was recorded against the mid **after** the move that
+  filled it, which prices every fill as better than the mid and
+  reports a negative effective spread. This is the exact bug the
+  metrics header warns about, committed in the same commit.
+- `realisation_ratio` was reported as a finding while being
+  meaningless: for a market maker it is negative whenever fills are
+  passive, which is always. It was replaced with the markout, which is
+  the number that carries information.
+
 ## Failure modes
 
 Things this build handles explicitly, because they are where real
