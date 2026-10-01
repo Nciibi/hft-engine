@@ -106,7 +106,7 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
                                     half;
         const hft::Side side = (rng.next() & 1u) == 0u ? hft::Side::bid : hft::Side::ask;
 
-        const std::int64_t raw_price = mid + offset * config.half_spread_raw;
+        const std::int64_t raw_price = mid + offset * half_spread_raw;
         if (raw_price <= 0) {
             continue;
         }
