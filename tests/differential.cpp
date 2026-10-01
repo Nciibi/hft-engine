@@ -124,6 +124,10 @@ bool compare_state(const hft::lob::OrderBook& fast, const hft::lob::ReferenceBoo
 }  // namespace
 
 int main(int argc, char** argv) {
+    // Cap on simultaneously live orders. Bounds the cost of the
+    // per-operation full-state comparison without weakening it.
+    constexpr std::size_t kMaxLiveOrders = 2000;
+
     std::uint64_t seed = 0xA5A5'1234'DEAD'0001ULL;
     std::size_t ops = 200'000;
     if (argc > 1) {
@@ -138,7 +142,7 @@ int main(int argc, char** argv) {
     hft::feed::SplitMix64 rng(seed);
 
     std::vector<hft::OrderId> live;
-    live.reserve(4096);
+    live.reserve(kMaxLiveOrders + 16);
 
     const std::int64_t mid = Price::kScale * 100;
     hft::OrderId next_id = 1;
@@ -149,7 +153,18 @@ int main(int argc, char** argv) {
     std::size_t rejected_over_reduce = 0;
 
     for (std::size_t step = 0; step < ops; ++step) {
-        const std::uint64_t roll = rng.below(100);
+        std::uint64_t roll = rng.below(100);
+
+        // The state comparison below is O(book size) and runs after
+        // every single operation, so an unbounded book turns this into
+        // O(ops * orders) and the test stops being runnable. Capping
+        // live orders keeps exhaustive per-operation comparison
+        // affordable, which is the entire value of this test: a
+        // periodic sample would be strictly worse for the same
+        // runtime.
+        if (live.size() >= kMaxLiveOrders) {
+            roll = 95;  // force the delete branch below
+        }
 
         if (roll < 55 || live.empty()) {
             // Add, deliberately at a price that jumps around so the
@@ -249,6 +264,7 @@ int main(int argc, char** argv) {
     std::printf("  partial cxl   %zu\n", cancels);
     std::printf("  deletes       %zu\n", removes);
     std::printf("  over-reduces  %zu (rejected, as intended)\n", rejected_over_reduce);
+    std::printf("  max live      %zu\n", kMaxLiveOrders);
     std::printf("  bid levels    %u\n", fast.level_count(Side::bid));
     std::printf("  ask levels    %u\n", fast.level_count(Side::ask));
     std::printf("  live orders   %zu\n", live.size());
