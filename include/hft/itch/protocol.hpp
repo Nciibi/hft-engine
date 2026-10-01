@@ -102,12 +102,20 @@ inline constexpr std::size_t kOrderExecutedAtPriceSize = 36;
 // bug; the reference model exists largely to catch it.
 inline constexpr std::size_t order_cancel_id = 11;      ///< 8
 inline constexpr std::size_t order_cancel_shares = 19;  ///< 4
-inline constexpr std::size_t kOrderCancelSize = 20;
 
 // ---- Order Delete, tag 'D' ----
 // Removes the entire order regardless of remaining quantity.
 inline constexpr std::size_t order_delete_id = 11;  ///< 8
-inline constexpr std::size_t kOrderDeleteSize = 16;
+
+/// Body sizes are DERIVED from the last field's offset, never written
+/// as independent constants. An earlier revision of this file
+/// hard-coded 20 and 16 for these two and was wrong by 3 bytes each;
+/// the static_asserts below did not catch it because they compared
+/// constants to each other rather than to the field layout. Deriving
+/// the size makes it impossible to write a body length that disagrees
+/// with the offsets the decoder reads.
+inline constexpr std::size_t kOrderCancelSize = order_cancel_shares + kSharesSize;
+inline constexpr std::size_t kOrderDeleteSize = order_delete_id + kOrderIdSize;
 
 }  // namespace off
 
