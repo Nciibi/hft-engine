@@ -80,9 +80,11 @@ number about your loop, not your engine.
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-./build/hft_bench          # latency + throughput table
-./build/hft_replay feed.itch
-./build/hft_test           # differential + unit tests
+./build/hft_test           # unit tests
+./build/hft_differential   # fast book vs naive model, full state compare
+./build/hft_replay         # deterministic replay, prints the book checksum
+./build/hft_bench          # latency and throughput table
+ctest --test-dir build     # everything
 ```
 
 Zero external dependencies in the library target. CMake, a C++20
