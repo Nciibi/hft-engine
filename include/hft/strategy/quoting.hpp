@@ -310,8 +310,17 @@ public:
         }
     }
 
-    /// Per-second volatility as a fraction of price, 0 until enough
-    /// samples exist.
+    /// ABSOLUTE volatility of the mid, in raw price units per tick.
+    ///
+    /// Absolute, not a fraction. The A-S formulas are dimensionally
+    /// incoherent with a fractional sigma: the inventory term becomes
+    /// gamma*sigma^2*H where sigma is a dimensionless ratio, the result
+    /// is not a price, and the whole spread collapses. Returning the
+    /// raw-unit volatility keeps the model and its units aligned.
+    ///
+    /// Zero until two returns exist, which the caller must tolerate: a
+    /// strategy that quotes from a zero volatility estimate quotes a
+    /// spread with no risk term in it at all.
     [[nodiscard]] double sigma() const noexcept {
         if (returns_.size() < 2) {
             return 0.0;
@@ -322,16 +331,14 @@ public:
             sum_sq += v * v;
         }
         const double mean_sq = sum_sq / static_cast<double>(returns_.size());
-        const double last_price =
-            static_cast<double>(previous_.raw()) > 0.0
-                ? static_cast<double>(previous_.raw())
-                : 1.0;
-        // A window of `n` returns spans n-1 tick intervals, not n, so
-        // dividing by n slightly understates volatility. Corrected,
-        // because a systematic understatement biases the quote wide
-        // and a wide quote is a losing quote.
-        const double per_observation = std::sqrt(mean_sq) / last_price;
-        return per_observation;
+        return std::sqrt(mean_sq);
+    }
+
+    /// The same estimate as a fraction of the last price, for
+    /// reporting. NOT for the model.
+    [[nodiscard]] double sigma_fraction() const noexcept {
+        const double last = static_cast<double>(previous_.raw());
+        return last > 0.0 ? sigma() / last : 0.0;
     }
 
     [[nodiscard]] std::size_t samples() const noexcept { return returns_.size(); }
