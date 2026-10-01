@@ -145,7 +145,13 @@ int main(int argc, char** argv) {
     std::printf("one-sided book       %llu\n",
                 (unsigned long long)mm.one_sided_observations());
     std::printf("quotes placed        %llu\n", (unsigned long long)mm.quotes());
-    std::printf("fills                %llu\n", (unsigned long long)s.fills);
+    std::printf("fill checks          %llu  (bid %llu / ask %llu)\n",
+                (unsigned long long)mm.fill_checks(),
+                (unsigned long long)mm.bid_side_checks(),
+                (unsigned long long)mm.ask_side_checks());
+    std::printf("fills                %llu  (bid %llu / ask %llu)\n",
+                (unsigned long long)mm.fills(), (unsigned long long)mm.bid_hits(),
+                (unsigned long long)mm.ask_hits());
     std::printf("markout horizon      %llu ticks (~%llu us synthetic)\n",
                 (unsigned long long)(mm.adverse().horizon() / 4'000),
                 (unsigned long long)(mm.adverse().horizon() / 1'000));
