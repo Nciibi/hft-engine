@@ -165,6 +165,8 @@ int main(int argc, char** argv) {
     std::printf("bid shares filled    %llu\n", (unsigned long long)s.bid_shares);
     std::printf("ask shares filled    %llu\n", (unsigned long long)s.ask_shares);
     std::printf("net position         %lld\n", (long long)s.net_shares());
+    std::printf("max |position|       %lld  (limit %lld)\n",
+                (long long)mm.max_position_observed(), (long long)mm_config.max_inventory);
     std::printf("closing position     %lld\n", (long long)p.position());
     std::printf("\n");
     std::printf("SPREADS (raw price units, 1/10000)\n");
