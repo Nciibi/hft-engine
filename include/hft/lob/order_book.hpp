@@ -89,6 +89,15 @@ struct LevelNode {
     bool allocated = false;
 };
 
+/// Hash a Price by its raw value. Price is a strong type with no
+/// std::hash specialisation, and inventing one in namespace std would
+/// be the wrong place to do it.
+struct PriceHash {
+    [[nodiscard]] std::size_t operator()(Price p) const noexcept {
+        return std::hash<std::int64_t>{}(p.raw());
+    }
+};
+
 /// One price level's worth of state, for cross-implementation
 /// comparison in tests.
 struct LevelSnapshot {
@@ -180,7 +189,13 @@ private:
     std::vector<Handle> level_free_;
 
     util::FlatMap<OrderId, Handle> order_index_;
-    util::FlatMap<std::uint64_t, Handle> level_index_;
+    // One table per side rather than a single (side, price) composite
+    // key. Packing a side bit into a 64-bit price would require
+    // shifting the price left by one, which discards its sign bit; two
+    // tables cost a little memory and remove that class of bug
+    // entirely.
+    util::FlatMap<Price, Handle, PriceHash> bid_level_index_;
+    util::FlatMap<Price, Handle, PriceHash> ask_level_index_;
 
     /// Ladder heads. Bids descend from best to worst, asks ascend.
     Handle bid_head_ = kInvalidHandle;
