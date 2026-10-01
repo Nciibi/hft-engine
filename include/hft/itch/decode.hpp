@@ -16,11 +16,22 @@
 //  * Unknown message types report their length so the caller can skip
 //    them. A live feed always contains types this build does not
 //    implement; crashing is not an option and guessing is worse.
+//
+// The decoded payloads are held in a std::variant rather than as five
+// separate members of one fat struct. A struct with all five members
+// would be roughly three times larger than the largest payload and get
+// copied for every message, including the common ones; the variant is
+// sized to the largest payload plus a discriminant, and `type` is
+// derived from the variant rather than being a second source of truth
+// that can disagree with it.
 
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
+#include <type_traits>
+#include <variant>
 
 #include "hft/itch/protocol.hpp"
 #include "hft/types.hpp"
@@ -39,6 +50,11 @@ namespace hft::itch {
 /// reorder the book. This function is the only place it happens.
 [[nodiscard]] Nanos read_timestamp48(const std::uint8_t* p) noexcept;
 
+// ---- Decoded payloads ----------------------------------------------
+//
+// Each mirrors one ITCH message body exactly. All are trivially
+// copyable, so the variant never allocates.
+
 struct AddOrder {
     StockLocate stock_locate = 0;
     TrackingNumber tracking = 0;
@@ -53,10 +69,80 @@ struct AddOrder {
     std::uint8_t participant = 0;
 };
 
-struct Message {
-    MessageType type = MessageType::add_order;
-    AddOrder add_order{};
+/// ITCH 'E'. Consumes `shares` from the order's remaining size.
+struct OrderExecuted {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId id = kInvalidOrderId;
+    Quantity shares{};
+    std::uint64_t match_number = 0;
+    std::uint8_t printable = 0;
 };
+
+/// ITCH 'C'. As 'E', but the fill happened at a price other than the
+/// order's displayed price. The execution price is carried here, not
+/// inferred from the book: the resting order's own price is
+/// unchanged by a fill at a different price.
+struct OrderExecutedAtPrice {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId id = kInvalidOrderId;
+    Quantity shares{};
+    std::uint64_t match_number = 0;
+    std::uint8_t printable = 0;
+    Price execution_price{};
+};
+
+/// ITCH 'X'. A PARTIAL cancellation: `shares` is deducted from the
+/// quantity stated in the original Add Order. Distinct from Order
+/// Delete, and conflating the two is the most common ITCH book bug.
+struct OrderCancel {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId id = kInvalidOrderId;
+    Quantity shares{};
+};
+
+/// ITCH 'D'. Removes the entire order, discarding any remainder.
+struct OrderDelete {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId id = kInvalidOrderId;
+};
+
+using MessageBody = std::variant<AddOrder, OrderExecuted, OrderExecutedAtPrice, OrderCancel,
+                                 OrderDelete>;
+
+/// A decoded message: the payload plus the tag derived from it.
+struct Message {
+    MessageBody body{};
+
+    [[nodiscard]] MessageType type() const noexcept {
+        return static_cast<MessageType>(std::visit(
+            [](const auto& payload) noexcept -> std::uint8_t {
+                using T = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<T, AddOrder>) {
+                    return static_cast<std::uint8_t>(MessageType::add_order);
+                } else if constexpr (std::is_same_v<T, OrderExecuted>) {
+                    return static_cast<std::uint8_t>(MessageType::order_executed);
+                } else if constexpr (std::is_same_v<T, OrderExecutedAtPrice>) {
+                    return static_cast<std::uint8_t>(MessageType::order_executed_at_price);
+                } else if constexpr (std::is_same_v<T, OrderCancel>) {
+                    return static_cast<std::uint8_t>(MessageType::order_cancel);
+                } else {
+                    return static_cast<std::uint8_t>(MessageType::order_delete);
+                }
+            },
+            body));
+    }
+};
+
+static_assert(std::variant_size_v<MessageBody> == 5,
+              "MessageBody must cover every decoded ITCH type");
 
 enum class DecodeStatus : std::uint8_t {
     ok = 0,
@@ -66,8 +152,16 @@ enum class DecodeStatus : std::uint8_t {
     truncated_body,
     /// Well-formed frame of a type this build does not decode yet.
     /// `length` is populated so the caller can skip it.
+    ///
+    /// This is also the result for Order Replace ('U'). Its body
+    /// layout was not verified against the published field table, so
+    /// rather than guess an offset and silently misparse a live feed,
+    /// it is skipped by length exactly like any other unknown type.
+    /// Guessing would be the worse failure: skip-by-length is
+    /// recoverable, a wrong field offset is not.
     unknown_type,
-    /// Declared length is too small to contain a tag.
+    /// Declared length is too small to contain a tag, or disagrees
+    /// with the length required by the decoded type.
     bad_length,
     /// A field held a value outside its defined range, e.g. a side
     /// byte that is neither 'B' nor 'S'. Never defaulted: silently
