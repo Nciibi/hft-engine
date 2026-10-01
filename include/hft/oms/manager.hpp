@@ -420,6 +420,22 @@ private:
         return orders_[static_cast<std::size_t>(slot)];
     }
 
+    /// The ONLY way an order's state changes.
+    ///
+    /// Routing every transition through one function means the state
+    /// counters cannot drift from the actual state. Letting each caller
+    /// assign `o.state` directly is how a reconcile view starts
+    /// disagreeing with reality: the counters get updated in some
+    /// places and not others, and the discrepancy only shows up as a
+    /// wrong number on an operations dashboard.
+    void transition(Order& o, OrdState to) noexcept {
+        if (o.state != to) {
+            --state_counts_[static_cast<std::size_t>(o.state)];
+            ++state_counts_[static_cast<std::size_t>(to)];
+            o.state = to;
+        }
+    }
+
     /// Return a slot to the free pool. Only for terminal orders.
     void retire(std::size_t slot) noexcept {
         if (live_[slot] != 0) {
@@ -437,8 +453,11 @@ private:
 
     OrderId next_id_ = 1;
     std::uint64_t submitted_ = 0;
-    std::uint64_t rejected_ = 0;
+    std::uint64_t risk_rejected_ = 0;
+    std::uint64_t pool_full_ = 0;
     std::uint64_t fills_ = 0;
+    /// Index is the OrdState value. Maintained by `transition` only.
+    std::size_t state_counts_[8] = {};
 };
 
 }  // namespace hft::oms
