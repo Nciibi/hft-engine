@@ -237,7 +237,7 @@ void test_observation() {
 template <typename Ring, typename Fn>
 std::uint64_t drain_until_done(Ring& ring, const std::atomic<bool>& producer_done, Fn&& on_item) {
     std::uint64_t consumed = 0;
-    Item out = 0;
+    typename Ring::value_type out{};
     while (ring.try_pop(out)) {
         on_item(out);
         ++consumed;
