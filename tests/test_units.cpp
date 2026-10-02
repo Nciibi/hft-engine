@@ -1219,6 +1219,191 @@ void test_apply_path() {
 
 }  // namespace
 
+// ---- Benchmark reporting ----------------------------------------------
+
+// These are the functions that format the numbers this project reports.
+// They were never tested, and `humanize` was wrong: an unsigned
+// underflow put a thousands separator between the digits of every
+// two-digit number, so "23 mid moves" printed as "2 3 mid moves". A
+// formatting bug in the reporting layer is unusually bad, because it
+// only shows up in the artifact somebody is meant to trust -- and a
+// reader who sees "2 3 mid moves" has no way to know it means 23 rather
+// than 2 and 3.
+
+void test_humanize() {
+    std::printf("humanize\n");
+    using bench::humanize;
+
+    // Every digit count, including the 1- and 2-digit cases that broke.
+    struct Case {
+        std::uint64_t value;
+        const char* expected;
+    };
+    const Case cases[] = {
+        {0, "0"},
+        {1, "1"},
+        {7, "7"},
+        {9, "9"},
+        {10, "10"},
+        {23, "23"},
+        {99, "99"},
+        {100, "100"},
+        {101, "101"},
+        {999, "999"},
+        {1000, "1 000"},
+        {1471, "1 471"},
+        {9999, "9 999"},
+        {10000, "10 000"},
+        {99999, "99 999"},
+        {100000, "100 000"},
+        {999999, "999 999"},
+        {1000000, "1 000 000"},
+        {1471000, "1 471 000"},
+        {1999998, "1 999 998"},
+        {2000000, "2 000 000"},
+        {123456789, "123 456 789"},
+    };
+
+    bool ok = true;
+    for (const Case& c : cases) {
+        if (humanize(c.value) != c.expected) {
+            std::printf("  FAIL  humanize(%llu): expected \"%s\", got \"%s\"\n",
+                        static_cast<unsigned long long>(c.value), c.expected,
+                        humanize(c.value).c_str());
+            ok = false;
+        }
+    }
+    check(ok, "humanize groups every magnitude correctly");
+
+    // The property that actually matters, over a wide sweep: a number
+    // never changes value when separators are removed, and the only
+    // characters added are separators.
+    bool property_ok = true;
+    for (std::uint64_t v = 0; v < 20'000 && property_ok; ++v) {
+        const std::string s = humanize(v);
+        std::string stripped;
+        for (const char ch : s) {
+            if (ch != ' ') {
+                if (ch < '0' || ch > '9') {
+                    property_ok = false;
+                    break;
+                }
+                stripped.push_back(ch);
+            }
+        }
+        if (stripped != std::to_string(v)) {
+            property_ok = false;
+        }
+    }
+    check(property_ok, "humanize adds only separators and never changes the value");
+
+    // Larger values, at each group boundary.
+    bool large_ok = true;
+    for (int shift = 3; shift <= 18; shift += 3) {
+        const std::uint64_t v = 1ULL << shift;
+        std::string expected;
+        const std::string digits = std::to_string(v);
+        const std::size_t lead = digits.size() % 3 == 0 ? 3 : digits.size() % 3;
+        for (std::size_t i = 0; i < digits.size(); ++i) {
+            if (i != 0 && i >= lead && (i - lead) % 3 == 0) {
+                expected.push_back(' ');
+            }
+            expected.push_back(digits[i]);
+        }
+        // A power of two has no separators at all: its low group is all
+        // zeros.
+        if (humanize(v) != digits) {
+            std::printf("  FAIL  humanize(%llu): expected \"%s\", got \"%s\"\n",
+                        static_cast<unsigned long long>(v), digits.c_str(),
+                        humanize(v).c_str());
+            large_ok = false;
+        }
+    }
+    check(large_ok, "humanize handles values beyond 32 bits");
+}
+
+void test_report_percentiles() {
+    std::printf("report percentiles\n");
+    using hft::util::LatencyHistogram;
+
+    // The percentile numbers are the headline of Phase 6, and they are
+    // computed from a bucketed histogram rather than stored samples.
+    // The bucket boundaries therefore decide what the reader is told,
+    // so the boundaries are checked rather than assumed.
+    {
+        // A single value at a known bucket lands where it is put.
+        LatencyHistogram h(1, 100'000);
+        for (int i = 0; i < 1000; ++i) {
+            h.record(500);
+        }
+        check_eq_int(static_cast<long long>(h.percentile(0.50)), 500,
+                     "a constant distribution reports its constant");
+        check_eq_int(static_cast<long long>(h.percentile(0.99)), 500, "p99 of a constant");
+        check_eq_int(static_cast<long long>(h.percentile(0.999)), 500, "p999 of a constant");
+        check_eq_int(static_cast<long long>(h.count()), 1000, "sample count is exact");
+    }
+
+    {
+        // Percentiles must be monotonic in the requested quantile.
+        // A histogram that reported p999 below p50 would print a table
+        // that looks plausible and is not.
+        LatencyHistogram h(1, 100'000);
+        for (int i = 0; i < 100'000; ++i) {
+            h.record(static_cast<std::uint64_t>(i % 1000));
+        }
+        bool monotonic = true;
+        std::uint64_t previous = 0;
+        for (int q = 50; q <= 999; q += 1) {
+            const std::uint64_t p = h.percentile(static_cast<double>(q) / 1000.0);
+            if (p < previous) {
+                monotonic = false;
+                break;
+            }
+            previous = p;
+        }
+        check(monotonic, "percentiles are non-decreasing across the full range");
+
+        // A uniform distribution over 0..999 has its median near 500.
+        const std::uint64_t p50 = h.percentile(0.50);
+        check(p50 >= 480 && p50 <= 520,
+              "the median of a uniform 0..999 distribution is near 500");
+
+        // p99 and p999 must land near the top of that range.
+        check(h.percentile(0.99) >= 970, "p99 of a uniform 0..999 distribution is near 990");
+        check(h.percentile(0.999) >= 990, "p999 of a uniform 0..999 distribution is near 999");
+    }
+
+    {
+        // Overflow must be counted, not absorbed. An absorbed overflow
+        // is a censored sample presented as a measurement.
+        LatencyHistogram h(1, 100);
+        for (int i = 0; i < 90; ++i) {
+            h.record(10);
+        }
+        for (int i = 0; i < 10; ++i) {
+            h.record(100'000);  // beyond the range
+        }
+        check_eq_int(static_cast<long long>(h.overflow()), 10,
+                     "samples beyond the range are counted as overflow");
+        check(h.percentile(0.999) <= 100,
+              "a censored percentile never exceeds the histogram range");
+    }
+
+    {
+        // An empty histogram must not divide by zero or invent a value.
+        LatencyHistogram h(1, 1000);
+        check_eq_int(static_cast<long long>(h.count()), 0, "an empty histogram has no samples");
+        bool sane = true;
+        for (double q : {0.0, 0.5, 0.99, 0.999, 1.0}) {
+            const std::uint64_t p = h.percentile(q);
+            if (p > 1000) {
+                sane = false;
+            }
+        }
+        check(sane, "an empty histogram reports something in range");
+    }
+}
+
 int main() {
     std::printf("unit tests\n----------\n");
     test_price_parse();
@@ -1235,6 +1420,8 @@ int main() {
     test_capture_multi_message_packets();
     test_capture_rejects_truncation();
     test_capture_handles_control_packets();
+    test_humanize();
+    test_report_percentiles();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
