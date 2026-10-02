@@ -909,8 +909,28 @@ production software is worse than one that does not:
   field is eight bytes and `hft/itch/sequence.hpp` matches it, with
   tests for the 64-bit wrap. The 32-bit width that a plain ITCH stream
   would imply is a separate concern and is not conflated with it.
-- **No Order Replace.** Deliberate, not accidental: an unverified field
-  table is skipped rather than guessed.
+- **No order entry, because TotalView-ITCH has none.** An earlier
+  revision of this file claimed the benchmark's missing encode stage was
+  "ITCH Order Entry ('B')", skipped because its field table could not be
+  verified. Both halves were wrong. Section 1.1 of the specification says
+  TotalView-ITCH "is an outbound market data feed only" and "does not
+  support order entry", and `'B'` is the 19-byte *inbound* Broken Trade
+  message — Match Number at offset 11, identical in Nasdaq's NQ, BX and
+  PSX specifications. There is no ITCH order-entry message to skip, and
+  an implementation that encoded `'B'` as an order would have put an
+  eight-byte match number where a venue expects an order. Nasdaq order
+  entry is a separate product (Basic, OU Clearsight, FIX); modelling one
+  is a different piece of work with its own specification, and inventing
+  an ITCH table to fill a row in the results would repeat the exact
+  mistake documented in
+  [The bug that mattered](#the-bug-that-mattered).
+- **Order Replace is decoded but the generator under-models it.** `'U'`
+  is implemented and applied per spec §4.4.5, including the rule that a
+  new reference number means new time priority. The generator, however,
+  does not track the replacement order's new reference in its live set,
+  so a captured replace is the last mutation that order receives. That is
+  a generator limitation, stated here rather than papered over: the decode
+  and apply paths are exercised directly by hand-built frames.
 - **No multi-shard sequencing.** Symbol sharding works and is measured,
   but there is no sequencer arbitrating across shards, no partition
   rebalancing when the symbol set changes, and no recovery when a shard
