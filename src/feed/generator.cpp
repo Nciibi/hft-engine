@@ -287,12 +287,49 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
         hft::Side side;
         std::uint32_t remaining;
     };
-    std::vector<Live> live;
-    live.reserve(8192);
+
+    // One price walk and one live set per symbol.
+    //
+    // These are deliberately NOT shared. A single shared live set would
+    // let a mutation for symbol A's order be emitted while symbol B is
+    // the active book, which produces a feed where most mutations name
+    // an order the receiving book has never seen -- a capture that
+    // exercises only the rejection path and reports a healthy record
+    // count while measuring nothing.
+    struct SymbolState {
+        std::int64_t mid = 0;
+        std::vector<Live> live;
+    };
+
+    const std::size_t symbols = config.symbol_count == 0 ? 1 : config.symbol_count;
+    std::vector<SymbolState> state(symbols);
+    std::vector<std::string> names(symbols);
+    for (std::size_t s = 0; s < symbols; ++s) {
+        // Anchors spaced $100 apart. Far enough that a message routed to
+        // the wrong book lands in a different price decade and is
+        // obvious, rather than one tick away where it would look like a
+        // plausible book.
+        state[s].mid = config.anchor_raw + static_cast<std::int64_t>(s) * 1'000'000;
+        state[s].live.reserve(config.max_live_orders != 0
+                                  ? config.max_live_orders + 8
+                                  : 8192);
+        names[s] = symbol_name(s);
+    }
+    local.symbols = symbols;
 
     const std::uint32_t span = config.max_shares - config.min_shares + 1;
 
     for (std::size_t i = 0; i < config.record_count; ++i) {
+        // Choose the symbol for this record, then work entirely within
+        // it. Interleaving is uniform by choice: real feeds are not, and
+        // a uniform mix is the harder case for a sharded handler because
+        // it gives every shard an equal share rather than concentrating
+        // the work on one.
+        const std::size_t sym = symbols == 1 ? 0 : static_cast<std::size_t>(rng.below(symbols));
+        SymbolState& sym_state = state[sym];
+        std::int64_t& mid = sym_state.mid;
+        std::vector<Live>& live = sym_state.live;
+
         const std::uint64_t roll = rng.below(100);
         // The sequence number of THIS record, then advance for the
         // next. Incrementing first would make the first record carry
