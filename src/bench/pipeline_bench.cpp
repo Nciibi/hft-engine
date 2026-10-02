@@ -347,11 +347,66 @@ void report(const char* label, const RunResult& r, const RunResult& baseline, bo
 
 /// A decoded message plus the destination the dispatcher chose.
 struct Routed {
-    /// Index into the DESTINATION worker's ShardSet. Meaningless for an
-    /// Add, which is what claims a symbol on the worker side.
+    /// Index into the DESTINATION worker's ShardSet. Set by the
+    /// dispatcher from the same counter the worker uses when it claims
+    /// symbols, so the two agree without either consulting the other.
     std::uint32_t local_symbol = 0;
     hft::itch::Message message;
 };
+
+/// The order reference a mutation names. Every decoded order-level
+/// message has one in a field called `id`, which is why this is a
+/// single visit rather than a switch.
+[[nodiscard]] hft::OrderId reference_of(const hft::itch::Message& message) noexcept {
+    return std::visit(
+        [](const auto& payload) noexcept -> hft::OrderId {
+            if constexpr (requires { payload.id; }) {
+                return payload.id;
+            } else {
+                return hft::kInvalidOrderId;
+            }
+        },
+        message.body);
+}
+
+/// One book's state, as a hash, tagged with the symbol it belongs to.
+///
+/// Tagged because the sharded and fused runs group books differently --
+/// the fused run has one flat list, the sharded run has one list per
+/// worker -- and a comparison between them has to be independent of that
+/// grouping. Merging on symbol name and folding in symbol order is the
+/// only way to make the two comparable.
+struct BookSummary {
+    std::string symbol;
+    std::uint64_t hash = 0;
+};
+
+[[nodiscard]] std::uint64_t fingerprint_book(const OrderBook& book) noexcept {
+    std::uint64_t hash = hft::replay::fnv1a_offset_basis;
+    hash = hft::replay::fnv1a_u64(hash, book.level_count(Side::bid));
+    hash = hft::replay::fnv1a_u64(hash, book.level_count(Side::ask));
+    hash = hft::replay::fnv1a_u64(hash, book.order_count(Side::bid));
+    hash = hft::replay::fnv1a_u64(hash, book.order_count(Side::ask));
+    hash = hft::replay::fnv1a_u64(hash, book.aggregate_at(Side::bid).raw());
+    hash = hft::replay::fnv1a_u64(hash, book.aggregate_at(Side::ask).raw());
+    return hash;
+}
+
+/// Canonical fingerprint over a set of books: sorted by symbol, so the
+/// value does not depend on which worker happened to own which book.
+[[nodiscard]] std::uint64_t combine(std::vector<BookSummary> books) noexcept {
+    std::sort(books.begin(), books.end(),
+              [](const BookSummary& a, const BookSummary& b) { return a.symbol < b.symbol; });
+    std::uint64_t hash = hft::replay::fnv1a_offset_basis;
+    hash = hft::replay::fnv1a_u64(hash, static_cast<std::uint64_t>(books.size()));
+    for (const BookSummary& b : books) {
+        hash = hft::replay::fnv1a_bytes(hash,
+                                        reinterpret_cast<const std::uint8_t*>(b.symbol.data()),
+                                        b.symbol.size());
+        hash = hft::replay::fnv1a_u64(hash, b.hash);
+    }
+    return hash;
+}
 
 /// Dispatcher routing state. Single-threaded by construction: only the
 /// dispatcher thread ever touches it.
