@@ -62,8 +62,12 @@ ctest --test-dir "${ROOT}/build" --output-on-failure \
   || { echo "concurrency tests FAILED"; exit 1; }
 echo
 
-echo "=== latency and throughput ==="
+echo "=== latency and throughput: add-only ingest ==="
 "${ROOT}/build/hft_bench" "${MESSAGES}"
+echo
+
+echo "=== per-stage latency: shallow vs deep book ==="
+"${ROOT}/build/hft_stage_bench" "${MESSAGES}"
 echo
 
 echo "=== concurrency: ring vs mutex baseline ==="
