@@ -620,7 +620,9 @@ void test_capture_round_trip() {
     // type and silently stops working for the next.
     bool session_ok = true;
     bool header_ok = true;
+    std::size_t tiled_to = 0;
     for (std::size_t base = 0; base + itch::mold::kHeaderSize <= data.size();) {
+        tiled_to = base;
         if (std::memcmp(data.data() + base, config.session, itch::mold::kSessionSize) != 0) {
             session_ok = false;
             break;
@@ -651,7 +653,7 @@ void test_capture_round_trip() {
     }
     check(session_ok, "session id is present in every packet header");
     check(header_ok, "every packet header declares at least one block");
-    check_eq_int(static_cast<long long>(base), static_cast<long long>(data.size()),
+    check_eq_int(static_cast<long long>(tiled_to), static_cast<long long>(data.size()),
                  "packet headers and blocks tile the capture exactly");
 }
 
