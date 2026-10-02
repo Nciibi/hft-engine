@@ -53,31 +53,34 @@ using CoreGroup = std::vector<std::size_t>;
         return {};
     }
 
-    const std::size_t available = static_cast<std::size_t>(bytes);
+    // Every record in this API's stream is a whole multiple of the base
+    // structure in size, so the stream is walked in record units. Doing
+    // it in bytes would need a byte-offset pointer arithmetic over a
+    // typed array, which silently scales by sizeof(element) and lands
+    // on the wrong record.
+    const std::size_t count = static_cast<std::size_t>(bytes) /
+                              sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
     std::vector<CoreGroup> groups;
 
-    std::size_t offset = 0;
-    while (offset + sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION) <= available) {
-        // Every record in this API's stream is a multiple of the base
-        // structure in size and alignment, so indexing by byte offset
-        // from an already-aligned buffer stays aligned.
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION rec{};
-        std::memcpy(&rec, records.data() + offset, sizeof(rec));
-
+    std::size_t index = 0;
+    while (index < count) {
+        const SYSTEM_LOGICAL_PROCESSOR_INFORMATION& rec = records[index];
         if (rec.Relationship == RelationProcessorCore) {
             CoreGroup group = group_from_mask(rec.ProcessorMask);
             if (!group.empty()) {
                 groups.push_back(std::move(group));
             }
-            offset += sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+            index += 1u;
         } else {
-            // Cache, NUMA and group records are larger and carry their
-            // own length; skipping by Size is how the stream is walked.
-            const std::size_t advance = rec.Size;
-            if (advance < sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION)) {
+            // Cache, NUMA and group records carry their own length and
+            // are longer than the base structure; skipping by Size is
+            // how the stream is walked past them.
+            const std::size_t advance =
+                static_cast<std::size_t>(rec.Size) / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+            if (advance == 0) {
                 break;
             }
-            offset += advance;
+            index += advance;
         }
     }
 
