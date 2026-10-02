@@ -301,7 +301,7 @@ public:
             }
             cursor += hft::itch::mold::kMessageBlockSize + length;
         }
-        first_frame = cursor_;
+        first_frame = data_ + cursor_;
         frame_count = packet_blocks_;
         packet_sequence = packet_sequence_;
         cursor_ = cursor;
