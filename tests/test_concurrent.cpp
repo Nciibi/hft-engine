@@ -315,19 +315,24 @@ void test_two_thread_transfer_at() {
 void test_two_thread_transfer() {
     std::printf("two-thread transfer\n");
 
+    // Every depth here is a power of two, because the ring refuses
+    // anything else at compile time -- which is itself worth stating:
+    // a capacity of 1000 is a typo that this design makes impossible to
+    // ship rather than a bug to find under load.
+    //
     // The small depths matter more than they look. A two-slot ring
     // spends its entire life alternating between full and empty, so it
     // is the case most likely to expose an off-by-one in the cached
     // index refresh. A deep ring mostly tests the fast path.
     test_two_thread_transfer_at<2>();
-    test_two_thread_transfer_at<3>();
     test_two_thread_transfer_at<4>();
-    test_two_thread_transfer_at<7>();
     test_two_thread_transfer_at<8>();
-    test_two_thread_transfer_at<31>();
+    test_two_thread_transfer_at<16>();
+    test_two_thread_transfer_at<32>();
     test_two_thread_transfer_at<64>();
-    test_two_thread_transfer_at<128>();
+    test_two_thread_transfer_at<256>();
     test_two_thread_transfer_at<1024>();
+    test_two_thread_transfer_at<4096>();
 }
 
 template <std::size_t N>
