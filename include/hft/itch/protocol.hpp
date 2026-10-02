@@ -320,5 +320,9 @@ static_assert(frame_size(off::kOrderReplaceSize) == 37,
               "Order Replace frame is 35 body bytes plus a 2-byte length prefix");
 static_assert(frame_size(off::kBrokenTradeSize) == 21,
               "Broken Trade frame is 19 body bytes plus a 2-byte length prefix");
+static_assert(frame_size(off::kTradeSize) == 46,
+              "Trade frame is 44 body bytes plus a 2-byte length prefix");
+static_assert(frame_size(off::kCrossTradeSize) == 42,
+              "Cross Trade frame is 40 body bytes plus a 2-byte length prefix");
 
 }  // namespace hft::itch
