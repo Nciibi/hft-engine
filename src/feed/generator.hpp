@@ -270,6 +270,10 @@ struct CaptureStats {
     std::size_t deletes = 0;
     std::size_t order_replace = 0;
     std::size_t records = 0;
+    /// Distinct symbols emitted. Always 1 unless `symbol_count` asked
+    /// for more, and printed so a caller can assert the capture is the
+    /// shape it meant to generate rather than the shape it assumed.
+    std::size_t symbols = 1;
 };
 
 std::vector<std::uint8_t> generate_capture(const CaptureConfig& config,
