@@ -983,7 +983,9 @@ int main(int argc, char** argv) {
                                     ? static_cast<double>(base.records) * 1e9 / r.elapsed_ns
                                     : 0.0;
             const bool match = r.checksum == base.checksum && r.applied == base.applied;
-            if (!match) {`n                shard_mismatch = true;`n            }
+            if (!match) {
+                shard_mismatch = true;
+            }
             std::printf("  %-26s %12s msg/s  %5.2fx  %s\n",
                         (std::to_string(workers) + " workers + dispatcher").c_str(),
                         bench::humanize(static_cast<std::uint64_t>(rate)).c_str(),
