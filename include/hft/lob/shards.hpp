@@ -160,6 +160,138 @@ static_assert(sizeof(Symbol) == kSymbolSize + 1,
     return static_cast<std::size_t>(hash % shards);
 }
 
+/// Order reference number to owning symbol index.
+///
+/// Open addressed, linear probing, no deletions.
+///
+/// ---- Why there is no erase -----------------------------------------
+/// ITCH order reference numbers are unique for the trading DAY. A given
+/// reference is written exactly once, by exactly one Add Order, and is
+/// never reused until the next session. So there is nothing to delete:
+/// the table only ever grows, and the day's work ends by throwing the
+/// table away rather than by reclaiming entries.
+///
+/// That is not a simplification, it is the venue's own contract being
+/// used. It removes the entire class of problems that deletion brings to
+/// an open-addressed table -- tombstones filling the probe sequence,
+/// backward-shift deletion getting the clustering subtly wrong, and the
+/// failure mode where a table degrades to O(n) under long runs of
+/// removals. None of that is reachable here, because there are no
+/// removals.
+///
+/// The cost is memory that grows with orders SEEN rather than orders
+/// LIVE. For a day-long feed that is the whole day. For this repository
+/// it means sizing the table from the record count, which the callers
+/// do, and treating a full table as an error rather than a hint.
+///
+/// NOT THREAD SAFE. One instance belongs to one thread, holding only
+/// that thread's symbols' references. See the file header for why that
+/// is sufficient.
+class RefIndex final {
+public:
+    /// `capacity` is rounded up to a power of two and is the number of
+    /// slots, not the number of entries. A full table holds
+    /// `capacity / 2` entries before linear probing degrades, which is
+    /// why `full()` fires at half rather than at the last slot.
+    explicit RefIndex(std::size_t capacity) {
+        std::size_t slots = 16;
+        while (slots < capacity * 2 && slots < (static_cast<std::size_t>(1) << 40)) {
+            slots <<= 1;
+        }
+        mask_ = slots - 1;
+        table_.assign(slots, Slot{});
+    }
+
+    /// Record that `ref` belongs to `symbol_index`.
+    ///
+    /// Returns false if the table is full or the reference is already
+    /// present with a different owner. Both are errors worth surfacing:
+    /// a reference the handler cannot record is an order it will not be
+    /// able to route, and the resulting mutation would be applied
+    /// nowhere. That is silent data loss, so it is reported instead.
+    bool insert(OrderId ref, std::size_t symbol_index) noexcept {
+        if (symbol_index >= kMaxSymbolIndex) {
+            return false;
+        }
+        if (2 * (size_ + 1) > table_.size()) {
+            return false;  // at the load factor where probing degrades
+        }
+        const OrderId key = ref + 1;  // 0 is the empty marker
+        std::size_t slot = hash(key) & mask_;
+        for (std::size_t probe = 0; probe <= mask_; ++probe) {
+            Slot& s = table_[slot];
+            if (s.key == 0) {
+                s.key = key;
+                s.value = static_cast<std::uint32_t>(symbol_index);
+                ++size_;
+                return true;
+            }
+            if (s.key == key) {
+                // Already present. Same owner is idempotent; a different
+                // owner means two symbols claim one reference, which is
+                // a generator or venue bug and must not be papered over.
+                return s.value == symbol_index;
+            }
+            slot = (slot + 1) & mask_;
+        }
+        return false;
+    }
+
+    /// Find the symbol that owns `ref`.
+    [[nodiscard]] bool lookup(OrderId ref, std::size_t& symbol_index) const noexcept {
+        const OrderId key = ref + 1;
+        std::size_t slot = hash(key) & mask_;
+        for (std::size_t probe = 0; probe <= mask_; ++probe) {
+            const Slot& s = table_[slot];
+            if (s.key == 0) {
+                return false;
+            }
+            if (s.key == key) {
+                symbol_index = s.value;
+                return true;
+            }
+            slot = (slot + 1) & mask_;
+        }
+        return false;
+    }
+
+    [[nodiscard]] std::size_t size() const noexcept { return size_; }
+
+    /// True once another insert would be refused. Read this rather than
+    /// assuming: a table that silently stopped recording references is a
+    /// handler that silently stopped routing mutations.
+    [[nodiscard]] bool full() const noexcept { return 2 * (size_ + 1) > table_.size(); }
+
+    [[nodiscard]] std::size_t slot_count() const noexcept { return table_.size(); }
+
+private:
+    /// Value stored for `symbol_index`, biased by one so that 0 means
+    /// "no entry" in the value array too. Keeping both arrays biased by
+    /// one means a single zero test works for an empty slot.
+    static constexpr std::uint32_t kMaxSymbolIndex = 0xFFFF'FFFEu;
+
+    struct Slot {
+        OrderId key = 0;  ///< ref + 1; 0 means empty
+        std::uint32_t value = 0;
+    };
+
+    /// FNV-1a over the key. Cheap, well distributed for sequential
+    /// reference numbers, and the same hash the rest of the project
+    /// uses.
+    [[nodiscard]] static std::size_t hash(OrderId key) noexcept {
+        std::uint64_t h = 0xCBF2'9CE4'8422'2325ULL;
+        for (int i = 0; i < 8; ++i) {
+            h ^= static_cast<std::uint64_t>((key >> (i * 8)) & 0xFFu);
+            h *= 0x0000'0100'0000'01B3ULL;
+        }
+        return static_cast<std::size_t>(h);
+    }
+
+    std::vector<Slot> table_;
+    std::size_t mask_ = 0;
+    std::size_t size_ = 0;
+};
+
 /// A set of books, partitioned by symbol, with the routing index that
 /// makes partitioning possible.
 ///
