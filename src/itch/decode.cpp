@@ -220,6 +220,35 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             return r;
         }
 
+        case MessageType::trade: {
+            Trade t;
+            t.stock_locate = header.locate;
+            t.tracking = header.tracking;
+            t.timestamp = header.timestamp;
+            t.id = read_be64(body + off::trade_id);
+            t.side = body[off::trade_side];
+            t.shares = Quantity::from_raw(read_be32(body + off::trade_shares));
+            t.price = Price::from_raw(read_be32(body + off::trade_price));
+            t.match = read_be64(body + off::trade_match);
+            r.status = DecodeStatus::ok;
+            r.message.body = t;
+            return r;
+        }
+
+        case MessageType::cross_trade: {
+            CrossTrade q;
+            q.stock_locate = header.locate;
+            q.tracking = header.tracking;
+            q.timestamp = header.timestamp;
+            q.shares = read_be64(body + off::cross_shares);
+            q.price = Price::from_raw(read_be32(body + off::cross_price));
+            q.match = read_be64(body + off::cross_match);
+            q.cross_type = body[off::cross_type];
+            r.status = DecodeStatus::ok;
+            r.message.body = q;
+            return r;
+        }
+
         case MessageType::order_replace: {
             OrderReplace u;
             u.stock_locate = header.locate;
