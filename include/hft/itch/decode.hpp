@@ -55,18 +55,29 @@ namespace hft::itch {
 // Each mirrors one ITCH message body exactly. All are trivially
 // copyable, so the variant never allocates.
 
+/// ITCH 'A'. Consumes no quantity: it creates the order.
 struct AddOrder {
     StockLocate stock_locate = 0;
     TrackingNumber tracking = 0;
     Nanos timestamp = 0;
     OrderId id = kInvalidOrderId;
     Side side = Side::bid;
-    Price price{};
+    /// Share count. NOT the price: in the wire layout the two fields
+    /// are adjacent and in the opposite order to what the previous
+    /// revision of this decoder assumed.
     Quantity size{};
-    std::uint8_t order_type = 0;
-    std::uint8_t time_in_force = 0;
-    std::uint8_t display = 0;
-    std::uint8_t participant = 0;
+    /// The display price, at the END of the message body, after the
+    /// eight-byte stock symbol.
+    Price price{};
+    /// The 8-byte space-padded stock symbol.
+    ///
+    /// Carried rather than discarded because a real handler needs it to
+    /// route the message to the right book, and a decoder that throws
+    /// the symbol away cannot be fed a multi-symbol feed at all. This
+    /// build runs one instrument, so nothing reads it -- which is
+    /// exactly why it was worth keeping: the field exists so the
+    /// multi-shard work does not have to re-derive the layout.
+    char stock[kStockSymbolSize] = {};
 };
 
 /// ITCH 'E'. Consumes `shares` from the order's remaining size.
