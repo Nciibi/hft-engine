@@ -497,31 +497,13 @@ struct ShardedResult {
     std::uint32_t max_levels = 0;
 };
 
-/// FNV-1a over every book's state, in symbol order. Two runs over the
-/// same feed must produce the same value whatever the thread count.
-[[nodiscard]] std::uint64_t fingerprint_all(const std::vector<OrderBook>& books) noexcept {
-    std::uint64_t hash = hft::replay::fnv1a_offset_basis;
-    hash = hft::replay::fnv1a_u64(hash, static_cast<std::uint64_t>(books.size()));
-    for (const OrderBook& book : books) {
-        hash = hft::replay::fnv1a_u64(hash, book.level_count(Side::bid));
-        hash = hft::replay::fnv1a_u64(hash, book.level_count(Side::ask));
-        hash = hft::replay::fnv1a_u64(hash, book.order_count(Side::bid));
-        hash = hft::replay::fnv1a_u64(hash, book.order_count(Side::ask));
-        hash = hft::replay::fnv1a_u64(hash, book.aggregate_at(Side::bid).raw());
-        hash = hft::replay::fnv1a_u64(hash, book.aggregate_at(Side::ask).raw());
-    }
-    return hash;
-}
-
-/// Decode, route and apply on ONE thread. The honest baseline: same
-/// routing work, same books, no threads and no ring.
+/// Decode, route and apply on ONE thread. The honest baseline: the same
+/// routing work and the same books, with no threads and no ring.
 [[nodiscard]] ShardedResult fused_sharded(const std::vector<std::uint8_t>& data,
                                          std::size_t order_pool, std::size_t level_pool,
                                          std::size_t symbols) {
     Router router(1, data.size() / 20 + 64, symbols);
-    std::vector<OrderBook> books;
-    books.reserve(symbols);
-
+    lob::ShardSet set(order_pool, level_pool, symbols);
     ShardedResult result;
     std::size_t offset = 0;
 
@@ -539,28 +521,25 @@ struct ShardedResult {
         }
         if (r.ok()) {
             ++result.records;
-            const hft::itch::AddOrder* add = std::get_if<hft::itch::AddOrder>(&r.message.body);
             std::size_t target = 0;
+            const hft::itch::AddOrder* add = std::get_if<hft::itch::AddOrder>(&r.message.body);
             if (add != nullptr) {
                 const Router::Destination d = router.symbol(lob::Symbol::from_wire(add->stock));
-                target = d.local;
-                if (books.size() <= target) {
-                    books.resize(target + 1, OrderBook(order_pool, level_pool));
-                }
+                target = set.claim(lob::Symbol::from_wire(add->stock));
                 if (!router.remember(add->id, d)) {
                     ++result.index_full;
                 }
             } else {
-                std::uint32_t packed = 0;
-                const Router::Destination d = router.reference(reference_of(r.message), packed);
+                std::uint32_t local = 0;
+                const Router::Destination d = router.reference(reference_of(r.message), local);
                 if (!d.valid) {
                     ++result.unroutable;
                 } else {
-                    target = d.local;
+                    target = local;
                 }
             }
-            if (books.size() > target) {
-                if (hft::lob::apply(r.message, books[target]).applied) {
+            if (target < set.symbol_count()) {
+                if (hft::lob::apply(r.message, set.book(target)).applied) {
                     ++result.applied;
                 }
             }
@@ -568,14 +547,28 @@ struct ShardedResult {
         offset = frame_at + stride;
     }
     result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
-    result.books = books.size();
-    result.checksum = fingerprint_all(books);
-    for (const OrderBook& b : books) {
-        const std::uint32_t depth = b.level_count(Side::bid) + b.level_count(Side::ask);
+
+    std::vector<BookSummary> books;
+    books.reserve(set.symbol_count());
+    for (std::size_t i = 0; i < set.symbol_count(); ++i) {
+        BookSummary s;
+        // ShardSet does not expose its symbols, so the name is recovered
+        // from the generator's deterministic scheme. That is a real
+        // limitation of the comparison, noted rather than hidden: it
+        // means the checksum verifies book STATE, and the symbol COUNT,
+        // but a worker that built two books for one symbol and none for
+        // another would not be caught by name.
+        s.symbol = hft::feed::symbol_name(i);
+        s.hash = fingerprint_book(set.book(i));
+        const std::uint32_t depth =
+            set.book(i).level_count(Side::bid) + set.book(i).level_count(Side::ask);
         if (depth > result.max_levels) {
             result.max_levels = depth;
         }
+        books.push_back(s);
     }
+    result.books = books.size();
+    result.checksum = combine(std::move(books));
     return result;
 }
 
@@ -584,14 +577,11 @@ struct ShardedResult {
                                             std::size_t order_pool, std::size_t level_pool,
                                             std::size_t symbols, std::size_t workers,
                                             std::size_t cores) {
-    using Batch = hft::concurrent::Batch;
-    (void)sizeof(Batch<1>);
-
     Router router(workers, data.size() / 20 + 64, symbols);
 
-    // One ring per worker, heap allocated. At 1024 slots of 128-byte
-    // routed messages a ring is 128KB, and a handful of them on the
-    // stack is an overflow rather than a benchmark.
+    // One ring per worker, heap allocated. At 1024 slots of ~80-byte
+    // routed messages a ring is tens of kilobytes, and a handful of them
+    // on the stack is an overflow rather than a benchmark.
     std::vector<std::unique_ptr<SpscRing<Routed, 1024>>> rings;
     rings.reserve(workers);
     for (std::size_t i = 0; i < workers; ++i) {
@@ -606,8 +596,9 @@ struct ShardedResult {
 
     std::vector<std::atomic<bool>> done(workers);
     std::vector<std::atomic<std::uint64_t>> applied(workers);
-    std::vector<std::uint64_t> final_checksums(workers, 0);
+    std::vector<std::vector<BookSummary>> summaries(workers);
     std::atomic<std::uint64_t> spins{0};
+    ShardedResult result;
 
     for (std::size_t w = 0; w < workers; ++w) {
         done[w].store(false, std::memory_order_relaxed);
@@ -618,21 +609,30 @@ struct ShardedResult {
     pool.reserve(workers);
     for (std::size_t w = 0; w < workers; ++w) {
         pool.emplace_back([&, w] {
-            (void)hft::util::pin_current_thread(cores == 0 ? 0 : (1 + w % (cores - 1)));
+            // Pin worker w to its own physical core. Core 0 is left to
+            // the dispatcher, because the dispatcher is the serial
+            // floor and giving it a core of its own keeps it from
+            // contending with the work it is feeding.
+            (void)hft::util::pin_current_thread(cores < 2 ? 0 : 1 + (w % (cores - 1)));
             SpscRing<Routed, 1024>& ring = *rings[w];
             lob::ShardSet& set = *sets[w];
             Routed r{};
             for (;;) {
                 bool progressed = false;
                 while (ring.try_pop(r)) {
-                    // The worker builds its own books from the LOCAL
-                    // index the dispatcher sent, so no lookup is needed
-                    // here at all -- routing is entirely the
-                    // dispatcher's problem.
-                    while (set.symbol_count() <= r.local_symbol) {
-                        set.claim(lob::Symbol::from_wire("UNKNOWN  "));
+                    std::size_t target = r.local_symbol;
+                    const hft::itch::AddOrder* add =
+                        std::get_if<hft::itch::AddOrder>(&r.message.body);
+                    if (add != nullptr) {
+                        // Claim from the Add. The worker sees Adds in the
+                        // same order the dispatcher assigned local
+                        // indices, because it is the same ring and the
+                        // ring is FIFO -- so the two counters agree
+                        // without either consulting the other.
+                        target = set.claim(lob::Symbol::from_wire(add->stock));
                     }
-                    if (hft::lob::apply(r.message, set.book(r.local_symbol)).applied) {
+                    if (target < set.symbol_count() &&
+                        hft::lob::apply(r.message, set.book(target)).applied) {
                         applied[w].fetch_add(1, std::memory_order_relaxed);
                     }
                     progressed = true;
@@ -645,18 +645,19 @@ struct ShardedResult {
                     std::this_thread::yield();
                 }
             }
-            std::vector<OrderBook> books;
-            books.reserve(set.symbol_count());
+            std::vector<BookSummary> mine;
+            mine.reserve(set.symbol_count());
             for (std::size_t i = 0; i < set.symbol_count(); ++i) {
-                books.push_back(set.book(i));
+                BookSummary s;
+                s.symbol = hft::feed::symbol_name(i);
+                s.hash = fingerprint_book(set.book(i));
+                mine.push_back(s);
             }
-            final_checksums[w] = fingerprint_all(books);
+            summaries[w] = std::move(mine);
         });
     }
 
-    ShardedResult result;
     std::size_t offset = 0;
-
     bench::Timer timer;
     std::thread dispatcher([&] {
         (void)hft::util::pin_current_thread(0);
@@ -673,29 +674,30 @@ struct ShardedResult {
             }
             if (r.ok()) {
                 Routed out{};
+                out.message = r.message;
                 const hft::itch::AddOrder* add = std::get_if<hft::itch::AddOrder>(&r.message.body);
+                std::size_t worker = 0;
                 if (add != nullptr) {
                     const Router::Destination d = router.symbol(lob::Symbol::from_wire(add->stock));
+                    worker = d.worker;
                     out.local_symbol = d.local;
                     if (!router.remember(add->id, d)) {
                         result.index_full++;
                     }
-                    while (!rings[d.worker]->try_push(out)) {
-                        spins.fetch_add(1, std::memory_order_relaxed);
-                        std::this_thread::yield();
-                    }
                 } else {
-                    std::uint32_t packed = 0;
-                    const Router::Destination d = router.reference(reference_of(r.message), packed);
+                    std::uint32_t local = 0;
+                    const Router::Destination d = router.reference(reference_of(r.message), local);
                     if (!d.valid) {
                         result.unroutable++;
-                    } else {
-                        out.local_symbol = d.local;
-                        while (!rings[d.worker]->try_push(out)) {
-                            spins.fetch_add(1, std::memory_order_relaxed);
-                            std::this_thread::yield();
-                        }
+                        offset = frame_at + stride;
+                        continue;
                     }
+                    worker = d.worker;
+                    out.local_symbol = d.local;
+                }
+                while (!rings[worker]->try_push(out)) {
+                    spins.fetch_add(1, std::memory_order_relaxed);
+                    std::this_thread::yield();
                 }
             }
             offset = frame_at + stride;
@@ -711,23 +713,17 @@ struct ShardedResult {
     }
 
     result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
-    result.records = result.applied;  // placeholder, replaced below
-    result.applied = 0;
-    for (std::size_t w = 0; w < workers; ++w) {
-        result.applied += applied[w].load();
-    }
-    result.books = router.symbol_count();
     result.backpressure_spins = spins.load();
 
-    // The fingerprint is taken per worker over that worker's books, so
-    // the sharded checksum is a hash of hashes. That is only comparable
-    // to itself, which is what the equivalence check below needs.
-    std::uint64_t combined = hft::replay::fnv1a_offset_basis;
-    combined = hft::replay::fnv1a_u64(combined, router.symbol_count());
+    std::vector<BookSummary> all;
     for (std::size_t w = 0; w < workers; ++w) {
-        combined = hft::replay::fnv1a_u64(combined, final_checksums[w]);
+        result.applied += applied[w].load();
+        for (BookSummary& s : summaries[w]) {
+            all.push_back(s);
+        }
     }
-    result.checksum = combined;
+    result.books = all.size();
+    result.checksum = combine(std::move(all));
     return result;
 }
 
