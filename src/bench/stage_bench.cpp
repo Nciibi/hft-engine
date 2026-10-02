@@ -218,7 +218,7 @@ struct StageResult {
     // moves, and the mid is frozen for the whole run -- which makes the
     // decision stage measure a degenerate input. Sized here rather than
     // left at zero so both depths see a live book.
-    capture.max_live_orders = shape.levels_per_side * 3;
+    capture.max_live_orders = shape.levels_per_side;
     capture.drift_raw = 400;
     capture.reversion = 4;
     return hft::feed::generate_capture(capture, stats);
