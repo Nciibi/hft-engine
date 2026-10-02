@@ -1837,6 +1837,7 @@ int main() {
     test_report_percentiles();
     test_order_replace_layout_is_spec();
     test_broken_trade_layout_is_spec();
+    test_trade_layouts_are_spec();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
