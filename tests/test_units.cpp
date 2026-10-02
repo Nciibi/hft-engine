@@ -160,7 +160,8 @@ void test_add_order_layout_is_spec() {
     // exactly 32..35. If the two ever swap, these fail by position
     // rather than by value, which points at the layout instead of the
     // arithmetic.
-    check_eq_int(std::string(body + 24, body + 32).size(), 8, "stock symbol is 8 bytes wide");
+    check_eq_int(static_cast<long long>(std::string(body + 24, body + 32).size()), 8,
+                 "stock symbol is 8 bytes wide");
     check(std::string(body + 24, body + 32) == "SIMTEST ", "stock symbol is the literal written");
     check_eq_int(itch::read_be32(body + 20), static_cast<int>(kShares),
                  "offset 20 holds SHARES, not the price");
