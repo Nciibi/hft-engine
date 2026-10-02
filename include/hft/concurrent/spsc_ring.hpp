@@ -56,6 +56,7 @@
 #pragma once
 
 #include <atomic>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
