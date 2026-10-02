@@ -733,27 +733,39 @@ void test_capture_rejects_truncation() {
     // per header -- a reader is the only thing here that knows where a
     // packet ends, because frame lengths vary within a packet.
     std::vector<bool> boundary(data.size() + 1, false);
+    boundary[0] = true;
     {
-        feed::CaptureReader walker(data.data(), data.size());
         std::size_t at = 0;
-        boundary[0] = true;
-        for (;;) {
-            const std::uint8_t* wf = nullptr;
-            std::size_t wn = 0;
-            const std::size_t before = at;
-            at += itch::mold::kHeaderSize;
-            std::size_t blocks = 0;
-            while (walker.next(wf, wn)) {
-                at += wn;
-                ++blocks;
-            }
-            if (at == before) {
+        while (at + itch::mold::kHeaderSize <= data.size()) {
+            itch::mold::PacketHeader header{};
+            if (itch::mold::parse_header(data.data() + at, data.size() - at, header) !=
+                itch::mold::HeaderStatus::ok) {
                 break;
             }
-            if (at <= data.size()) {
-                boundary[at] = true;
+            std::size_t cursor = at + itch::mold::kHeaderSize;
+            if (!itch::mold::is_heartbeat(header.count) &&
+                !itch::mold::is_end_of_session(header.count)) {
+                bool in_range = true;
+                for (std::uint16_t b = 0; b < header.count; ++b) {
+                    if (cursor + itch::mold::kMessageBlockSize > data.size()) {
+                        in_range = false;
+                        break;
+                    }
+                    const std::size_t len =
+                        (static_cast<std::size_t>(data[cursor]) << 8) |
+                        static_cast<std::size_t>(data[cursor + 1]);
+                    if (cursor + itch::mold::kMessageBlockSize + len > data.size()) {
+                        in_range = false;
+                        break;
+                    }
+                    cursor += itch::mold::kMessageBlockSize + len;
+                }
+                if (!in_range) {
+                    break;
+                }
             }
-            (void)blocks;
+            at = cursor;
+            boundary[at] = true;
         }
     }
 
