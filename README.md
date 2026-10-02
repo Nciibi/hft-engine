@@ -315,6 +315,13 @@ cmake --build build --parallel
 ctest --test-dir build     # everything
 ```
 
+Determinism across optimisation levels is a separate check because it
+rebuilds the replay tool six times:
+
+```bash
+./scripts/determinism.sh              # or scripts\determinism.ps1
+```
+
 Zero external dependencies in the library target. CMake, a C++20
 compiler, and `git`.
 
