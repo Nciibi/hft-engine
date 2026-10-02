@@ -182,15 +182,14 @@ add_test(NAME pipeline_threaded_equivalence
 set_tests_properties(pipeline_threaded_equivalence PROPERTIES
     PASS_REGULAR_EXPRESSION "All four threaded runs produced a book identical")
 
-# The ring benchmark is a measurement, not a test, so only the part that
-# is a correctness claim is asserted: every message must be transferred,
-# and every echoed token must come back intact.
+# The ring benchmark is a measurement, not a test, so only its
+# correctness claim is asserted here: every message transferred, and every
+# echoed token returned intact. The tool prints a single verdict line so
+# this is one regex rather than a pair of "must not contain" checks that
+# CTest cannot express.
 add_test(NAME ring_transfer_integrity COMMAND hft_ring_bench 200000)
 set_tests_properties(ring_transfer_integrity PROPERTIES
-    PASS_REGULAR_EXPRESSION "all messages transferred")
-set_tests_properties(ring_transfer_integrity PROPERTIES
-    PASS_REGULAR_EXPRESSION "MESSAGE LOSS -- RESULT INVALID"
-    SKIP_RETURN_CODE 77)
+    PASS_REGULAR_EXPRESSION "transfer integrity: PASS")
 
 # ---- Reporting -----------------------------------------------------
 message(STATUS "hft_engine ${PROJECT_VERSION}")
