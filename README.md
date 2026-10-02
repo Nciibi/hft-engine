@@ -43,14 +43,17 @@ message is recoverable; a decoder that reads the wrong bytes is not.
 This is the one place the decoder declines to be complete on purpose,
 and the reason is recorded in `include/hft/itch/protocol.hpp`.
 
-Verified: **137 unit + 156 risk/OMS + 47 strategy = 340 checks**, and a
-differential test comparing the fast book against an independent naive
-model over **400,000 operations with full state comparison after every
-one**, across five seeds. The OMS is additionally driven through
-**60,000 randomised operations** with invariant checks against an
-independent tally. Determinism is checked too: the same capture replayed
-at `-O0`, `-O2`, `-O3`, `-Os` and `-Oz` produces an identical book
-checksum.
+Verified: **137 unit + 156 risk/OMS + 47 strategy + 149 concurrency = 489
+checks**, and a differential test comparing the fast book against an
+independent naive model over **400,000 operations with full state
+comparison after every one**, across five seeds. The OMS is additionally
+driven through **60,000 randomised operations** with invariant checks
+against an independent tally. The threaded pipeline is checked against
+the single-threaded one: same feed, same order, and the final book is
+fingerprinted with the same FNV-1a checksum the replay tool uses, so a
+dropped or reordered message fails a test rather than showing up as a
+speedup. Determinism is checked too: the same capture replayed at `-O0`,
+`-O2`, `-O3`, `-Os` and `-Oz` produces an identical book checksum.
 
 ## Results
 
