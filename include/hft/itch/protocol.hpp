@@ -176,6 +176,34 @@ inline constexpr std::size_t kOrderReplaceSize = order_replace_price + kPriceSiz
 inline constexpr std::size_t broken_trade_match = 11;  ///< 8
 inline constexpr std::size_t kBrokenTradeSize = broken_trade_match + kOrderIdSize;
 
+// ---- Trade (Non-Cross), tag 'P' ----
+// Verified against TotalView-ITCH 5.0 section 1.5.1.
+//
+// THE TAG IS 'P', NOT 'T'. An earlier revision of this file listed the
+// non-cross trade message as 'T'. That is wrong for 5.0 -- and wrong for
+// 4.1 as well -- and it is the same class of error as the 'B' one: a
+// tag written down from memory rather than read from the specification,
+// sitting directly beside the field tables that were checked. 'T' was
+// the trade tag in older ITCH revisions and nothing in this protocol
+// version uses it. A decoder that classified 'T' would be handling a
+// message that cannot arrive while missing one that can.
+inline constexpr std::size_t trade_id = 11;       ///< 8, zero for binary feeds
+inline constexpr std::size_t trade_side = 19;     ///< 1, 'B' or 'S'
+inline constexpr std::size_t trade_shares = 20;   ///< 4
+inline constexpr std::size_t trade_stock = 24;     ///< 8
+inline constexpr std::size_t trade_price = 32;     ///< 4
+inline constexpr std::size_t trade_match = 36;     ///< 8
+inline constexpr std::size_t kTradeSize = trade_match + kOrderIdSize;
+
+// ---- Cross Trade, tag 'Q' ----
+// Verified against TotalView-ITCH 5.0 section 1.5.2.
+inline constexpr std::size_t cross_shares = 11;   ///< 8, note: 8 not 4
+inline constexpr std::size_t cross_stock = 19;    ///< 8
+inline constexpr std::size_t cross_price = 27;    ///< 4
+inline constexpr std::size_t cross_match = 31;    ///< 8
+inline constexpr std::size_t cross_type = 39;     ///< 1, 'O' opening 'C' closing
+inline constexpr std::size_t kCrossTradeSize = cross_type + 1;
+
 /// Body sizes are DERIVED from the last field's offset, never written
 /// as independent constants. An earlier revision of this file
 /// hard-coded 20 and 16 for these two and was wrong by 3 bytes each;
