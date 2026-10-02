@@ -139,50 +139,17 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
     write_be32(out, static_cast<std::uint32_t>(price.raw()));
 }
 
-/// Draw a level offset, front-loaded toward the touch.
+/// Draw a level offset: how many ticks away from the mid an order rests.
 ///
-/// The offset is how many ticks away from the mid an order rests, and
-/// drawing it uniformly across the whole ladder is wrong in a way that
-/// only shows up at depth. With 1,000 levels per side, a uniform draw
-/// puts about one add in a thousand on the touch, so the touch almost
-/// never empties and the mid is frozen. Measured over 400,000 records at
-/// 1,000 levels, that is 11 to 30 mid moves in total -- 0.003% -- and no
-/// setting of the live-order cap moved it, because the cap was being
-/// spread evenly across 1,000 levels rather than concentrated where the
-/// price is.
-///
-/// Real books are front-loaded: most resting size sits near the touch.
-/// So a share of draws is taken from a narrow window at the top and the
-/// rest from the full ladder. Both the depth and the share are
-/// configurable, and both default to what makes a repricing book.
-///
-/// Integer arithmetic throughout, deliberately. Drawing this with
-/// `std::log` would be one line instead of ten and would silently break
-/// the cross-host determinism claim: a capture generated on two machines
-/// with different libm versions would differ, and every checksum
-/// downstream of it with them.
-[[nodiscard]] std::int64_t draw_offset(SplitMix64& rng, std::size_t levels,
-                                       const CaptureConfig& config) noexcept {
-    if (levels <= 1) {
-        return 1;
-    }
-    const std::size_t full = levels;
-
-    // The narrow window at the top. At least one level, never more than
-    // the whole ladder, and never a fraction of it that rounds to zero.
-    std::size_t window = full / (config.touch_window_pct == 0 ? 100u
-                                                              : config.touch_window_pct);
-    if (window < 1) {
-        window = 1;
-    }
-    if (window > full) {
-        window = full;
-    }
-
-    if (window < full && rng.below(100) < config.touch_share_pct) {
-        return 1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(window)));
-    }
-    return 1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(full)));
+/// Uniform across the ladder. This was front-loaded toward the touch
+/// first, on the reasoning that real books concentrate size near the
+/// touch, and it measured worse at every depth: at 1,000 levels, 54 to
+/// 61 mid moves per 400,000 records uniform, against 3 to 27 for every
+/// concentration setting tried. The intuition was backwards. A thick
+/// touch is a *sticky* touch -- it holds its orders, so the mid does not
+/// move. Thin touches move; that is where price discovery happens.
+[[nodiscard]] std::int64_t draw_offset(SplitMix64& rng, std::size_t levels) noexcept {
+    return 1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels)));
 }
 
 std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
