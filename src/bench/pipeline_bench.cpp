@@ -194,20 +194,13 @@ struct RunResult {
     RunResult result;
 
     bench::Timer timer;
-    std::size_t offset = 0;
+    hft::feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
     std::uint64_t decoded = 0;
 
-    while (offset < data.size()) {
-        if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-            break;
-        }
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-        const hft::itch::DecodeResult r =
-            hft::itch::decode(data.data() + frame_at, data.size() - frame_at);
-        const std::size_t stride = hft::itch::frame_stride(r);
-        if (stride == 0) {
-            break;
-        }
+    while (reader.next(frame, frame_size)) {
+        const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
         if (r.ok()) {
             ++decoded;
             const hft::lob::ApplyResult applied = hft::lob::apply(r.message, book);
@@ -534,20 +527,13 @@ struct ShardedResult {
     Router router(1, data.size() / 20 + 64, symbols);
     lob::ShardSet set(order_pool, level_pool, symbols);
     ShardedResult result;
-    std::size_t offset = 0;
+    hft::feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
 
     bench::Timer timer;
-    while (offset < data.size()) {
-        if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-            break;
-        }
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-        const hft::itch::DecodeResult r =
-            hft::itch::decode(data.data() + frame_at, data.size() - frame_at);
-        const std::size_t stride = hft::itch::frame_stride(r);
-        if (stride == 0) {
-            break;
-        }
+    while (reader.next(frame, frame_size)) {
+        const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
         if (r.ok()) {
             ++result.records;
             std::size_t target = 0;
@@ -669,21 +655,16 @@ struct ShardedResult {
         });
     }
 
-    std::size_t offset = 0;
+    hft::feed::CaptureReader reader(data.data(), data.size());
+
+    const std::uint8_t* frame = nullptr;
+
+    std::size_t frame_size = 0;
     bench::Timer timer;
     std::thread dispatcher([&] {
         (void)hft::util::pin_current_thread(0);
-        while (offset < data.size()) {
-            if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-                break;
-            }
-            const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-            const hft::itch::DecodeResult r =
-                hft::itch::decode(data.data() + frame_at, data.size() - frame_at);
-            const std::size_t stride = hft::itch::frame_stride(r);
-            if (stride == 0) {
-                break;
-            }
+        while (reader.next(frame, frame_size)) {
+        const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
             if (r.ok()) {
                 Routed out{};
                 out.message = r.message;

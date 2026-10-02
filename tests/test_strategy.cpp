@@ -272,7 +272,11 @@ void test_book_never_crosses() {
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(cfg);
     lob::OrderBook book(1u << 20, 1u << 16);
 
-    std::size_t offset = 0;
+    hft::feed::CaptureReader reader(data.data(), data.size());
+
+    const std::uint8_t* frame = nullptr;
+
+    std::size_t frame_size = 0;
     std::uint64_t two_sided = 0;
     std::uint64_t crossed = 0;
     std::uint64_t mid_changes = 0;
@@ -280,18 +284,8 @@ void test_book_never_crosses() {
     std::int64_t mid_low = 0;
     std::int64_t mid_high = 0;
 
-    while (offset < data.size()) {
-        if (data.size() - offset <
-            hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-            break;
-        }
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-        const hft::itch::DecodeResult r = hft::itch::decode(data.data() + frame_at,
-                                                            data.size() - frame_at);
-        const std::size_t stride = hft::itch::frame_stride(r);
-        if (stride == 0) {
-            break;
-        }
+    while (reader.next(frame, frame_size)) {
+        const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
         if (r.ok()) {
             // The apply result is deliberately discarded: a mutation for an order
             // the book has never seen is reported, not fatal, and the

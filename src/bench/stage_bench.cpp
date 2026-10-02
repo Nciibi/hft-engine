@@ -126,7 +126,9 @@ struct StageResult {
     std::optional<Price> previous_mid;
 
     bench::Timer timer;
-    std::size_t offset = 0;
+    hft::feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
 
     while (offset < data.size()) {
         if (data.size() - offset < hft::feed::kCaptureSequenceSize + itch::kLengthPrefixSize) {

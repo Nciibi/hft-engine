@@ -172,7 +172,11 @@ int main(int argc, char** argv) {
     hft::lob::OrderBook book(1u << 20, 1u << 16);
     hft::itch::SequenceTracker sequence(first_sequence);
 
-    std::size_t offset = 0;
+    hft::feed::CaptureReader reader(data.data(), data.size());
+
+    const std::uint8_t* frame = nullptr;
+
+    std::size_t frame_size = 0;
     std::size_t applied = 0;
     std::size_t skipped = 0;
     std::size_t unknown_orders = 0;
