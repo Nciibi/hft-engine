@@ -208,6 +208,31 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             return r;
         }
 
+        case MessageType::broken_trade: {
+            BrokenTrade b;
+            b.stock_locate = header.locate;
+            b.tracking = header.tracking;
+            b.timestamp = header.timestamp;
+            b.match = read_be64(body, off::broken_trade_match);
+            r.status = DecodeStatus::ok;
+            r.message.body = b;
+            return r;
+        }
+
+        case MessageType::order_replace: {
+            OrderReplace u;
+            u.stock_locate = header.locate;
+            u.tracking = header.tracking;
+            u.timestamp = header.timestamp;
+            u.original_id = read_be64(body, off::order_replace_original_id);
+            u.new_id = read_be64(body, off::order_replace_new_id);
+            u.shares = Quantity::from_raw(read_be32(body, off::order_replace_shares));
+            u.price = Price::from_raw(read_be32(body, off::order_replace_price));
+            r.status = DecodeStatus::ok;
+            r.message.body = u;
+            return r;
+        }
+
         default:
             // Unreachable: every tag reaching here was classified
             // above. Returned rather than asserted so a future tag
