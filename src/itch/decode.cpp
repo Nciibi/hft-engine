@@ -106,8 +106,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             expected = off::kOrderExecutedAtPriceSize;
             break;
         case MessageType::order_cancel:            expected = off::kOrderCancelSize; break;
-        case MessageType::order_delete:            expected = off::kOrderDeleteSize; break;
-        default:                                   expected = 0; break;  // skip below
+        case MessageType::order_delete:            expected = off::kOrderDeleteSize; break;        default:                                   expected = 0; break;  // skip below
     }
 
     if (expected != 0) {
