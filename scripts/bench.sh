@@ -76,5 +76,5 @@ echo "=== concurrency: ring vs mutex baseline ==="
 "${ROOT}/build/hft_ring_bench" "${MESSAGES}"
 echo
 
-echo "=== concurrency: one thread versus two ==="
+echo "=== concurrency: split pipeline vs symbol sharding ==="
 "${ROOT}/build/hft_pipeline_bench" "${MESSAGES}"
