@@ -317,7 +317,8 @@ void test_decode_mutations() {
         check(r.status == itch::DecodeStatus::unknown_type,
               "order replace is skipped, not guessed at");
         check(r.skippable(), "order replace is skippable");
-        check_eq_int(itch::frame_stride(r), 41, "replace skip stride is the full frame");
+        check_eq_int(static_cast<long long>(itch::frame_stride(r)), 41,
+                   "replace skip stride is the full frame");
     }
 
     // A known tag whose declared length disagrees with its own layout
