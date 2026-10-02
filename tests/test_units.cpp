@@ -1335,17 +1335,35 @@ void test_report_percentiles() {
     // computed from a bucketed histogram rather than stored samples.
     // The bucket boundaries therefore decide what the reader is told,
     // so the boundaries are checked rather than assumed.
+    // The histogram reports the UPPER BOUND of the bucket a sample landed
+    // in, not the sample. That is deliberate: an upper bound can never
+    // read optimistically low, whereas an interpolated value would be a
+    // number that was never measured. A constant 500 in a one-nanosecond
+    // histogram therefore reports 501. Asserted here so the choice is
+    // visible rather than discovered later in a results table.
     {
-        // A single value at a known bucket lands where it is put.
         LatencyHistogram h(1, 100'000);
         for (int i = 0; i < 1000; ++i) {
             h.record(500);
         }
-        check_eq_int(static_cast<long long>(h.percentile(0.50)), 500,
-                     "a constant distribution reports its constant");
-        check_eq_int(static_cast<long long>(h.percentile(0.99)), 500, "p99 of a constant");
-        check_eq_int(static_cast<long long>(h.percentile(0.999)), 500, "p999 of a constant");
+        check_eq_int(static_cast<long long>(h.percentile(0.50)), 501,
+                     "a constant reports the upper bound of its bucket");
+        check_eq_int(static_cast<long long>(h.percentile(0.99)), 501, "p99 of a constant");
+        check_eq_int(static_cast<long long>(h.percentile(0.999)), 501, "p999 of a constant");
         check_eq_int(static_cast<long long>(h.count()), 1000, "sample count is exact");
+
+        // The reported value is always at or above the truth, and never
+        // more than one bucket above it. A histogram that reported
+        // below the true value would be lying in the dangerous
+        // direction: a reader would conclude the stage is faster than it
+        // is.
+        LatencyHistogram g(4, 10'000);
+        for (int i = 0; i < 500; ++i) {
+            g.record(777);
+        }
+        const std::uint64_t reported = g.percentile(0.50);
+        check(reported >= 777 && reported <= 777 + 4,
+              "a reported percentile is within one bucket above the true value");
     }
 
     {
