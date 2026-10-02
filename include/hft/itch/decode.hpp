@@ -125,8 +125,45 @@ struct OrderDelete {
     OrderId id = kInvalidOrderId;
 };
 
+/// ITCH 'U'. Verified against TotalView-ITCH 5.0 section 4.4.5.
+///
+/// The original order ceases to exist entirely -- its remaining shares
+/// "are no longer accessible" per the specification, which is not the
+/// same as a partial cancel and not the same as a delete followed by an
+/// add, because the replacement carries a NEW reference number and
+/// therefore NEW time priority: it sorts behind everything already
+/// resting at its price.
+///
+/// Side, stock and MPID are deliberately absent from the wire format and
+/// are carried over from the original Add Order. That is why this struct
+/// cannot be applied on its own and why the apply layer has to look the
+/// original order up.
+struct OrderReplace {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId original_id = kInvalidOrderId;
+    OrderId new_id = kInvalidOrderId;
+    Quantity shares{};
+    Price price{};
+};
+
+/// ITCH 'B'. Verified against TotalView-ITCH 5.0 section 4.5.3.
+///
+/// 'B' is Broken Trade, not order entry: an inbound report that an
+/// execution was cancelled under the clearly-erroneous policy. It has
+/// no effect on the book, so the apply layer is a no-op for it, but it
+/// matters to any time-and-sales view and a handler that never sees it
+/// has a hole it does not know about.
+struct BrokenTrade {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId match = kInvalidOrderId;
+};
+
 using MessageBody = std::variant<AddOrder, OrderExecuted, OrderExecutedAtPrice, OrderCancel,
-                                 OrderDelete>;
+                                 OrderDelete, OrderReplace, BrokenTrade>;
 
 /// A decoded message: the payload plus the tag derived from it.
 struct Message {
