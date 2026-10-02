@@ -101,18 +101,39 @@ Three things are now true that were not:
 | Packet-based capture format (MoldUDP64) | done |
 | SOUP checksum | not started |
 
-**Order Replace is skipped on purpose.** Its field table was not
-verified against the published specification, and the alternative to
-guessing an offset is honouring the skip-by-length path. A skipped
-message is recoverable; a decoder that reads the wrong bytes is not.
-This is the one place the decoder declines to be complete on purpose,
-and the reason is recorded in `include/hft/itch/protocol.hpp`.
+**Order Replace and Broken Trade are implemented, and the reason they
+were skipped for so long is worth keeping.** Both were declined on the
+grounds that their field tables could not be verified. The specification
+is public at `nasdaqtrader.com`; it was verifiable the whole time. What
+made it *look* unverifiable is the real lesson: **the same message has
+different offsets in ITCH 3.1 and 4.0**, both also published, so a table
+copied from either is wrong in a way that looks right. Skip-by-length
+was the right call under that uncertainty.
 
-Verified: **307 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
-sharding = 710 checks**. One of those unit checks is a hand-built,
+Going back to the source found two things:
+
+- **The generator was writing a 41-byte Order Replace frame against a
+  35-byte message** — the same four phantom fields (`order_type`,
+  `time_in_force`, `display`, `participant`) that made the Add Order
+  decoder wrong for this project's entire life, appended to a *different*
+  message. The decoder had been skipping these frames by length, so no
+  test ever read those bytes and the wrong size was invisible. Verified
+  layouts now derive their length from the same constants the decoder
+  reads, so the two cannot drift apart again.
+- **`'B'` is not Order Entry.** It is the Broken Trade message, a 19-byte
+  *inbound* report that an execution was cancelled under the
+  clearly-erroneous policy — see the note under
+  [What this is not](#what-this-is-not).
+
+Verified: **342 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
+sharding = 745 checks**. One of those unit checks is a hand-built,
 byte-exact Add Order frame decoded without the generator, because
 self-consistency testing is what let the price/size mix-up survive; see
-[The bug that mattered](#the-bug-that-mattered). The routing that symbol
+[The bug that mattered](#the-bug-that-mattered). Order Replace and
+Broken Trade have the same treatment, and the replace tests assert the
+queue position rather than only the decoded fields: a new reference
+number means new time priority, and getting that backwards is invisible
+in a book checksum. The routing that symbol
 sharding depends on is itself differential: a fast open-addressed
 reference index is driven over a 60,000-record multi-symbol capture
 against a `std::map` oracle, with both sets of books compared after
