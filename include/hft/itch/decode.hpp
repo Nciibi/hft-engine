@@ -77,7 +77,7 @@ struct AddOrder {
     /// build runs one instrument, so nothing reads it -- which is
     /// exactly why it was worth keeping: the field exists so the
     /// multi-shard work does not have to re-derive the layout.
-    char stock[kStockSymbolSize] = {};
+    char stock[off::kStockSymbolSize] = {};
 };
 
 /// ITCH 'E'. Consumes `shares` from the order's remaining size.
