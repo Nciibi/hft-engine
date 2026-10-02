@@ -762,9 +762,29 @@ production software is worse than one that does not:
 
 - **No live exchange connectivity.** TotalView-ITCH requires a Nasdaq
   market-data agreement. This runs on captured or generated feeds.
-- **No MoldUDP64 framing.** The capture format carries one sequence
-  number per record; the transport's own packet header and checksum are
-  not parsed. See the format note in `src/feed/generator.hpp`.
+- **No MoldUDP64 in the capture path.** The framing is implemented and
+  verified — a 20-byte Downstream Packet Header, a 64-bit sequence
+  number, a 2-byte message count, and message blocks that are
+  byte-identical to ITCH frames, so a block feeds the decoder unadjusted
+  — and the field table is hand-built in a test the way the Add Order
+  one is. But the generated capture is still the record format
+  described in `src/feed/generator.hpp`, not a stream of packets, so
+  nothing in this repository has yet exercised packet boundaries,
+  heartbeats, or a gap spanning more than one packet.
+- **There is no checksum, and that is correct.** An earlier revision of
+  this file promised "MoldUDP64 packet framing and checksum" as one
+  item. They are two protocols. MoldUDP64 is an unreliable transport
+  wrapper and does not checksum packets; integrity is SOUP's job, in the
+  protocol layered above it. Implementing a CRC in the framing would
+  mean inventing a field the specification does not define — the exact
+  mistake described in [The bug that mattered](#the-bug-that-mattered).
+- **The sequence tracker is 32-bit and MoldUDP64's is 64-bit.** The
+  MoldUDP64 Sequence Number field is eight bytes. `hft/itch/sequence.hpp`
+  wraps a 32-bit counter and has careful tests for the 32-bit wrap,
+  which is a genuine ITCH concern — but it is not this field's width,
+  and a gap check reading four bytes of it would ignore the high half of
+  every sequence number. The two are separate concerns and are named
+  separately here rather than conflated.
 - **No Order Replace.** Deliberate, not accidental: an unverified field
   table is skipped rather than guessed.
 - **No multi-shard sequencing.** Symbol sharding works and is measured,
