@@ -66,9 +66,18 @@ inline void section(const char* title) {
         std::printf("-");
     }
     std::printf("\n");
+    // Explicit flush at every section boundary. Windows C runtimes do
+    // not honour line buffering on redirected output, so a run that is
+    // piped to a file -- or that hangs -- would otherwise lose every line
+    // printed before the problem. A benchmark you cannot see into is a
+    // benchmark you cannot debug.
+    std::fflush(stdout);
 }
 
-inline void note(const char* text) { std::printf("\n%s\n", text); }
+inline void note(const char* text) {
+    std::printf("\n%s\n", text);
+    std::fflush(stdout);
+}
 
 /// One p50/p99/p999 row, in the format used across this repository.
 ///
