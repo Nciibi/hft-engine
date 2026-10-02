@@ -764,13 +764,13 @@ production software is worse than one that does not:
   not parsed. See the format note in `src/feed/generator.hpp`.
 - **No Order Replace.** Deliberate, not accidental: an unverified field
   table is skipped rather than guessed.
-- **No multi-shard scaling.** One instrument per book. Sharding by
-  symbol needs a sequencer and a partition scheme that are not here. The
-  pipeline benchmark says so with a measurement rather than a shrug: the
-  decode/apply split that *is* here loses to the single-threaded loop at
-  every batch size, because the two halves are unequal work. Symbol
-  sharding is the design that fixes that, and it is the next thing to
-  build.
+- **No multi-shard sequencing.** Symbol sharding works and is measured,
+  but there is no sequencer arbitrating across shards, no partition
+  rebalancing when the symbol set changes, and no recovery when a shard
+  falls behind. Those are the hard parts of running this in production
+  and none of them are here. What *is* here is the part that had to be
+  got right before any of them mattered: routing a mutation to the right
+  book when the message does not say which book it belongs to.
 - **No clock synchronisation.** No PTP, no NTP discipline, no
   cross-machine timestamp alignment. Cross-host latency claims would
   be meaningless without it.
