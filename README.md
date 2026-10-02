@@ -88,7 +88,7 @@ Three things are now true that were not:
 | Avellaneda-Stoikov quoting, no transcendental in the loop | done |
 | Adverse selection: markout, effective/realised spread, toxicity | done |
 | Order Replace (U) decode | deliberately **not** done, see below |
-| MoldUDP64 64-bit sequence gap detection | not started |
+| MoldUDP64 64-bit sequence gap detection | done |
 | SPSC lock-free ring buffer | done |
 | Cache-line isolation, cache-line padded indices | done |
 | Thread pinning and SMT topology discovery | done |
