@@ -449,12 +449,13 @@ int main(int argc, char** argv) {
     // runtime of a tool whose point is a comparison, and capacity is not
     // the variable under test here.
     const std::size_t snap = SpscRing<Payload, 2>::recommended_capacity(capacity);
+    bool transferred = false;
     if (snap >= 1024) {
-        compare_at<1024>(payloads, producer_core, consumer_core);
+        transferred = compare_at<1024>(payloads, producer_core, consumer_core);
     } else if (snap >= 256) {
-        compare_at<256>(payloads, producer_core, consumer_core);
+        transferred = compare_at<256>(payloads, producer_core, consumer_core);
     } else {
-        compare_at<64>(payloads, producer_core, consumer_core);
+        transferred = compare_at<64>(payloads, producer_core, consumer_core);
     }
 
     bench::section("ROUND TRIP (halved, includes a clock pair)");
