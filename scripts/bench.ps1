@@ -162,6 +162,27 @@ if ($ctest) {
 }
 Write-Host ''
 
+# Cross-optimisation determinism. This is a correctness gate, not a
+# benchmark, and it sits with the other gates for that reason: a book
+# checksum that depends on -O level would invalidate every latency number
+# below it, because the thing being measured would not be the same
+# program twice.
+#
+# It compiles six variants, so it is slower than everything else here
+# combined and can be skipped with -SkipDeterminism when iterating on a
+# change that cannot plausibly affect it. It is NOT skippable when
+# publishing.
+if (-not $SkipDeterminism) {
+    Write-Host '=== determinism across optimisation levels ==='
+    $det = Join-Path $PSScriptRoot 'determinism.ps1'
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $det -Records 50000
+    if ($LASTEXITCODE -ne 0) { Fail 'cross-optimisation determinism' }
+} else {
+    Write-Host '=== determinism across optimisation levels ==='
+    Write-Host 'SKIPPED (-SkipDeterminism). Not valid for publication.' -ForegroundColor Yellow
+}
+Write-Host ''
+
 # ---- Benchmarks ------------------------------------------------------
 Write-Host '=== latency and throughput: add-only ingest ==='
 Run (Join-Path $BuildDir 'hft_bench.exe') @("$Messages") 'hft_bench'
