@@ -185,8 +185,10 @@ differently.
 | Deep book (1k lvl)    | `[MEASURED]`    | 1000  |
 
 Shallow-book throughput is reported separately because it is
-meaningless: real books are deep, and a number from an empty book is a
-number about your loop, not your engine.
+meaningless on its own: real books are deep, and a number from an empty
+book is a number about your loop, not your engine. Reported together,
+the ratio between them is the cost of the linked-list ladder and is the
+single most load-bearing measurement in this repository.
 
 ### Correctness
 
