@@ -492,6 +492,25 @@ int main(int argc, char** argv) {
                     "         above are meaningless.\n");
     }
 
+    bench::section("TRANSFER INTEGRITY");
+    // A hand-off benchmark that loses a message or returns the wrong
+    // bytes is not measuring anything, and worse, every other column of
+    // the table would look like a win. This is the one claim here that
+    // is a correctness statement rather than a measurement, so it gets
+    // its own verdict line that CI can assert on.
+    const bool integrity_ok = transferred && ring_lat.echoed_correctly &&
+                              mutex_lat.echoed_correctly;
+    std::printf("  every message transferred   %s\n", transferred ? "yes" : "NO");
+    std::printf("  every echoed token intact   %s\n",
+                (ring_lat.echoed_correctly && mutex_lat.echoed_correctly) ? "yes" : "NO");
+    std::printf("\n  transfer integrity: %s\n", integrity_ok ? "PASS" : "FAIL");
+    std::fflush(stdout);
+
+    if (!integrity_ok) {
+        std::printf("\n  The figures above are meaningless: the hand-off lost or\n"
+                    "  corrupted data. This is a bug in the ring, not a fast run.\n");
+    }
+
     bench::note(
         "WHAT THIS MEASURES, AND WHAT IT DOES NOT.\n"
         "\n"
