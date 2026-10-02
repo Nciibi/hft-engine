@@ -129,8 +129,10 @@ threaded pipeline is checked against the single-threaded one: same
 feed, same order, and the final book is fingerprinted with the same
 FNV-1a checksum the replay tool uses, so a dropped or reordered
 message fails a test rather than showing up as a speedup. Determinism
-is checked too: the same capture replayed at `-O0`, `-O2`, `-O3`, `-Os`
-and `-Oz` produces an identical book checksum.
+is checked too, across six optimisation levels rather than by re-running
+one binary: `scripts/determinism.sh` builds the replay tool at `-O0`,
+`-O1`, `-O2`, `-O3`, `-Os` and `-Oz` and requires an identical book
+checksum from every one.
 
 None of that would have found a field offset. Only comparing against
 something outside this repository would have.
