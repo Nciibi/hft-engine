@@ -115,6 +115,16 @@ struct OrderSnapshot {
     Price price{};
     Quantity size{};
     OrderState state = OrderState::new_order;
+    /// Which side the order rests on.
+    ///
+    /// Added for Order Replace. The 'U' message carries no side, no
+    /// stock and no MPID -- the specification has the replacement
+    /// inherit them from the original Add Order -- so applying one
+    /// means looking the original up and reading its side back out.
+    /// Without this field the apply layer would have to infer the side
+    /// from the price, which is a guess that fails on any book whose
+    /// mid is not where you expect it.
+    Side side = Side::bid;
 };
 
 class OrderBook final {
