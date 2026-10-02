@@ -942,6 +942,27 @@ void test_capture_handles_control_packets() {
 // than through the generator for the same reason the Add Order frame is:
 // a layout that the generator and the decoder agree on proves nothing.
 
+// Big-endian writers, local to this file on purpose: a spec-frame test
+// that used the production writer could not catch a writer that is wrong
+// in the same way the reader is. These are the two operations, written
+// out.
+void put_be16(std::vector<std::uint8_t>& b, std::size_t at, std::uint16_t v) {
+    b[at] = static_cast<std::uint8_t>((v >> 8) & 0xFFu);
+    b[at + 1] = static_cast<std::uint8_t>(v & 0xFFu);
+}
+
+void put_be32(std::vector<std::uint8_t>& b, std::size_t at, std::uint32_t v) {
+    for (int s = 24; s >= 0; s -= 8) {
+        b[at++] = static_cast<std::uint8_t>((v >> s) & 0xFFu);
+    }
+}
+
+void put_be64(std::vector<std::uint8_t>& b, std::size_t at, std::uint64_t v) {
+    for (int s = 56; s >= 0; s -= 8) {
+        b[at++] = static_cast<std::uint8_t>((v >> s) & 0xFFu);
+    }
+}
+
 void test_order_replace_layout_is_spec() {
     std::printf("Order Replace layout against the published field table\n");
     using namespace hft;
