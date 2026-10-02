@@ -613,12 +613,11 @@ struct ShardedResult {
             SpscRing<Routed, 1024>& ring = *rings[w];
             lob::ShardSet& set = *sets[w];
             Routed r{};
-            for (;;) {
-                bool progressed = false;
-                while (ring.try_pop(r)) {
-                    std::size_t target = r.local_symbol;
+            drain_until_producer_done(
+                ring, done[w], r, [&](Routed& item) {
+                    std::size_t target = item.local_symbol;
                     const hft::itch::AddOrder* add =
-                        std::get_if<hft::itch::AddOrder>(&r.message.body);
+                        std::get_if<hft::itch::AddOrder>(&item.message.body);
                     if (add != nullptr) {
                         // Claim from the Add. The worker sees Adds in the
                         // same order the dispatcher assigned local
@@ -628,19 +627,10 @@ struct ShardedResult {
                         target = set.claim(lob::Symbol::from_wire(add->stock));
                     }
                     if (target < set.symbol_count() &&
-                        hft::lob::apply(r.message, set.book(target)).applied) {
+                        hft::lob::apply(item.message, set.book(target)).applied) {
                         applied[w].fetch_add(1, std::memory_order_relaxed);
                     }
-                    progressed = true;
-                }
-                if (!progressed && done[w].load(std::memory_order_acquire)) {
-                    break;
-                }
-                if (!progressed) {
-                    spins.fetch_add(1, std::memory_order_relaxed);
-                    std::this_thread::yield();
-                }
-            }
+                });
             std::vector<BookSummary> mine;
             mine.reserve(set.symbol_count());
             for (std::size_t i = 0; i < set.symbol_count(); ++i) {
