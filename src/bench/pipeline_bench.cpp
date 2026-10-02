@@ -1,4 +1,4 @@
-// Market data pipeline: one thread versus two, with a batching sweep.
+﻿// Market data pipeline: one thread versus two, with a batching sweep.
 //
 // What this measures
 // ------------------
@@ -44,6 +44,7 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include "bench/report.hpp"
@@ -142,7 +143,7 @@ struct RunResult {
     OrderBook book(pool, pool);
     RunResult result;
 
-    Timer timer;
+    bench::Timer timer;
     std::size_t offset = 0;
     std::uint64_t decoded = 0;
 
@@ -220,7 +221,7 @@ template <std::size_t K>
         }
     });
 
-    Timer timer;
+    bench::Timer timer;
     std::thread decoder([&] {
         (void)hft::util::pin_current_thread(decoder_core);
         Batch<K> batch{};
