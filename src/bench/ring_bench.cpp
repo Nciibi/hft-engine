@@ -205,7 +205,7 @@ template <std::size_t N>
         }
     });
 
-    Timer timer;
+    bench::Timer timer;
     std::thread producer([&] {
         (void)hft::util::pin_current_thread(producer_core);
         result.producer_placement = hft::util::describe_affinity("producer");
@@ -242,7 +242,7 @@ template <std::size_t N>
         }
     });
 
-    Timer timer;
+    bench::Timer timer;
     std::thread producer([&] {
         (void)hft::util::pin_current_thread(producer_core);
         result.producer_placement = hft::util::describe_affinity("producer");
