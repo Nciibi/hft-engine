@@ -87,7 +87,8 @@ Three things are now true that were not:
 | OMS: order state machine, slot pool, reconcile counters | done |
 | Avellaneda-Stoikov quoting, no transcendental in the loop | done |
 | Adverse selection: markout, effective/realised spread, toxicity | done |
-| Order Replace (`U`) decode | deliberately **not** done, see below |
+| Order Replace (U) decode | deliberately **not** done, see below |
+| MoldUDP64 64-bit sequence gap detection | not started |
 | SPSC lock-free ring buffer | done |
 | Cache-line isolation, cache-line padded indices | done |
 | Thread pinning and SMT topology discovery | done |
@@ -105,8 +106,8 @@ message is recoverable; a decoder that reads the wrong bytes is not.
 This is the one place the decoder declines to be complete on purpose,
 and the reason is recorded in `include/hft/itch/protocol.hpp`.
 
-Verified: **160 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
-sharding = 563 checks**. One of those unit checks is a hand-built,
+Verified: **225 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
+sharding = 628 checks**. One of those unit checks is a hand-built,
 byte-exact Add Order frame decoded without the generator, because
 self-consistency testing is what let the price/size mix-up survive; see
 [The bug that mattered](#the-bug-that-mattered). The routing that symbol
@@ -270,6 +271,7 @@ cmake --build build --parallel
 ./build/hft_strategy       # quoting model, adverse selection, book invariant
 ./build/hft_concurrent     # SPSC ring, single- and two-threaded
 ./build/hft_shards         # symbol routing vs a std::map oracle
+# ../../../scripts/bench.ps1  # one-command reproduce on Windows
 ./build/hft_differential   # fast book vs naive model, full state compare
 ./build/hft_replay         # deterministic replay, prints the book checksum
 ./build/hft_market_maker   # market maker over a replay, prints toxicity
