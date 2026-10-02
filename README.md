@@ -89,6 +89,45 @@ number about your loop, not your engine.
   full state comparison after every operation. Zero mismatches.
 - Deterministic replay: FNV-1a book state checksum over `[N]` messages.
   Identical across runs, across optimisation levels, across machines.
+- Threaded pipeline equivalence: the decoder-thread/book-thread split
+  builds a byte-identical book to the single-threaded loop over the same
+  feed, at every batch size. Asserted in CI, not merely measured.
+
+### Concurrency
+
+Measured on `<instance spec>`, `<compiler + flags>`, `<kernel>`, with the
+decoder and book threads on two distinct physical cores. Reproduce with
+`./build/hft_ring_bench` and `./build/hft_pipeline_bench`.
+
+| Variant                                     | msgs/sec | vs 1 thread |
+|---------------------------------------------|----------|-------------|
+| Single thread, decode + apply               | `[MEASURED]` | 1.00x   |
+| Two threads through the ring, K=1           | `[MEASURED]` | `[MEASURED]` |
+| Two threads through the ring, K=8           | `[MEASURED]` | `[MEASURED]` |
+| Two threads through the ring, K=32          | `[MEASURED]` | `[MEASURED]` |
+| Two threads through the ring, K=128         | `[MEASURED]` | `[MEASURED]` |
+
+**The finding is negative and it is the interesting part.** Threading this
+pipeline does not pay, and batching does not rescue it. Moving the
+*cheap* half of the work to a second core leaves the expensive half
+running serially on one core while adding a hand-off and a second
+runnable thread to pay for. Larger batches make it slightly worse again,
+for an independent reason: a K=128 push is an 8KB copy, which is more
+cache traffic than the transfers it amortises.
+
+What follows from that is not "batching does not work". It is that
+batching a pipeline whose halves are *unequal* cannot work, and that the
+design this argues for is sharding **by symbol**, so each thread owns a
+book and runs a full decode-and-apply for its own instruments with
+genuinely equal work. That is the multi-shard design this repository does
+not have yet, and it is named as missing below for a measured reason
+rather than a guessed one.
+
+The tool prints the single-threaded baseline a second time at the end and
+reports the drift as a noise floor. On the development machine that drift
+is several percent, which is larger than most of the ratios in the table
+above. Differences smaller than the noise floor are not results, and the
+tool says so rather than leaving the reader to assume otherwise.
 
 ## Quick start
 
