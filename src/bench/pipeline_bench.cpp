@@ -473,12 +473,19 @@ public:
     }
 
     /// Where does a mutation for this reference go?
+    ///
+    /// `packed` is (worker, local) folded into one 32-bit value; both
+    /// halves have to come back out. An earlier revision returned the
+    /// PACKED value as the local index, so every mutation arrived at a
+    /// worker with a local index of tens of thousands, failed the bounds
+    /// check, and was dropped. Only the Adds were ever applied -- which
+    /// looked like a sharding speedup until the checksum disagreed.
     [[nodiscard]] Destination reference(hft::OrderId ref, std::uint32_t& symbol_index) const {
-        std::size_t local = 0;
-        if (refs_.lookup(ref, local)) {
-            symbol_index = static_cast<std::uint32_t>(local);
-            return Destination{static_cast<std::uint32_t>(local / kMaxPerWorker),
-                               symbol_index, true};
+        std::size_t packed = 0;
+        if (refs_.lookup(ref, packed)) {
+            symbol_index = static_cast<std::uint32_t>(packed % kMaxPerWorker);
+            return Destination{static_cast<std::uint32_t>(packed / kMaxPerWorker), symbol_index,
+                               true};
         }
         return Destination{};
     }
