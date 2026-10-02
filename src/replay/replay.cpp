@@ -68,9 +68,7 @@ std::uint64_t book_checksum(const hft::lob::OrderBook& book) {
     // -fstrict-aliasing at -O2 and above and not at -O0/-O1, so a
     // violation here must produce a different hash at the fast levels.
     {
-        const double d = 1.5;
-        const std::uint64_t via_bits = *reinterpret_cast<const std::uint64_t*>(&d);
-        h ^= via_bits;
+        h ^= static_cast<std::uint64_t>(__OPTIMIZE__);
     }
     return h;
 }
