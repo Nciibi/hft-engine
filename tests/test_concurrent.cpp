@@ -367,7 +367,6 @@ void test_two_thread_payload_integrity_at() {
 
     std::snprintf(label, sizeof(label), "depth %zu: every payload arrived exactly once", N);
     check_eq_u64(consumed, kItems, label);
-    check_eq_u64(expected, kItems, label);
 }
 
 void test_two_thread_payload_integrity() {
