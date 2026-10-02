@@ -197,28 +197,52 @@ void test_shard_set() {
 void test_ref_index() {
     std::printf("RefIndex\n");
 
-    lob::RefIndex index(1'024);
+    // Sized for the entries the test will insert, not for the entries
+    // it happens to want. The index rounds up to a power of two AND
+    // holds at most half of its slots, so `RefIndex(n)` comfortably
+    // holds `n` and `RefIndex(2n)` does not. Asking for the wrong one
+    // fails with a wall of identical messages, which is its own kind of
+    // unhelpful.
+    constexpr OrderId kEntries = 2'000;
+    lob::RefIndex index(kEntries * 2);
     check(!index.full(), "a fresh index is not full");
     check_eq_size(index.size(), 0, "and is empty");
+    check(index.slot_count() >= kEntries * 2,
+          "the table is at least twice the entries it must hold");
 
-    constexpr OrderId kBase = 1'000'000;
-    for (OrderId r = 0; r < 2'000; ++r) {
-        check(index.insert(kBase + r, static_cast<std::size_t>(r % 7)), "insert succeeds");
+    const OrderId kBase = 1'000'000;
+    bool all_inserted = true;
+    for (OrderId r = 0; r < kEntries; ++r) {
+        if (!index.insert(kBase + r, static_cast<std::size_t>(r % 7))) {
+            all_inserted = false;
+        }
     }
-    check_eq_size(index.size(), 2'000, "every insert is counted");
+    check(all_inserted, "every insert below the load factor succeeds");
+    check_eq_size(index.size(), kEntries, "every insert is counted");
 
     // Every reference must come back with the owner it was given. A
     // single wrong answer here is an order mutated on the wrong book.
+    // Aggregated into one check so a failure does not bury the rest of
+    // the suite in two thousand identical lines.
     bool all_right = true;
-    std::size_t not_found = 0;
-    for (OrderId r = 0; r < 2'000; ++r) {
+    std::size_t first_wrong = 0;
+    for (OrderId r = 0; r < kEntries; ++r) {
         std::size_t owner = 999;
         if (!index.lookup(kBase + r, owner) || owner != static_cast<std::size_t>(r % 7)) {
             all_right = false;
+            if (first_wrong == 0) {
+                first_wrong = r;
+            }
         }
     }
+    if (!all_right) {
+        std::printf("    first wrong lookup at reference offset %llu\n",
+                    static_cast<unsigned long long>(first_wrong));
+    }
     check(all_right, "every reference returns the owner it was inserted with");
-    for (OrderId r = 2'000; r < 2'100; ++r) {
+
+    std::size_t not_found = 0;
+    for (OrderId r = kEntries; r < kEntries + 100; ++r) {
         std::size_t owner = 999;
         if (!index.lookup(kBase + r, owner)) {
             ++not_found;
@@ -241,9 +265,11 @@ void test_ref_index() {
     check(index.insert(0, 5), "reference 0 inserts");
     check(index.lookup(0, owner) && owner == 5, "reference 0 round trips");
 
-    // A full table must say so rather than failing silently.
+    // A full table must say so rather than failing silently. A handler
+    // whose index quietly stopped recording references is a handler
+    // quietly losing mutations.
     bool reported_full = false;
-    for (OrderId r = 5'000; r < 5'000'000; ++r) {
+    for (OrderId r = 5'000'000; r < 6'000'000; ++r) {
         if (!index.insert(r, 1)) {
             reported_full = true;
             break;
