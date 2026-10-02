@@ -135,9 +135,15 @@ public:
     /// `horizon` is how far ahead a fill's markout is measured.
     /// `toxicity_threshold_raw` is how far the mid must move against a
     /// fill before it counts as toxic. Zero means any adverse tick.
+    ///
+    /// `bucket_raw` is a histogram bucket width in nanoseconds, so
+    /// uint32_t rather than a general size_t: the histogram stores its
+    /// widths in uint32_t, and letting a size_t reach the constructor
+    /// would quietly truncate a wide bucket to a different one than the
+    /// caller asked for.
     explicit AdverseSelection(Nanos horizon = 1'000'000,  // 1ms
                               std::int64_t toxicity_threshold_raw = 0,
-                              std::size_t bucket_raw = 1)
+                              std::uint32_t bucket_raw = 1)
         : horizon_(horizon), toxicity_threshold_raw_(toxicity_threshold_raw),
           effective_(bucket_raw, 2'000'000), markout_(bucket_raw, 2'000'000),
           realised_(bucket_raw, 2'000'000) {}
