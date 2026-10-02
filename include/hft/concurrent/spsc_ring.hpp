@@ -159,12 +159,12 @@ public:
         // the only writer of tail_.
         const std::size_t tail = tail_->load(std::memory_order_relaxed);
 
-        if (tail == cached_head_) {
+        if (tail == *cached_head_) {
             // Acquire, pairing with the producer's release store on
             // head_. This is what makes the bytes written into the slot
             // visible before they are read below.
-            cached_head_ = head_->load(std::memory_order_acquire);
-            if (tail == cached_head_) {
+            *cached_head_ = head_->load(std::memory_order_acquire);
+            if (tail == *cached_head_) {
                 return false;
             }
         }
