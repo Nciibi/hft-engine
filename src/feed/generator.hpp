@@ -348,6 +348,7 @@ private:
                 continue;
             }
             remaining_blocks_ = header.count;
+            packet_blocks_ = header.count;
             block_index_ = 0;
             return remaining_blocks_ > 0;
         }
@@ -357,6 +358,7 @@ private:
     std::size_t size_ = 0;
     std::size_t cursor_ = 0;
     std::uint16_t remaining_blocks_ = 0;
+    std::uint16_t packet_blocks_ = 0;
     std::uint64_t block_index_ = 0;
     std::uint64_t packet_sequence_ = 0;
     std::uint64_t sequence_ = 0;
