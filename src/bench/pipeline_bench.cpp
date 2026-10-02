@@ -967,8 +967,7 @@ int main(int argc, char** argv) {
                     bench::humanize(base.books).c_str(),
                     bench::humanize(base.applied).c_str(), base.max_levels);
 
-        const std::size_t cores = hft::util::physical_core_count();
-        bool any_mismatch = false;
+        const std::size_t cores = hft::util::physical_core_count();`n        bool shard_mismatch = false;
 
         for (const std::size_t workers : {std::size_t{2}, std::size_t{3}, std::size_t{5}}) {
             if (workers > cores - 1) {
@@ -983,9 +982,7 @@ int main(int argc, char** argv) {
                                     ? static_cast<double>(base.records) * 1e9 / r.elapsed_ns
                                     : 0.0;
             const bool match = r.checksum == base.checksum && r.applied == base.applied;
-            if (!match) {
-                any_mismatch = true;
-            }
+            if (!match) {`n                shard_mismatch = true;`n            }
             std::printf("  %-26s %12s msg/s  %5.2fx  %s\n",
                         (std::to_string(workers) + " workers + dispatcher").c_str(),
                         bench::humanize(static_cast<std::uint64_t>(rate)).c_str(),
@@ -998,9 +995,7 @@ int main(int argc, char** argv) {
         }
         std::fflush(stdout);
 
-        if (any_mismatch) {
-            std::printf(
-                "\n  A sharded run built different books from the same feed. The\n"
+        if (shard_mismatch) {`n            std::printf(`n                "\n  A sharded run built different books from the same feed. The\n"
                 "  speedups above are meaningless: a pipeline that drops or\n"
                 "  misroutes a message is not faster, it is wrong.\n");
         }
