@@ -382,21 +382,11 @@ void test_routing_matches_oracle() {
     bool diverged = false;
 
     hft::feed::CaptureReader reader(data.data(), data.size());
-
     const std::uint8_t* frame = nullptr;
-
     std::size_t frame_size = 0;
     std::size_t step = 0;
-    while (offset < data.size()) {
-        if (data.size() - offset < hft::feed::kCaptureSequenceSize + itch::kLengthPrefixSize) {
-            break;
-        }
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-        const itch::DecodeResult r = itch::decode(data.data() + frame_at, data.size() - frame_at);
-        const std::size_t stride = itch::frame_stride(r);
-        if (stride == 0) {
-            break;
-        }
+    while (reader.next(frame, frame_size)) {
+        const itch::DecodeResult r = itch::decode(frame, frame_size);
 
         if (r.ok()) {
             const itch::AddOrder* add = std::get_if<itch::AddOrder>(&r.message.body);
