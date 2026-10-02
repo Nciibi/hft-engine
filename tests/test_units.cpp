@@ -785,42 +785,67 @@ void test_capture_handles_control_packets() {
     std::printf("capture handles control packets\n");
     using namespace hft;
 
-    // A real session contains heartbeats, and a graceful end. Both carry
-    // no messages, and a reader that returned them as frames would hand
-    // a handler a "frame" with an empty body.
-    std::vector<std::uint8_t> data;
-    feed::GeneratorConfig gen;
-    gen.message_count = 3;
-    const std::vector<std::uint8_t> frames = feed::generate_add_orders(gen);
-    feed::append_downstream_packet(data, frames, 7);
-    feed::append_downstream_packet(data, frames, 10);
+    // A real session contains heartbeats and a graceful end. Neither
+    // carries a message, and a reader that returned one as a frame would
+    // hand a handler a "frame" with an empty body -- which decodes as
+    // garbage rather than failing, so this has to be right rather than
+    // merely non-crashing.
+    const std::vector<std::uint8_t> frames = feed::generate_add_orders([] {
+        feed::GeneratorConfig c;
+        c.message_count = 1;
+        return c;
+    }());
 
-    // A heartbeat between the two packets, carrying the sequence number
-    // the NEXT packet will use, which is what keeps the gap detector
-    // from firing on the far side of an idle period.
-    std::vector<std::uint8_t> heartbeat;
-    feed::append_downstream_packet(heartbeat, {}, 13);
-    data.insert(data.begin() + feed::kCaptureHeaderSize + 3 * (itch::mold::kMessageBlockSize + 38),
-                heartbeat.begin(), heartbeat.end());
+    // Heartbeat and end-of-session packets are a bare header: no blocks.
+    auto append_header = [](std::vector<std::uint8_t>& out, std::uint64_t sequence,
+                            std::uint16_t count) {
+        for (std::size_t i = 0; i < itch::mold::kSessionSize; ++i) {
+            out.push_back(static_cast<std::uint8_t>(feed::kDefaultSession[i]));
+        }
+        itch::write_be64(out, sequence);
+        itch::write_be16(out, count);
+    };
+
+    std::vector<std::uint8_t> data;
+    feed::append_downstream_packet(data, "SAMPLE0000", 7, frames.data() + 2, frames.size() - 2, 1);
+    append_header(data, 8, itch::mold::kHeartbeatCount);
+    feed::append_downstream_packet(data, "SAMPLE0000", 8, frames.data() + 2, frames.size() - 2, 1);
+    append_header(data, 9, itch::mold::kEndOfSessionCount);
 
     feed::CaptureReader reader(data.data(), data.size());
     const std::uint8_t* frame = nullptr;
     std::size_t frame_size = 0;
-    std::size_t frames = 0;
-    std::uint64_t expected = 7;
-    bool contiguous = true;
+    std::size_t seen = 0;
+    std::uint64_t sequences[2] = {0, 0};
     while (reader.next(frame, frame_size)) {
-        if (reader.sequence() != expected) {
-            contiguous = false;
+        if (seen < 2) {
+            sequences[seen] = reader.sequence();
         }
-        ++expected;
-        ++frames;
+        ++seen;
     }
 
-    check_eq_int(static_cast<long long>(frames), 6, "two packets of three frames each");
-    check_true(contiguous, "a heartbeat in the middle does not disturb sequence numbers");
+    check_eq_int(static_cast<long long>(seen), 2,
+                 "heartbeat and end-of-session packets yield no frames");
+    check_true(sequences[0] == 7 && sequences[1] == 8,
+               "sequence numbers come from the packets, skipping the heartbeat");
     check_eq_int(static_cast<long long>(reader.heartbeats()), 1, "the heartbeat is counted");
-    check_true(!reader.malformed(), "a heartbeat is not a malformed packet");
+    check_eq_int(static_cast<long long>(reader.end_of_session()), 1, "end-of-session is counted");
+    check_true(!reader.malformed(), "control packets are not malformed");
+
+    // Iteration must STOP at end-of-session, not merely skip it. A
+    // session id can be reused the next day, and a reader that walks past
+    // the marker would splice two sessions into one sequence space.
+    std::vector<std::uint8_t> trailing;
+    feed::append_downstream_packet(trailing, "SAMPLE0000", 9, frames.data() + 2,
+                                   frames.size() - 2, 1);
+    data.insert(data.end(), trailing.begin(), trailing.end());
+    feed::CaptureReader past(data.data(), data.size());
+    std::size_t after_end = 0;
+    while (past.next(frame, frame_size)) {
+        ++after_end;
+    }
+    check_eq_int(static_cast<long long>(after_end), 2,
+                 "messages after end-of-session are not replayed");
 }
 
 // ---- The other decoded message types --------------------------------
