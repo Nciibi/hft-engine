@@ -201,6 +201,14 @@ hft::feed::CaptureConfig capture;
         std::printf(
             "                    WARNING: the mid never moved. Volatility is zero by\n"
             "                    construction and everything below is degenerate.\n");
+    } else if (mm.two_sided_observations() != 0 &&
+               mm.mid_moves() * 50 < mm.two_sided_observations()) {
+        std::printf(
+            "                    WARNING: the mid moved on under 2%% of observations.\n"
+            "                    More than half the per-tick returns are exactly zero,\n"
+            "                    so the median-absolute-deviation volatility estimate is\n"
+            "                    zero and the quoted spread is degenerate. Read the\n"
+            "                    numbers below as a wiring check, not as a result.\n");
     }
     std::printf("quotes placed        %llu\n", u64(mm.quotes()));
     std::printf("fill checks          %llu  (bid %llu / ask %llu)\n", u64(mm.fill_checks()),
