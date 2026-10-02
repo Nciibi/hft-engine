@@ -204,7 +204,10 @@ single most load-bearing measurement in this repository.
 
 Measured on `<instance spec>`, `<compiler + flags>`, `<kernel>`, with the
 decoder and book threads on two distinct physical cores. Reproduce with
-`./build/hft_ring_bench` and `./build/hft_pipeline_bench`.
+`./build/hft_pipeline_bench`.
+
+**Splitting decode from apply, through one ring.** Break even at every
+batch size, within the measured noise floor.
 
 | Variant                                     | msgs/sec | vs 1 thread |
 |---------------------------------------------|----------|-------------|
@@ -214,27 +217,42 @@ decoder and book threads on two distinct physical cores. Reproduce with
 | Two threads through the ring, K=32          | `[MEASURED]` | `[MEASURED]` |
 | Two threads through the ring, K=128         | `[MEASURED]` | `[MEASURED]` |
 
-**The finding is negative and it is the interesting part.** Threading this
-pipeline does not pay, and batching does not rescue it. Moving the
-*cheap* half of the work to a second core leaves the expensive half
-running serially on one core while adding a hand-off and a second
-runnable thread to pay for. Larger batches make it slightly worse again,
-for an independent reason: a K=128 push is an 8KB copy, which is more
-cache traffic than the transfers it amortises.
+**Sharding by symbol, 64 instruments.** This is where it pays.
 
-What follows from that is not "batching does not work". It is that
-batching a pipeline whose halves are *unequal* cannot work, and that the
-design this argues for is sharding **by symbol**, so each thread owns a
-book and runs a full decode-and-apply for its own instruments with
-genuinely equal work. That is the multi-shard design this repository does
-not have yet, and it is named as missing below for a measured reason
-rather than a guessed one.
+| Variant                          | msgs/sec | vs 1 thread |
+|----------------------------------|----------|-------------|
+| Single thread, fused, 64 books   | `[MEASURED]` | 1.00x   |
+| Dispatcher + 2 workers           | `[MEASURED]` | `[MEASURED]` |
+| Dispatcher + 3 workers           | `[MEASURED]` | `[MEASURED]` |
+| Dispatcher + 5 workers           | `[MEASURED]` | `[MEASURED]` |
 
-The tool prints the single-threaded baseline a second time at the end and
-reports the drift as a noise floor. On the development machine that drift
-is several percent, which is larger than most of the ratios in the table
-above. Differences smaller than the noise floor are not results, and the
-tool says so rather than leaving the reader to assume otherwise.
+The difference between those two tables is the whole argument for symbol
+sharding. Splitting decode from apply leaves the expensive half — the
+ladder walk and the slab edit — running serially on one core, and adds a
+hand-off to pay for. Sharding by symbol gives every thread its own book
+to apply into, so the expensive work is parallel *and* balanced. Every
+sharded row is checked to have produced books byte-identical to the
+single-threaded baseline; a pipeline that misroutes a mutation looks
+exactly like a pipeline that is fast.
+
+Ratios flatten as workers are added because the dispatcher decodes and
+routes **every** message and is therefore a serial floor. That floor is
+the number to quote for a design like this, not the worker count.
+
+**An earlier version of this tool reported the opposite conclusion, and
+the correction is the more useful half.** It measured the split at
+0.91x–0.81x and attributed the loss to load imbalance. The
+load-imbalance story was a rationalisation: the consumer drained the
+ring, found it empty, and then checked the producer's stop flag, and the
+producer could push more messages and set that flag in between. The
+consumer exited with messages still queued, so the run did less work and
+timed as slower. With the drain fixed, the split is break-even.
+
+Two lessons worth more than the numbers. A benchmark reporting a
+*slowdown* deserves the same suspicion as one reporting a speedup — and
+the checksum column is what caught this, because books that differ from
+the baseline are reported as INVALID rather than as a result. And a
+plausible mechanism is not a verified one.
 
 ## Quick start
 
