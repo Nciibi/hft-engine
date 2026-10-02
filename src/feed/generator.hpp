@@ -134,6 +134,23 @@ void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original,
                           hft::StockLocate locate = 1,
                           hft::TrackingNumber tracking = 0) noexcept;
 
+/// Append a spec-conformant MoldUDP64 Downstream Packet holding one
+/// already-framed ITCH message.
+///
+/// `sequence` is the sequence number of the FIRST -- and here only --
+/// message in the packet, so for a one-message packet it is that
+/// message's number. Packing several messages per packet is the
+/// generator's call, not the framing's: the sequence field applies to
+/// the first block and the rest are implicitly sequential.
+///
+/// `session` must be exactly ten characters. The field is a fixed ten
+/// bytes and the specification does not define a padding rule, so a
+/// short name is a build error rather than a guess about what the venue
+/// would have sent.
+void append_downstream_packet(std::vector<std::uint8_t>& out, const char (&session)[11],
+                              std::uint64_t sequence, const std::uint8_t* body,
+                              std::size_t body_size, std::uint16_t message_count = 1) noexcept;
+
 /// Write a raw 2-byte length prefix followed by `body`.
 void append_frame(std::vector<std::uint8_t>& out, const std::uint8_t* body,
                   std::size_t body_size) noexcept;
