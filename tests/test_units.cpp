@@ -553,6 +553,7 @@ int main() {
     test_price_parse();
     test_timestamp48();
     test_big_endian();
+    test_add_order_layout_is_spec();
     test_decode();
     test_decode_mutations();
     test_sequence();
