@@ -925,6 +925,197 @@ void test_capture_handles_control_packets() {
                  "messages after end-of-session are not replayed");
 }
 
+// ---- Order Replace and Broken Trade ----------------------------------
+//
+// Both layouts come from the TotalView-ITCH 5.0 specification: section
+// 4.4.5 for 'U' and 4.5.3 for 'B'. 'U' was skipped in earlier revisions
+// of this file on the grounds that its layout could not be verified. It
+// could be, and the reason it read as unverifiable is instructive: the
+// same message has DIFFERENT offsets in ITCH 3.1 and 4.0, both of which
+// are published. A table copied from either is wrong in a way that looks
+// right, which is precisely the Add Order failure mode.
+//
+// 'B' is Broken Trade, not order entry. An earlier revision of this
+// repository described an unverified "ITCH Order Entry ('B')" encode
+// stage; TotalView-ITCH is an outbound market data feed only and has no
+// order entry at all. The frames below are built byte by byte rather
+// than through the generator for the same reason the Add Order frame is:
+// a layout that the generator and the decoder agree on proves nothing.
+
+void test_order_replace_layout_is_spec() {
+    std::printf("Order Replace layout against the published field table\n");
+    using namespace hft;
+
+    //  0  1  'U'
+    //  1  2  Stock Locate
+    //  3  2  Tracking Number
+    //  5  6  Timestamp
+    // 11  8  Original Order Reference Number
+    // 19  8  New Order Reference Number
+    // 27  4  Shares (new total displayed quantity)
+    // 31  4  Price
+    std::vector<std::uint8_t> body(itch::off::kOrderReplaceSize, 0);
+    body[0] = 'U';
+    body[1] = 0x00;
+    body[2] = 0x07;              // Stock Locate 7
+    body[3] = 0x12;
+    body[4] = 0x34;              // Tracking Number 0x1234
+    body[5] = 0x01;
+    body[6] = 0x02;
+    body[7] = 0x03;
+    body[8] = 0x04;
+    body[9] = 0x05;
+    body[10] = 0x06;             // Timestamp 0x010203040506
+    itch::write_be64(body.data() + itch::off::order_replace_original_id, 0x1111'2222'3333'4444ULL);
+    itch::write_be64(body.data() + itch::off::order_replace_new_id, 0xAAAA'BBBB'CCCC'DDDDULL);
+    itch::write_be32(body.data() + itch::off::order_replace_shares, 300);
+    itch::write_be32(body.data() + itch::off::order_replace_price, 1'000'250);
+
+    std::vector<std::uint8_t> frame;
+    itch::append_frame(frame, body.data(), body.size());
+    check_eq_int(static_cast<long long>(itch::off::kOrderReplaceSize), 35,
+                 "Order Replace body is 35 bytes (spec 4.4.5)");
+    check_eq_int(static_cast<long long>(frame.size()), 37,
+                 "Order Replace frame is 37 bytes including the length prefix");
+
+    const auto r = itch::decode(frame.data(), frame.size());
+    check(r.ok(), "the hand-built Order Replace frame decodes");
+    if (r.ok()) {
+        const auto* u = std::get_if<itch::OrderReplace>(&r.message.body);
+        check(u != nullptr, "it decodes to OrderReplace");
+        if (u != nullptr) {
+            check_eq_int(static_cast<long long>(u->stock_locate), 7, "stock locate");
+            check_eq_int(static_cast<long long>(u->tracking), 0x1234, "tracking number");
+            check_eq_int(static_cast<long long>(u->timestamp), 0x010203040506ULL, "timestamp");
+            check(u->original_id == 0x1111'2222'3333'4444ULL, "original order reference");
+            check(u->new_id == 0xAAAA'BBBB'CCCC'DDDDULL, "new order reference");
+            check_eq_int(static_cast<long long>(u->shares.raw()), 300, "shares");
+            check_eq_int(static_cast<long long>(u->price.raw()), 1'000'250, "price");
+        }
+    }
+
+    // A frame one byte short must be rejected rather than read
+    // partially. Order Replace is 35 bytes and 34 is a different
+    // message entirely; accepting it would shift every field.
+    std::vector<std::uint8_t> short_frame;
+    itch::append_frame(short_frame, body.data(), body.size() - 1);
+    const auto rs = itch::decode(short_frame.data(), short_frame.size());
+    check(!rs.ok(), "a 34-byte Order Replace frame is not accepted");
+
+    // Order Replace must lose time priority: the replacement sorts
+    // BEHIND everything already resting at its price. Getting this
+    // backwards is invisible in a checksum that only sums the book and
+    // obvious in a queue-depth or fill-sequence comparison.
+    hft::lob::OrderBook book(1u << 12, 1u << 12);
+    BookStatus status{};
+    // Two resting orders at 100_000, then a replace onto the same price.
+    book.add(Side::bid, Price::from_raw(100'000), Quantity::from_raw(10), 1'000'001, status);
+    book.add(Side::bid, Price::from_raw(100'000), Quantity::from_raw(20), 1'000'002, status);
+
+    itch::OrderReplace u2;
+    u2.original_id = 1'000'001;
+    u2.new_id = 1'000'003;
+    u2.shares = Quantity::from_raw(30);
+    u2.price = Price::from_raw(100'000);
+    const hft::lob::ApplyResult ar = hft::lob::apply(itch::Message{u2}, book);
+    check(ar.applied, "the replace is applied");
+    check(!book.find(1'000'001).has_value(), "the original reference is gone");
+    check(book.find(1'000'003).has_value(), "the new reference exists");
+    check(!book.find(1'000'002).has_value() == false, "the untouched order survives");
+
+    // New time priority means the replacement is last in the queue at
+    // that price: order 2 precedes it.
+    const std::vector<OrderSnapshot> resting = book.orders(Side::bid);
+    check(resting.size() == 2, "the price level holds two orders after the replace");
+    if (resting.size() == 2) {
+        check(resting[0].id == 1'000'002,
+              "the replacement sits BEHIND the order already resting");
+        check(resting[1].id == 1'000'003, "the replacement is at the back of the queue");
+    }
+
+    // A replace for an unknown reference is reported, never guessed.
+    itch::OrderReplace orphan;
+    orphan.original_id = 999'999;
+    orphan.new_id = 1'000'004;
+    orphan.shares = Quantity::from_raw(1);
+    orphan.price = Price::from_raw(100'000);
+    const hft::lob::ApplyResult ao = hft::lob::apply(itch::Message{orphan}, book);
+    check(!ao.applied, "a replace for an unknown reference is not applied");
+    check(ao.detail == hft::lob::BookStatus::unknown_order,
+          "and it reports unknown_order specifically");
+}
+
+void test_broken_trade_layout_is_spec() {
+    std::printf("Broken Trade layout against the published field table\n");
+    using namespace hft;
+
+    //  0  1  'B'   Broken Trade Message -- NOT order entry
+    //  1  2  Stock Locate
+    //  3  2  Tracking Number
+    //  5  6  Timestamp
+    // 11  8  Match Number of the execution that was broken
+    std::vector<std::uint8_t> body(itch::off::kBrokenTradeSize, 0);
+    body[0] = 'B';
+    body[1] = 0x00;
+    body[2] = 0x2A;              // Stock Locate 42
+    body[3] = 0xBE;
+    body[4] = 0xEF;              // Tracking Number 0xBEEF
+    body[5] = 0x11;
+    body[6] = 0x22;
+    body[7] = 0x33;
+    body[8] = 0x44;
+    body[9] = 0x55;
+    body[10] = 0x66;
+    itch::write_be64(body.data() + itch::off::broken_trade_match, 0xDEAD'BEEF'0000'0001ULL);
+
+    check_eq_int(static_cast<long long>(itch::off::kBrokenTradeSize), 19,
+                 "Broken Trade body is 19 bytes (spec 4.5.3)");
+
+    std::vector<std::uint8_t> frame;
+    itch::append_frame(frame, body.data(), body.size());
+    check_eq_int(static_cast<long long>(frame.size()), 21,
+                 "Broken Trade frame is 21 bytes including the length prefix");
+
+    const auto r = itch::decode(frame.data(), frame.size());
+    check(r.ok(), "the hand-built Broken Trade frame decodes");
+    if (r.ok()) {
+        const auto* b = std::get_if<itch::BrokenTrade>(&r.message.body);
+        check(b != nullptr, "it decodes to BrokenTrade");
+        if (b != nullptr) {
+            check_eq_int(static_cast<long long>(b->stock_locate), 42, "stock locate");
+            check_eq_int(static_cast<long long>(b->tracking), 0xBEEF, "tracking number");
+            check(b->match == 0xDEAD'BEEF'0000'0001ULL, "match number");
+            check_eq_int(static_cast<long long>(b->match), 0xDEADBEEF00000001ULL,
+                         "match number is read as a full 64-bit big-endian value");
+        }
+    }
+
+    // The book is untouched: the specification says a book builder "may
+    // ignore these messages as they have no impact on the current book".
+    hft::lob::OrderBook book(1u << 10, 1u << 10);
+    BookStatus status{};
+    book.add(Side::bid, Price::from_raw(50'000), Quantity::from_raw(10), 5'000'001, status);
+    const std::uint64_t before = book.aggregate_at(Side::bid).raw();
+
+    itch::BrokenTrade bt;
+    bt.match = 0xDEAD'BEEF'0000'0001ULL;
+    const hft::lob::ApplyResult ar = hft::lob::apply(itch::Message{bt}, book);
+    check(ar.applied, "a Broken Trade is reported as processed");
+    check_eq_int(static_cast<long long>(book.aggregate_at(Side::bid).raw()),
+                 static_cast<long long>(before), "a Broken Trade does not move the book");
+
+    // A Broken Trade is 19 bytes; so is Order Delete. They are different
+    // messages and conflating them would delete an order that never
+    // existed, so the tag must not be borrowed.
+    check_eq_int(static_cast<long long>(itch::off::kBrokenTradeSize),
+                 static_cast<long long>(itch::off::kOrderDeleteSize),
+                 "Broken Trade and Order Delete are both 19 bytes");
+    check(itch::off::broken_trade_match != itch::off::order_delete_id ||
+              static_cast<int>(itch::MessageType::broken_trade) !=
+                  static_cast<int>(itch::MessageType::order_delete),
+          "but they are distinct tags, so identical size is not conflation");
+}
+
 // ---- The other decoded message types --------------------------------
 
 void test_decode_mutations() {
