@@ -793,15 +793,17 @@ production software is worse than one that does not:
 
 - **No live exchange connectivity.** TotalView-ITCH requires a Nasdaq
   market-data agreement. This runs on captured or generated feeds.
-- **No MoldUDP64 in the capture path.** The framing is implemented and
-  verified — a 20-byte Downstream Packet Header, a 64-bit sequence
-  number, a 2-byte message count, and message blocks that are
-  byte-identical to ITCH frames, so a block feeds the decoder unadjusted
-  — and the field table is hand-built in a test the way the Add Order
-  one is. But the generated capture is still the record format
-  described in `src/feed/generator.hpp`, not a stream of packets, so
-  nothing in this repository has yet exercised packet boundaries,
-  heartbeats, or a gap spanning more than one packet.
+- **The capture path is MoldUDP64, but the transport is not.** The
+  generated capture is a stream of Downstream Packets: a 20-byte header
+  carrying `[session:10][seq:8][count:2]`, then message blocks that are
+  byte-identical to ITCH frames, so a block feeds the decoder
+  unadjusted. The field table is hand-built in a test the way the Add
+  Order one is. What is *not* here is the unreliable transport beneath
+  it: nothing retransmits, nothing sequences across a dropped packet,
+  and no real session id is negotiated. `CaptureReader` handles the
+  packet structure — boundaries, heartbeats, end-of-session, and
+  truncation — but the gap detector is only as good as the packets it is
+  given.
 - **There is no checksum, and that is correct.** An earlier revision of
   this file promised "MoldUDP64 packet framing and checksum" as one
   item. They are two protocols. MoldUDP64 is an unreliable transport
@@ -809,13 +811,10 @@ production software is worse than one that does not:
   protocol layered above it. Implementing a CRC in the framing would
   mean inventing a field the specification does not define — the exact
   mistake described in [The bug that mattered](#the-bug-that-mattered).
-- **The sequence tracker is 32-bit and MoldUDP64's is 64-bit.** The
-  MoldUDP64 Sequence Number field is eight bytes. `hft/itch/sequence.hpp`
-  wraps a 32-bit counter and has careful tests for the 32-bit wrap,
-  which is a genuine ITCH concern — but it is not this field's width,
-  and a gap check reading four bytes of it would ignore the high half of
-  every sequence number. The two are separate concerns and are named
-  separately here rather than conflated.
+- **The sequence tracker is 64-bit.** The MoldUDP64 Sequence Number
+  field is eight bytes and `hft/itch/sequence.hpp` matches it, with
+  tests for the 64-bit wrap. The 32-bit width that a plain ITCH stream
+  would imply is a separate concern and is not conflated with it.
 - **No Order Replace.** Deliberate, not accidental: an unverified field
   table is skipped rather than guessed.
 - **No multi-shard sequencing.** Symbol sharding works and is measured,
