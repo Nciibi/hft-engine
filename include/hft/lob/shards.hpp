@@ -218,14 +218,17 @@ public:
     }
 
     [[nodiscard]] std::size_t symbol_count() const noexcept { return symbols_.size(); }
-    [[nodiscard]] std::size_t order_capacity() const noexcept { return books_.order_capacity(); }
-    [[nodiscard]] std::size_t level_capacity() const noexcept { return books_.level_capacity(); }
 
-    /// Book for `symbol`. Undefined if the symbol was never claimed.
+    /// Order pool size of EACH book, for reporting.
+    [[nodiscard]] std::size_t order_capacity() const noexcept { return order_capacity_; }
+    [[nodiscard]] std::size_t level_capacity() const noexcept { return level_capacity_; }
+
+    /// Book for a symbol index previously returned by `claim`.
+    /// Undefined if the index was never claimed.
     ///
-    /// Deliberately not a lookup by hash: the mapping is explicit and
-    /// the caller chose it, which is what allows a thread to own a
-    /// contiguous run of shards with no per-message hashing at all.
+    /// Deliberately an index and not a lookup by hash: the mapping is
+    /// explicit and the caller chose it, which is what lets a thread own
+    /// a contiguous run of symbols with no per-message hashing at all.
     [[nodiscard]] OrderBook& book(std::size_t symbol_index) noexcept {
         return books_[symbol_index];
     }
@@ -236,6 +239,8 @@ public:
     static constexpr std::size_t kNotFound = static_cast<std::size_t>(-1);
 
 private:
+    std::size_t order_capacity_;
+    std::size_t level_capacity_;
     std::vector<Symbol> symbols_;
     std::vector<OrderBook> books_;
 };
