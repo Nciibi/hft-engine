@@ -604,10 +604,10 @@ void test_capture_round_trip() {
 
     check_eq_int(static_cast<long long>(ok), 10000, "every captured frame decodes");
     check_eq_int(static_cast<long long>(other), 0, "no captured frame is skipped");
-    check_true(sequence_contiguous, "per-message sequence numbers are contiguous from first_sequence");
-    check_true(sizes_consistent, "every frame is exactly its declared length");
-    check_true(!reader.malformed(), "an intact capture is not malformed");
-    check_true(reader.packets() == 10'000, "one message per packet by default");
+    check(sequence_contiguous, "per-message sequence numbers are contiguous from first_sequence");
+    check(sizes_consistent, "every frame is exactly its declared length");
+    check(!reader.malformed(), "an intact capture is not malformed");
+    check(reader.packets() == 10'000, "one message per packet by default");
     check_eq_int(static_cast<long long>(reader.heartbeats()), 0, "no heartbeats generated");
     check_eq_int(static_cast<long long>(reader.end_of_session()), 0, "no end-of-session generated");
 
@@ -625,7 +625,7 @@ void test_capture_round_trip() {
             break;
         }
     }
-    check_true(session_ok, "session id is present in every packet header");
+    check(session_ok, "session id is present in every packet header");
 }
 
 void test_capture_multi_message_packets() {
@@ -654,10 +654,10 @@ void test_capture_multi_message_packets() {
     }
 
     check_eq_int(static_cast<long long>(frames), 1000, "every message survives packing");
-    check_true(contiguous, "sequence numbers stay contiguous across packet boundaries");
-    check_true(!reader.malformed(), "packed capture is not malformed");
+    check(contiguous, "sequence numbers stay contiguous across packet boundaries");
+    check(!reader.malformed(), "packed capture is not malformed");
     // 1000 messages at 7 per packet: 142 full packets and a tail of 6.
-    check_true(reader.packets() == 143, "packet count is ceil(records / per_packet)");
+    check(reader.packets() == 143, "packet count is ceil(records / per_packet)");
 
     // The packing must not change what the pipeline sees. The same
     // record count and seed through the record writer and the packet
@@ -682,7 +682,7 @@ void test_capture_multi_message_packets() {
     if (r2.next(f2, n2)) {
         identical = false;
     }
-    check_true(identical, "packing changes framing but not the frames");
+    check(identical, "packing changes framing but not the frames");
 }
 
 void test_capture_rejects_truncation() {
@@ -740,7 +740,7 @@ void test_capture_rejects_truncation() {
             ++silent;
         }
     }
-    check_true(reported > 0, "some truncations are detected");
+    check(reported > 0, "some truncations are detected");
     check_eq_int(static_cast<long long>(silent), 0,
                  "no truncation inside a packet is silently accepted");
 
@@ -759,7 +759,7 @@ void test_capture_rejects_truncation() {
         std::size_t n2 = 0;
         while (partial.next(f2, n2)) {
         }
-        check_true(!partial.malformed(), "a capture ending on a packet boundary is valid");
+        check(!partial.malformed(), "a capture ending on a packet boundary is valid");
         check_eq_int(static_cast<long long>(partial.packets()), 1,
                      "a single whole packet is one packet");
     }
@@ -768,8 +768,8 @@ void test_capture_rejects_truncation() {
     feed::CaptureReader empty(nullptr, 0);
     const std::uint8_t* f3 = nullptr;
     std::size_t n3 = 0;
-    check_true(!empty.next(f3, n3), "an empty capture yields no frames");
-    check_true(!empty.malformed(), "an empty capture is not malformed");
+    check(!empty.next(f3, n3), "an empty capture yields no frames");
+    check(!empty.malformed(), "an empty capture is not malformed");
 
     // A header that is too short to hold a sequence number is a
     // truncated packet, not an empty one.
@@ -777,8 +777,8 @@ void test_capture_rejects_truncation() {
     feed::CaptureReader stub(short_header, sizeof short_header);
     const std::uint8_t* f4 = nullptr;
     std::size_t n4 = 0;
-    check_true(!stub.next(f4, n4), "a stub header yields no frames");
-    check_true(stub.malformed(), "a stub header is malformed");
+    check(!stub.next(f4, n4), "a stub header yields no frames");
+    check(stub.malformed(), "a stub header is malformed");
 }
 
 void test_capture_handles_control_packets() {
@@ -826,11 +826,11 @@ void test_capture_handles_control_packets() {
 
     check_eq_int(static_cast<long long>(seen), 2,
                  "heartbeat and end-of-session packets yield no frames");
-    check_true(sequences[0] == 7 && sequences[1] == 8,
+    check(sequences[0] == 7 && sequences[1] == 8,
                "sequence numbers come from the packets, skipping the heartbeat");
     check_eq_int(static_cast<long long>(reader.heartbeats()), 1, "the heartbeat is counted");
     check_eq_int(static_cast<long long>(reader.end_of_session()), 1, "end-of-session is counted");
-    check_true(!reader.malformed(), "control packets are not malformed");
+    check(!reader.malformed(), "control packets are not malformed");
 
     // Iteration must STOP at end-of-session, not merely skip it. A
     // session id can be reused the next day, and a reader that walks past
