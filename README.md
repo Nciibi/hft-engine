@@ -10,6 +10,64 @@ decode-to-encode pipeline.
 > [What is implemented](#what-is-implemented) and
 > [What this is not](#what-this-is-not).
 
+## The bug that mattered
+
+**The Add Order decoder read the share count as the price.** It is
+documented in full below because it is the most useful thing in this
+repository, and because it invalidated a large amount of what came
+before.
+
+The published field table for ITCH 5.0 Add Order ('A') is:
+
+| Field | Offset | Length |
+|---|---|---|
+| Message Type `'A'` | 0 | 1 |
+| Stock Locate | 1 | 2 |
+| Tracking Number | 3 | 2 |
+| Timestamp | 5 | 6 |
+| Order Reference Number | 11 | 8 |
+| Buy/Sell Indicator | 19 | 1 |
+| **Shares** | **20** | **4** |
+| **Stock symbol** | **24** | **8** |
+| **Price** | **32** | **4** |
+
+This build read `price` at 20, `size` at 24, and carried four bytes at
+28–31 that do not exist in an Add Order message — `order_type`,
+`time_in_force`, `display` and `participant`, which are Order Entry
+fields. Total 32 bytes rather than 36. The layout looks like Order
+Executed copied over and shifted by one field.
+
+So every price in the engine was a share count in `[1, 500]`, and every
+share count was the first four bytes of the symbol `SIMTEST`. At $100 a
+real price is 1,000,000 raw units; this decoder would have reported 100.
+
+**Why 512 checks, a differential test over 400,000 operations and a
+determinism harness did not catch it.** Every test built its input with
+this repository's own feed generator and read it back with its own
+decoder. The generator wrote the same wrong layout the decoder read, so
+the two agreed perfectly with each other and both disagreed with the
+specification. The differential test compared the fast book against a
+naive model over *decoded messages*, so the two models agreed about a
+misdecoded price. Determinism testing proved the checksum was
+reproducible, which it was, and always had been, for the wrong reason.
+
+Three things are now true that were not:
+
+1. **The field tables are pinned to the specification, not to each
+   other.** Every offset in `protocol.hpp` carries a `static_assert`
+   against its *literal* value from the published table, in addition to
+   the relationship asserts. Reintroducing the bug is now a compile
+   error, and the error text says which field moved.
+2. **One test builds a frame by hand, byte by byte, from the field
+   table** and decodes it without going near the generator. If the
+   offsets are wrong again, that test fails while every round-trip test
+   keeps passing.
+3. **The strategy numbers were all downstream of this.** The market
+   maker's "volatility" was the share-count noise in a fake price. With
+   real prices the book stopped appearing to move, which exposed that
+   the feed was never actually producing a market — see
+   [the market maker's feed](#the-market-makers-feed-is-the-second-half-of-this).
+
 ## What is implemented
 
 | Component | State |
