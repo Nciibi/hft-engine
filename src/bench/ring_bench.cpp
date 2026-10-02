@@ -233,28 +233,23 @@ template <std::size_t N, bool kUseMutex>
     // cannot tell a correct echo from last round's value.
     Payload token;
     hft::itch::AddOrder& token_add = std::get<hft::itch::AddOrder>(token.body);
-    token_add.id = 0;
 
-    std::atomic<bool> stop{false};
     std::atomic<bool> echoed_correctly{true};
 
+    // The consumer runs exactly as many iterations as the producer, so
+    // no stop flag is needed and none of the shutdown races that a stop
+    // flag introduces have to be reasoned about. Each token is echoed
+    // once and consumed once.
     std::thread consumer([&] {
         (void)hft::util::pin_current_thread(consumer_core);
-        Payload out;
-        while (!stop.load(std::memory_order_relaxed)) {
+        for (std::size_t i = 0; i < iterations; ++i) {
+            Payload out;
             if constexpr (kUseMutex) {
                 mutex_queue.pop(out);
                 mutex_queue.push(out);
             } else {
                 while (!ring.try_pop(out)) {
-                    if (stop.load(std::memory_order_relaxed)) {
-                        break;
-                    }
                     std::this_thread::yield();
-                }
-                if (stop.load(std::memory_order_relaxed) && out.id == 0 &&
-                    std::get<hft::itch::AddOrder>(out.body).id == 0) {
-                    break;
                 }
                 while (!ring.try_push(out)) {
                     std::this_thread::yield();
@@ -289,7 +284,6 @@ template <std::size_t N, bool kUseMutex>
         }
     }
 
-    stop.store(true, std::memory_order_relaxed);
     consumer.join();
 
     LatencyResult result;
