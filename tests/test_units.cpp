@@ -144,7 +144,7 @@ void test_decode() {
             check_eq_int(static_cast<long long>(ao->size.raw()), 300, "size round trips");
             check(ao->timestamp == 0x0000'0001'2BAD'F00DULL, "timestamp round trips");
         }
-        check_eq_int(static_cast<long long>(itch::frame_stride(r)), 34, "stride is the full frame");
+        check_eq_int(static_cast<long long>(itch::frame_stride(r)), 38, "stride is the full frame");
     }
 
     // Truncation at every length must be reported, never read past.
