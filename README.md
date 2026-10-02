@@ -404,6 +404,43 @@ real depth target is known. The benchmark reports ladder depth for
 exactly this reason: a latency figure quoted without it cannot be
 interpreted.
 
+## The market maker's feed is the second half of this
+
+With the decoder fixed, the market maker's numbers collapsed: volatility
+exactly zero, quoted half-spread a third of a tick, and therefore a
+strategy that quoted nothing at all.
+
+The cause was not the decoder. It was that the book genuinely did not
+move. The feed used to carry 24 live orders across 4 price levels a side
+with a mean reversion of 1/64 per record, and under those settings the
+touch is never left empty, so the best bid and ask are set early and
+frozen. The mid moved on **0.7% of observations**. More than half the
+per-tick returns were exactly zero, so the median-absolute-deviation
+volatility estimate was zero, so the Avellaneda-Stoikov risk term was
+zero, so the spread collapsed below the one tick that can be placed.
+
+This was already documented as a known failure mode — "a price that does
+not move is not a market, and a strategy cannot be studied on one" — and
+it had been fixed once before by bounding the live-order count. The
+decoder bug then re-created it, because a book whose "prices" were random
+share counts *did* appear to move. The old measurement was measuring the
+misdecoded field.
+
+The fix is the same lever applied again: 6 live orders over 4 levels a
+side, and reversion of 4 instead of 64, which lets the walk travel. The
+mid now moves on 4.3% of observations, sigma lands near 43 raw units per
+tick, and the quoted half-spread is about 2.8 ticks — set by the risk
+term rather than pinned down by the tick grid, which is the regime where
+the model is actually doing something.
+
+Two things are now permanent rather than incidental:
+
+- **`hft_market_maker` prints how often the mid moved, before any other
+  number.** A mid that barely moves makes volatility, spread, markout and
+  PnL meaningless rather than merely wrong, and a reader should not have
+  to know that to distrust them.
+- **The tool warns below 2%**, so this cannot recur silently.
+
 **Bugs the tests found, kept here deliberately.** These are the
 reasons the tests exist and the reasons to distrust code that has never
 been differentially tested:
