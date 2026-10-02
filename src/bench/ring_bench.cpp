@@ -1,4 +1,4 @@
-// SPSC ring benchmark, against a mutex + condition_variable baseline.
+﻿// SPSC ring benchmark, against a mutex + condition_variable baseline.
 //
 // What is being compared
 // ---------------------
@@ -154,7 +154,7 @@ template <std::size_t N>
         }
     });
 
-    Timer timer;
+    bench::Timer timer;
     std::thread producer([&] {
         (void)hft::util::pin_current_thread(producer_core);
         for (const Payload& p : payloads) {
@@ -189,7 +189,7 @@ template <std::size_t N>
         }
     });
 
-    Timer timer;
+    bench::Timer timer;
     std::thread producer([&] {
         (void)hft::util::pin_current_thread(producer_core);
         for (const Payload& p : payloads) {
@@ -305,7 +305,7 @@ void report_throughput(const char* label, const ThroughputResult& r) {
 /// Ring and mutex results for one instantiated capacity, run back to
 /// back in the same process on the same cores.
 template <std::size_t N>
-void compare_at(std::size_t messages, const std::vector<Payload>& payloads,
+void compare_at(const std::vector<Payload>& payloads,
                 std::size_t producer_core, std::size_t consumer_core) {
     std::printf("\n  capacity %llu slots\n", bench::u64(N));
 
@@ -396,11 +396,11 @@ int main(int argc, char** argv) {
     // the variable under test here.
     const std::size_t snap = SpscRing<Payload, 2>::recommended_capacity(capacity);
     if (snap >= 1024) {
-        compare_at<1024>(messages, payloads, producer_core, consumer_core);
+        compare_at<1024>(payloads, producer_core, consumer_core);
     } else if (snap >= 256) {
-        compare_at<256>(messages, payloads, producer_core, consumer_core);
+        compare_at<256>(payloads, producer_core, consumer_core);
     } else {
-        compare_at<64>(messages, payloads, producer_core, consumer_core);
+        compare_at<64>(payloads, producer_core, consumer_core);
     }
 
     bench::section("ONE-WAY HAND-OFF (half a round trip, includes a clock pair)");
