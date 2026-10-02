@@ -447,7 +447,6 @@ void test_routing_matches_oracle() {
                 }
             }
         }
-        offset = frame_at + stride;
     }
 
     std::printf("    %zu records, %zu symbols, adds %zu, routed by index %zu, unknown %zu\n", step,

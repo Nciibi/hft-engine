@@ -323,7 +323,6 @@ void test_book_never_crosses() {
                 previous_mid = mid;
             }
         }
-        offset = frame_at + stride;
     }
 
     std::printf("  (two-sided %llu, mid changes %llu, range %lld..%lld)\n",

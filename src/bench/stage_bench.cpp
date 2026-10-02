@@ -197,8 +197,6 @@ struct StageResult {
             ++r.mid_moves;
         }
         previous_mid = mid;
-
-        offset = frame_at + stride;
     }
 
     r.elapsed_ns = static_cast<double>(timer.elapsed_ns());

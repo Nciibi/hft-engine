@@ -134,18 +134,11 @@ hft::feed::CaptureConfig capture;
     std::uint64_t ticks = 0;
     hft::Nanos now = 1'000'000'000ULL;
 
-    std::size_t offset = 0;
-    while (offset < data.size()) {
-        if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-            break;
-        }
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-        const hft::itch::DecodeResult r = hft::itch::decode(data.data() + frame_at,
-                                                            data.size() - frame_at);
-        const std::size_t stride = hft::itch::frame_stride(r);
-        if (stride == 0) {
-            break;
-        }
+    hft::feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
+    while (reader.next(frame, frame_size)) {
+        const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
         if (r.ok()) {
             // The apply result is deliberately discarded here. A
             // mutation for an order the book has never seen is
@@ -160,7 +153,6 @@ hft::feed::CaptureConfig capture;
             ++ticks;
             mm.on_book(book, now);
         }
-        offset = frame_at + stride;
     }
 
     // Resolve the tail so a short run does not discard its last fills.

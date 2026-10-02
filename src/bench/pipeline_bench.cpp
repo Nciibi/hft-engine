@@ -215,7 +215,6 @@ struct RunResult {
                 ++result.applied;
             }
         }
-        offset = frame_at + stride;
     }
 
     result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
@@ -262,19 +261,15 @@ template <std::size_t K>
         (void)hft::util::pin_current_thread(decoder_core);
         Batch<K> batch{};
         std::uint64_t decoded = 0;
-        std::size_t offset = 0;
+        hft::feed::CaptureReader reader(data.data(), data.size());
 
-        while (offset < data.size()) {
-            if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-                break;
-            }
-            const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-            const hft::itch::DecodeResult r =
-                hft::itch::decode(data.data() + frame_at, data.size() - frame_at);
-            const std::size_t stride = hft::itch::frame_stride(r);
-            if (stride == 0) {
-                break;
-            }
+        const std::uint8_t* frame = nullptr;
+
+        std::size_t frame_size = 0;
+
+        while (reader.next(frame, frame_size)) {
+
+            const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
             if (r.ok()) {
                 ++decoded;
                 batch.items[batch.count++] = r.message;
@@ -286,7 +281,6 @@ template <std::size_t K>
                     batch.count = 0;
                 }
             }
-            offset = frame_at + stride;
         }
 
         // Flush the tail. A partial batch left unflushed is a silent
@@ -579,7 +573,6 @@ struct ShardedResult {
                 }
             }
         }
-        offset = frame_at + stride;
     }
     result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
 
@@ -719,7 +712,6 @@ struct ShardedResult {
                     std::this_thread::yield();
                 }
             }
-            offset = frame_at + stride;
         }
         for (std::size_t w = 0; w < workers; ++w) {
             done[w].store(true, std::memory_order_release);
