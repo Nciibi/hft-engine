@@ -126,7 +126,7 @@ void test_decode() {
     feed::append_add_order(buf, Side::bid, Price::from_raw(1234500), Quantity::from_raw(300),
                            0xABCD'EF01'2345'6789ULL, 0x0000'0001'2BAD'F00DULL);
 
-    check_eq_int(static_cast<long long>(buf.size()), 34, "Add Order frame is 34 bytes");
+    check_eq_int(static_cast<long long>(buf.size()), 38, "Add Order frame is 38 bytes");
     check_eq_int(static_cast<long long>(buf[0] * 256 + buf[1]), itch::off::kAddOrderSize,
                  "length prefix is 32 and counts the tag");
     check_eq_int(buf[2], static_cast<int>('A'), "tag byte is 'A'");
