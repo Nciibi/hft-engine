@@ -125,7 +125,6 @@ void test_shard_assignment() {
 
     const std::size_t shards = 8;
     const lob::Symbol a = lob::Symbol::from_wire("SYM00000");
-    const lob::Symbol b = lob::Symbol::from_wire("SYM00001");
 
     const std::size_t first = lob::shard_of(a, shards);
     const std::size_t again = lob::shard_of(a, shards);
