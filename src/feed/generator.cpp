@@ -140,7 +140,6 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
 }
 
 /// Draw a level offset: how many ticks away from the mid an order rests.
-///
 /// Uniform across the ladder. This was front-loaded toward the touch
 /// first, on the reasoning that real books concentrate size near the
 /// touch, and it measured worse at every depth: at 1,000 levels, 54 to
