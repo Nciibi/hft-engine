@@ -64,12 +64,6 @@ std::uint64_t book_checksum(const hft::lob::OrderBook& book) {
     std::uint64_t h = hft::replay::fnv1a_offset_basis;
     fold_side(h, book, Side::bid);
     fold_side(h, book, Side::ask);
-    // TEMPORARY HARNESS PROBE.
-#ifdef __OPTIMIZE__
-    h ^= 0x5A5Au;
-#else
-    h ^= 0xA5A5u;
-#endif
     return h;
 }
 
