@@ -64,14 +64,6 @@ std::uint64_t book_checksum(const hft::lob::OrderBook& book) {
     std::uint64_t h = hft::replay::fnv1a_offset_basis;
     fold_side(h, book, Side::bid);
     fold_side(h, book, Side::ask);
-    // TEMPORARY HARNESS PROBE -- strict-aliasing violation. GCC enables
-    // -fstrict-aliasing at -O2 and above and not at -O0/-O1, so a
-    // violation here must produce a different hash at the fast levels.
-    {
-        const double d = 1.5;
-        const std::uint64_t via_bits = *reinterpret_cast<const std::uint64_t*>(&d);
-        h ^= via_bits;
-    }
     return h;
 }
 
