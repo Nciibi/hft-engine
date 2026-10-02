@@ -226,15 +226,19 @@ struct Message {
                     return static_cast<std::uint8_t>(MessageType::order_delete);
                 } else if constexpr (std::is_same_v<T, OrderReplace>) {
                     return static_cast<std::uint8_t>(MessageType::order_replace);
-                } else {
+                } else if constexpr (std::is_same_v<T, BrokenTrade>) {
                     return static_cast<std::uint8_t>(MessageType::broken_trade);
+                } else if constexpr (std::is_same_v<T, Trade>) {
+                    return static_cast<std::uint8_t>(MessageType::trade);
+                } else {
+                    return static_cast<std::uint8_t>(MessageType::cross_trade);
                 }
             },
             body));
     }
 };
 
-static_assert(std::variant_size_v<MessageBody> == 7,
+static_assert(std::variant_size_v<MessageBody> == 9,
               "MessageBody must cover every decoded ITCH type");
 
 enum class DecodeStatus : std::uint8_t {
