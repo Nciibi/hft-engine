@@ -98,10 +98,13 @@ cmake --build build --parallel
 ./build/hft_test           # codec, values, sequence tracking
 ./build/hft_risk_oms       # pre-trade risk and the OMS
 ./build/hft_strategy       # quoting model, adverse selection, book invariant
+./build/hft_concurrent     # SPSC ring, single- and two-threaded
 ./build/hft_differential   # fast book vs naive model, full state compare
 ./build/hft_replay         # deterministic replay, prints the book checksum
 ./build/hft_market_maker   # market maker over a replay, prints toxicity
 ./build/hft_bench          # latency and throughput table
+./build/hft_ring_bench     # ring vs mutex baseline, throughput and round trip
+./build/hft_pipeline_bench # 1 thread vs 2, batch-size sweep, checksum-matched
 ctest --test-dir build     # everything
 ```
 
