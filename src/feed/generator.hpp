@@ -99,15 +99,13 @@ struct GeneratorConfig {
 /// `symbol` is the eight-byte stock symbol field, which sits between the
 /// share count and the price in the wire layout. It defaults to a fixed
 /// single name because most callers want one symbol and should not have
-/// to spell it out.
+/// to spell it out. The literal is exactly eight characters plus a
+/// terminator, matching the field width.
 void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
                       hft::Price price, hft::Quantity size, hft::OrderId id,
                       hft::Nanos timestamp, hft::StockLocate locate = 1,
                       hft::TrackingNumber tracking = 0,
-                      const char* symbol = hft::itch::off::kDefaultSymbol) noexcept;
-
-/// The symbol `append_add_order` writes when none is supplied.
-inline constexpr char kDefaultSymbol[9] = "SIMTEST ";
+                      const char* symbol = "SIMTEST ") noexcept;
 
 void append_order_cancel(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Quantity shares,
                          hft::Nanos timestamp, hft::StockLocate locate = 1,
