@@ -202,6 +202,24 @@ static_assert(off::kOrderExecutedSize == 32, "ITCH Order Executed body is 32 byt
 static_assert(off::kOrderExecutedAtPriceSize == 36, "ITCH Order Exec @ Price body is 36 bytes");
 static_assert(off::kOrderCancelSize == 23, "ITCH Order Cancel body is 23 bytes");
 static_assert(off::kOrderDeleteSize == 19, "ITCH Order Delete body is 19 bytes");
+static_assert(off::kOrderReplaceSize == 35,
+              "ITCH 5.0 Order Replace body is 35 bytes (spec 4.4.5)");
+static_assert(off::order_replace_original_id == 11,
+              "Order Replace original reference sits at offset 11");
+static_assert(off::order_replace_new_id == off::order_replace_original_id + 8,
+              "Order Replace new reference follows the original");
+static_assert(off::order_replace_shares == off::order_replace_new_id + 8,
+              "Order Replace shares follow the new reference");
+static_assert(off::order_replace_price == off::order_replace_shares + 4,
+              "Order Replace price follows the shares");
+static_assert(off::kBrokenTradeSize == 19, "ITCH Broken Trade body is 19 bytes (spec 4.5.3)");
+static_assert(off::broken_trade_match == 11, "Broken Trade match number sits at offset 11");
+static_assert(off::kOrderReplaceSize == off::order_replace_price + 4,
+              "the Order Replace body ends after the price");
+static_assert(off::frame_size(off::kOrderReplaceSize) == 37,
+              "Order Replace frame is 35 body bytes plus a 2-byte length prefix");
+static_assert(off::frame_size(off::kBrokenTradeSize) == 21,
+              "Broken Trade frame is 19 body bytes plus a 2-byte length prefix");
 
 // Add Order, spec section 1.3.1, field by field.
 static_assert(off::add_order_id == 11, "Add Order reference sits at offset 11");
