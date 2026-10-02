@@ -30,6 +30,8 @@
 #include <cstdio>
 #include <map>
 #include <string>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "feed/generator.hpp"
@@ -65,6 +67,25 @@ using hft::Price;
 using hft::Side;
 namespace itch = hft::itch;
 namespace lob = hft::lob;
+
+/// The order reference a mutation names.
+///
+/// Every decoded order-level message carries one in a field called `id`,
+/// which is why this is a single visit rather than a switch: a new
+/// decoded type would fail to compile here instead of silently routing
+/// by an unset reference.
+[[nodiscard]] OrderId reference_of(const itch::Message& message) noexcept {
+    return std::visit(
+        [](const auto& payload) noexcept -> OrderId {
+            using T = std::decay_t<decltype(payload)>;
+            if constexpr (requires { payload.id; }) {
+                return payload.id;
+            } else {
+                return hft::kInvalidOrderId;
+            }
+        },
+        message.body);
+}
 
 // ---- Symbol ---------------------------------------------------------
 
