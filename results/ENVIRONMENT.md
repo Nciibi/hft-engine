@@ -17,14 +17,59 @@ compare against, not as a result to quote.
 | CPU | AMD Ryzen 5 1600, 6c/12t @ 3.2 GHz |
 | RAM | 16 GB |
 | OS | Windows 10/11, x86-64 |
-| Compiler | LLVM/clang 19 (via `zig c++` 0.13.0), portable zip, no admin |
-| Flags | `-std=c++20 -O2` |
-| CMake flags | `CMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG`) |
-| Cores used | 1, single-threaded |
-| Isolation | none: no core pinning, no SMT control, no hugepages, no frequency pinning |
-| Date | 2026-10-01 |
+| Compiler | GCC 16.2.0 (w64devkit, portable, no admin) |
+| Toolchain path | `D:\w64devkit\bin` — gcc, cmake 4.4.3, make 4.4.1, ccache |
+| Flags | `-std=c++20 -O3 -DNDEBUG` via `CMAKE_BUILD_TYPE=Release` |
+| Native arch | off (`HFT_NATIVE_ARCH=OFF`) |
+| Cores used | 1 for the latency tables, 2 distinct physical cores for the concurrency tables |
+| Isolation | none: no SMT control, no hugepages, no frequency pinning |
+| Date | 2026-10-02 |
 
-Reference run, 1,000,000 messages, ladder depth ~3,200 levels per side:
+### Compiler history, and why it changed
+
+An earlier revision of this file recorded "LLVM/clang 19 (via `zig c++`
+0.13.0)". That line was wrong in two ways and both mattered:
+
+- Zig 0.13.0 bundles **clang 18.1.6**, not 19.
+- That Zig installation is now **partially extracted and cannot compile
+  C++ at all**: `lib/libc/include/generic-mingw`,
+  `lib/libc/include/x86_64-windows-gnu` and `libcxx/include/__config_site`
+  are absent and `libc/{glibc,wasi,musl,darwin}` are empty directories.
+  A trivial C++ file compiles; anything that includes `<compare>` or
+  `<vector>` fails with `'compare' file not found`.
+
+GCC 16.2.0 from w64devkit replaced it and is now the development
+compiler. This surfaced **twelve pre-existing warnings** that clang
+accepted and GCC rejects — mostly `-Wconversion` and `-Wsign-conversion`
+— and all twelve are fixed. The `-Werror` policy is now enforced by two
+compilers rather than one, which is the point of having it.
+
+### Concurrency reference run (dev machine, 1,000,000 messages)
+
+Recorded to show the *shape* of the concurrency tables, not to be quoted.
+See the caveats below and `hft_pipeline_bench`'s own output, which prints
+the run-to-run noise floor that governs how these ratios may be read.
+
+```
+decode + apply, 1 thread          778 K msg/s   (mixed capture, 603/255 levels)
+lock-free ring, 1024 slots      26.4 M msg/s   (vs 431 K msg/s mutex baseline)
+
+K=1    704 K msg/s   0.91x
+K=8    628 K msg/s   0.81x
+K=32   621 K msg/s   0.80x
+K=128  630 K msg/s   0.81x
+
+baseline drift between two identical runs: -4.4%
+```
+
+Two threads lose to one at every batch size, and the drift between
+identical runs is several percent. The finding is that the decode/apply
+split does not pay at this granularity; see the concurrency section of
+`README.md`.
+
+### Latency reference run (superseded, add-only feed)
+
+From the previous toolchain, retained only for continuity:
 
 ```
 decode       p50    1 ns    p99    2 ns    p999    5 ns
@@ -43,9 +88,10 @@ Caveats that apply to every figure above:
   is at the noise floor of the measurement, not genuinely free. A
   finer method (rdtsc with fences and TSC calibration, or a
   many-sample interleaved A/B) would resolve it.
-- **Compiler differs from the target.** Development used clang;
-  the committed runs use MSVC on Windows and GCC on Linux. Expect
-  different numbers, and expect the Linux build to be the one quoted.
+- **Concurrency ratios need a noise floor.** Two identical single-thread
+  runs on this machine drifted 4.4%. Any claimed difference smaller than
+  that is not a result, and `hft_pipeline_bench` prints the drift for
+  exactly this reason.
 
 ## The benchmark host (to be filled in)
 
