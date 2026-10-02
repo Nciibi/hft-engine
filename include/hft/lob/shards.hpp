@@ -358,6 +358,18 @@ public:
 
     [[nodiscard]] std::size_t symbol_count() const noexcept { return symbols_.size(); }
 
+    /// The symbol claimed at `index`. Undefined if never claimed.
+    ///
+    /// Exposed because a caller comparing two runs -- or fingerprinting
+    /// a book for comparison against another grouping of the same books
+    /// -- needs to know WHICH instrument a book holds. Reconstructing
+    /// that from the claim index instead of reading it is wrong, and
+    /// wrong in a way that looks fine: symbols arrive in whatever order
+    /// the feed mentions them, so index 3 is rarely the fourth symbol.
+    [[nodiscard]] const Symbol& symbol(std::size_t index) const noexcept {
+        return symbols_[index];
+    }
+
     /// Order pool size of EACH book, for reporting.
     [[nodiscard]] std::size_t order_capacity() const noexcept { return order_capacity_; }
     [[nodiscard]] std::size_t level_capacity() const noexcept { return level_capacity_; }
