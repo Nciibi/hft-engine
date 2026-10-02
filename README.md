@@ -709,5 +709,20 @@ production software is worse than one that does not:
 
 NASDAQ TotalView-ITCH 5.0 interface specification, for the message
 layouts, the big-endian field encoding, and the partial-cancel rules.
-Market making follows Avellaneda-Stoikov; inventory risk handling
+Section 1.3.1 is the Add Order field table that
+[the bug above](#the-bug-that-mattered) was measured against. Market
+making follows Avellaneda-Stoikov; inventory risk handling
 follows Guéant-Lehalle-Fernandez-Tapia.
+
+**On verification.** The offsets in `include/hft/itch/protocol.hpp` for
+`A`, `E`, `C`, `X` and `D` have been checked against the published
+field tables, and each one now carries a `static_assert` against its
+literal offset. `U` (Order Replace), `F` (Add Order with MPID
+Attribution), `S`, `R`, `T`, `Q` and the order-entry direction have
+**not** been verified, and this build does not decode them.
+
+That asymmetry is deliberate. The inbound order-level messages are what
+an order book needs to exist at all, so they were worth checking against
+the document. Everything else is skipped rather than guessed, because a
+decoder that reads a plausible field table confidently is worse than one
+that declines to read it.
