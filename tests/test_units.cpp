@@ -1408,22 +1408,44 @@ void test_report_percentiles() {
         }
         check_eq_int(static_cast<long long>(h.overflow_count()), 10,
                      "samples beyond the range are counted as overflow");
-        check(h.percentile(0.999) <= 100,
-              "a censored percentile never exceeds the histogram range");
+
+        // A percentile whose rank falls into the overflow region must
+        // report the documented ceiling, not a low in-range value.
+        // bucket_count is max_ns / width + 1, so for (1, 100) the
+        // ceiling is 101.
+        check_eq_int(static_cast<long long>(h.percentile(0.999)), 101,
+                     "a censored p999 reports the ceiling, visibly high");
+
+        // The in-range percentiles are unaffected by the overflow.
+        check_eq_int(static_cast<long long>(h.percentile(0.50)), 10,
+                     "an in-range p50 is exact");
     }
 
     {
         // An empty histogram must not divide by zero or invent a value.
         LatencyHistogram h(1, 1000);
         check_eq_int(static_cast<long long>(h.count()), 0, "an empty histogram has no samples");
-        bool sane = true;
-        for (double q : {0.0, 0.5, 0.99, 0.999, 1.0}) {
-            const std::uint64_t p = h.percentile(q);
-            if (p > 1000) {
-                sane = false;
-            }
-        }
-        check(sane, "an empty histogram reports something in range");
+        check_eq_int(static_cast<long long>(h.percentile(0.5)), 0,
+                     "an empty histogram reports zero rather than guessing");
+        check_eq_int(static_cast<long long>(h.overflow_count()), 0,
+                     "an empty histogram has no overflow");
+    }
+
+    {
+        // min() and max() are exact, not bucketed, and are what a reader
+        // uses to confirm the distribution's shape. max() must see the
+        // overflowed samples too -- an outlier that landed outside the
+        // range is still the maximum, and hiding it would make a
+        // pathological tail invisible.
+        LatencyHistogram h(1, 1000);
+        h.record(5);
+        h.record(900);
+        h.record(50'000);  // overflows
+        check_eq_int(static_cast<long long>(h.min()), 5, "min is exact");
+        check_eq_int(static_cast<long long>(h.max()), 50000,
+                     "max includes samples beyond the histogram range");
+        check_eq_int(static_cast<long long>(h.overflow_count()), 1, "the outlier overflowed");
+        check(h.percentile(1.0) == 50000, "p100 reports max");
     }
 }
 
