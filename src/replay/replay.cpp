@@ -224,7 +224,6 @@ int main(int argc, char** argv) {
             ++checksummed;
         }
 
-        offset = frame_at + stride;
         (void)seq_state;
     }
 
