@@ -93,9 +93,10 @@ Three things are now true that were not:
 | Thread pinning and SMT topology discovery | done |
 | Mutex + `condition_variable` baseline benchmark | done |
 | Symbol sharding, ref-index routing | done |
+| MoldUDP64 downstream packet framing | done |
 | Threaded pipeline equivalence check | done |
 | Multi-shard sequencer, rebalancing, failover | not started |
-| MoldUDP64 packet framing and checksum | not started |
+| SOUP checksum and packet-based capture format | not started |
 
 **Order Replace is skipped on purpose.** Its field table was not
 verified against the published specification, and the alternative to
