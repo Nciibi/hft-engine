@@ -11,6 +11,7 @@
 
 #include "feed/generator.hpp"
 #include "hft/itch/decode.hpp"
+#include "hft/itch/moldudp64.hpp"
 #include "hft/itch/protocol.hpp"
 #include "hft/itch/sequence.hpp"
 #include "hft/lob/apply.hpp"
@@ -728,6 +729,7 @@ int main() {
     test_price_parse();
     test_timestamp48();
     test_big_endian();
+    test_moldudp64_against_spec();
     test_add_order_layout_is_spec();
     test_decode();
     test_decode_mutations();
