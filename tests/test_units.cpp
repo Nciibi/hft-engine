@@ -118,6 +118,110 @@ void test_big_endian() {
 
 // ---- Frame decoding -------------------------------------------------
 
+void test_add_order_layout_is_spec() {
+    std::printf("Add Order layout against the published field table\n");
+
+    // This test exists because of a bug it would have caught.
+    //
+    // Every other decode test in this file builds its input with the
+    // generator and reads it back with the decoder, so it only ever
+    // proves the two agree. When the generator and the decoder both had
+    // the Add Order layout wrong -- shares where the price goes, the
+    // stock symbol where the shares go -- every one of those tests
+    // passed. 340 checks, all green, and the decoder was reading the
+    // share count as the price.
+    //
+    // So the frame below is built by hand, byte by byte, from the
+    // Nasdaq TotalView-ITCH 5.0 field table and nowhere else. Nothing
+    // in this function calls the generator. If the offsets in
+    // protocol.hpp are ever wrong again, this fails and the round-trip
+    // tests keep passing.
+    //
+    // Spec section 1.3.1, Add Order - No MPID Attribution:
+    //   0 tag | 1 locate | 3 tracking | 5 timestamp | 11 reference
+    //   19 side | 20 SHARES | 24 stock symbol | 32 PRICE
+    constexpr std::uint32_t kShares = 100;
+    constexpr std::uint32_t kPriceRaw = 1'502'500;  // $150.25
+    const std::uint8_t body[itch::off::kAddOrderSize] = {
+        static_cast<std::uint8_t>('A'),                        // 0
+        0x04, 0xD2,                                              // 1  locate 1234
+        0x00, 0x00,                                              // 3  tracking 0
+        0x1F, 0x1A, 0xCE, 0xD9, 0xF0, 0x7B,                     // 5  timestamp
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A,          // 11 reference 42
+        static_cast<std::uint8_t>('B'),                        // 19 side
+        0x00, 0x00, 0x00, 0x64,                                 // 20 SHARES 100
+        'S', 'I', 'M', 'T', 'E', 'S', 'T', ' ',                // 24 stock symbol
+        0x00, 0x16, 0xED, 0x24,                                 // 32 PRICE 1502500
+    };
+    static_assert(sizeof(body) == 36, "the spec says the Add Order body is 36 bytes");
+
+    // The stock symbol must occupy exactly offsets 24..31 and the price
+    // exactly 32..35. If the two ever swap, these fail by position
+    // rather than by value, which points at the layout instead of the
+    // arithmetic.
+    check_eq_int(std::string(body + 24, body + 32).size(), 8, "stock symbol is 8 bytes wide");
+    check(std::string(body + 24, body + 32) == "SIMTEST ", "stock symbol is the literal written");
+    check_eq_int(itch::read_be32(body + 20), static_cast<int>(kShares),
+                 "offset 20 holds SHARES, not the price");
+    check_eq_int(itch::read_be32(body + 32), static_cast<int>(kPriceRaw),
+                 "offset 32 holds the PRICE, not the shares");
+
+    // Prefix it and decode. Frame = 2-byte length + 36-byte body.
+    std::vector<std::uint8_t> frame;
+    frame.push_back(0);
+    frame.push_back(static_cast<std::uint8_t>(itch::off::kAddOrderSize));
+    frame.insert(frame.end(), body, body + itch::off::kAddOrderSize);
+
+    const auto r = itch::decode(frame.data(), frame.size());
+    check(r.ok(), "the hand-built spec frame decodes");
+    const auto* ao = std::get_if<itch::AddOrder>(&r.message.body);
+    check(ao != nullptr, "payload is an AddOrder");
+    if (ao != nullptr) {
+        // The two assertions that matter. They are deliberately written
+        // so that a swapped layout cannot satisfy both: 100 and 1502500
+        // are different numbers, and a decoder that reads one field as
+        // the other gets exactly one of these two wrong.
+        check_eq_int(static_cast<long long>(ao->size.raw()), 100,
+                     "100 shares decode as the SIZE, not the price");
+        check_eq_int(ao->price.raw(), 1'502'500,
+                     "1502500 raw decodes as the PRICE, not the shares");
+
+        check_eq_int(ao->stock_locate, 1234, "stock locate decodes");
+        check_eq_int(ao->tracking, 0, "tracking number decodes");
+        check(ao->timestamp == 0x0000'1F1A'CED9'F07BULL, "48-bit timestamp decodes");
+        check(ao->id == 42, "order reference decodes");
+        check(ao->side == Side::bid, "'B' decodes as a bid");
+        check(std::string(ao->stock, 8) == "SIMTEST ", "stock symbol decodes");
+
+        // A price of 100 raw is $0.01 and a share count of 1,502,500 is
+        // absurd. Asserting the pair makes the failure legible: whoever
+        // hits this knows immediately which field moved.
+        check(ao->price.raw() > 1000,
+              "decoded price is a price, not a share count (this is the Add Order bug)");
+        check(ao->size.raw() < 100'000,
+              "decoded size is a share count, not a price (this is the Add Order bug)");
+    }
+
+    // The generator must now produce the same layout, which is the only
+    // reason the rest of this file can keep round-tripping.
+    std::vector<std::uint8_t> generated;
+    feed::append_add_order(generated, Side::bid, Price::from_raw(kPriceRaw),
+                           Quantity::from_raw(kShares), 42, 0x0000'1F1A'CED9'F07BULL, 1234, 0);
+    check_eq_int(static_cast<long long>(generated.size()), 38,
+                 "the generator writes a 38-byte Add Order frame");
+    check_eq_int(static_cast<long long>(generated.size()), static_cast<long long>(frame.size()),
+                 "generator and hand-built spec frame are the same length");
+    // Field by field, the generator's bytes must equal the spec's.
+    bool identical = true;
+    for (std::size_t i = 0; i < frame.size(); ++i) {
+        if (generated[i] != frame[i]) {
+            identical = false;
+        }
+    }
+    check(identical,
+          "the generator emits exactly the bytes the specification lists, byte for byte");
+}
+
 void test_decode() {
     std::printf("frame decode\n");
     using namespace hft;
