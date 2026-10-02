@@ -433,7 +433,7 @@ public:
     /// the result would look like a scaling failure rather than what it
     /// is.
     Destination symbol(const lob::Symbol& s) {
-        auto it = route_.find(s.c_str());
+        auto it = route_.find(s.str());
         if (it != route_.end()) {
             return it->second;
         }
@@ -442,7 +442,7 @@ public:
         d.local = static_cast<std::uint32_t>(per_worker_[d.worker]++);
         d.valid = true;
         ++next_symbol_;
-        route_.emplace(s.c_str(), d);
+        route_.emplace(s.str(), d);
         return d;
     }
 
@@ -554,7 +554,7 @@ struct ShardedResult {
     books.reserve(set.symbol_count());
     for (std::size_t i = 0; i < set.symbol_count(); ++i) {
         BookSummary s;
-        s.symbol = set.symbol(i).c_str();
+        s.symbol = set.symbol(i).str();
         s.hash = fingerprint_book(set.book(i));
         const std::uint32_t depth =
             set.book(i).level_count(Side::bid) + set.book(i).level_count(Side::ask);
@@ -645,7 +645,7 @@ struct ShardedResult {
             mine.reserve(set.symbol_count());
             for (std::size_t i = 0; i < set.symbol_count(); ++i) {
                 BookSummary s;
-                s.symbol = set.symbol(i).c_str();
+                s.symbol = set.symbol(i).str();
                 s.hash = fingerprint_book(set.book(i));
                 mine.push_back(s);
             }
