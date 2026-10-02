@@ -163,7 +163,7 @@ struct BrokenTrade {
 };
 
 using MessageBody = std::variant<AddOrder, OrderExecuted, OrderExecutedAtPrice, OrderCancel,
-                                 OrderDelete, OrderReplace, BrokenTrade>;
+                                 OrderDelete, OrderReplace, BrokenTrade, Trade, CrossTrade>;
 
 /// A decoded message: the payload plus the tag derived from it.
 struct Message {
