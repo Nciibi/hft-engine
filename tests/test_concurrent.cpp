@@ -256,16 +256,21 @@ std::uint64_t drain_until_done(Ring& ring, const std::atomic<bool>& producer_don
     return consumed;
 }
 
-void test_two_thread_transfer() {
-    std::printf("two-thread transfer\n");
+/// Item count for a given ring depth.
+///
+/// Scaled so every depth does a comparable amount of work while a deep
+/// ring still gets enough laps to wrap its buffer many times over.
+[[nodiscard]] constexpr std::uint64_t items_for(std::size_t capacity) noexcept {
+    const std::uint64_t scaled = static_cast<std::uint64_t>(capacity) * 4u;
+    const std::uint64_t floor = 20'000u;
+    return scaled < floor ? floor : scaled;
+}
 
-    // Small on purpose: a ring this size spends most of its life full or
-    // empty, so both the full and the empty path get exercised in every
-    // run. A large ring would mostly test one of them.
-    constexpr std::size_t kN = 64;
-    constexpr Item kItems = 200'000;
+template <std::size_t N>
+void test_two_thread_transfer_at() {
+    constexpr std::uint64_t kItems = items_for(N);
 
-    SpscRing<Item, kN> ring;
+    SpscRing<Item, N> ring;
     std::atomic<bool> producer_done{false};
 
     std::thread producer([&ring, &producer_done] {
@@ -291,19 +296,45 @@ void test_two_thread_transfer() {
 
     producer.join();
 
-    check(ordered, "every item arrives in push order: no reordering, no duplication");
-    check_eq_u64(consumed, kItems, "the consumer receives everything the producer sent");
-    check_eq_u64(expected, kItems, "and receives it exactly once");
-    check(ring.empty(), "the ring is empty once both threads have finished");
+    // The label carries the depth so a failure names the ring it came
+    // from. "Fails at N=2" and "fails at N=1024" are different bugs.
+    char label[128];
+    std::snprintf(label, sizeof(label), "depth %zu: every item arrives in push order", N);
+    check(ordered, label);
+
+    std::snprintf(label, sizeof(label), "depth %zu: nothing lost", N);
+    check_eq_u64(consumed, kItems, label);
+
+    std::snprintf(label, sizeof(label), "depth %zu: nothing duplicated", N);
+    check_eq_u64(expected, kItems, label);
+
+    std::snprintf(label, sizeof(label), "depth %zu: ring empty when both threads finish", N);
+    check(ring.empty(), label);
 }
 
-void test_two_thread_payload_integrity() {
-    std::printf("two-thread payload integrity\n");
+void test_two_thread_transfer() {
+    std::printf("two-thread transfer\n");
 
-    constexpr std::size_t kN = 128;
-    constexpr std::uint64_t kItems = 150'000;
+    // The small depths matter more than they look. A two-slot ring
+    // spends its entire life alternating between full and empty, so it
+    // is the case most likely to expose an off-by-one in the cached
+    // index refresh. A deep ring mostly tests the fast path.
+    test_two_thread_transfer_at<2>();
+    test_two_thread_transfer_at<3>();
+    test_two_thread_transfer_at<4>();
+    test_two_thread_transfer_at<7>();
+    test_two_thread_transfer_at<8>();
+    test_two_thread_transfer_at<31>();
+    test_two_thread_transfer_at<64>();
+    test_two_thread_transfer_at<128>();
+    test_two_thread_transfer_at<1024>();
+}
 
-    SpscRing<Payload, kN> ring;
+template <std::size_t N>
+void test_two_thread_payload_integrity_at() {
+    constexpr std::uint64_t kItems = items_for(N);
+
+    SpscRing<Payload, N> ring;
     std::atomic<bool> producer_done{false};
 
     std::thread producer([&ring, &producer_done] {
@@ -329,9 +360,25 @@ void test_two_thread_payload_integrity() {
 
     producer.join();
 
-    check_eq_u64(torn, 0, "no partially-visible payload: every field came from one slot");
-    check_eq_u64(consumed, kItems, "every payload arrived");
-    check_eq_u64(expected, kItems, "and arrived exactly once");
+    char label[128];
+    std::snprintf(label, sizeof(label),
+                  "depth %zu: no partially-visible payload, every field from one slot", N);
+    check_eq_u64(torn, 0, label);
+
+    std::snprintf(label, sizeof(label), "depth %zu: every payload arrived exactly once", N);
+    check_eq_u64(consumed, kItems, label);
+    check_eq_u64(expected, kItems, label);
+}
+
+void test_two_thread_payload_integrity() {
+    std::printf("two-thread payload integrity\n");
+
+    // Two depths is enough here rather than the full sweep: the torn-read
+    // failure depends on the payload, not on how deep the ring is, and
+    // a wide ring lets the producer and consumer run far enough apart
+    // to make a real race likely.
+    test_two_thread_payload_integrity_at<16>();
+    test_two_thread_payload_integrity_at<256>();
 }
 
 // ---- Layout --------------------------------------------------------
