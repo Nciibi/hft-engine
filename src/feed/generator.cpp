@@ -29,7 +29,7 @@ void write_timestamp48(std::vector<std::uint8_t>& out, std::uint64_t nanos) noex
     write_be32(out, static_cast<std::uint32_t>(nanos & 0xFFFF'FFFFu));
 }
 
-/// The symbol every generated record carries.
+/// The symbol every generated record carries when none is specified.
 ///
 /// Eight bytes, space padded, because that is the field width the Add
 /// Order message specifies and because a short symbol makes the padding
@@ -37,10 +37,29 @@ void write_timestamp48(std::vector<std::uint8_t>& out, std::uint64_t nanos) noex
 /// string without ever being wrong about the bytes.
 inline constexpr char kGeneratedSymbol[] = "SIMTEST ";
 
-/// Write an eight-byte space-padded alpha field.
-void write_stock_symbol(std::vector<std::uint8_t>& out, const char (&symbol)[9]) noexcept {
-    static_assert(sizeof(symbol) - 1 == hft::itch::off::kStockSymbolSize,
+/// Write an eight-byte space-padded alpha field from an 8-character
+/// name.
+///
+/// The name is copied as-is, with NO truncation and NO padding: a
+/// caller that passes a nine-character string gets a build-time check
+/// rather than a silently shortened symbol, because two symbols that
+/// truncate to the same eight bytes route to the same book and the bug
+/// would only appear as an order arriving on the wrong shard.
+template <std::size_t N>
+void write_stock_symbol(std::vector<std::uint8_t>& out, const char (&symbol)[N]) noexcept {
+    static_assert(N == 9,
+                  "an ITCH stock symbol is exactly 8 characters plus a terminator; a name of "
+                  "another length is padded or truncated by this function and that is a bug, "
+                  "not a convenience");
+    static_assert(N - 1 == hft::itch::off::kStockSymbolSize,
                   "the symbol literal must fill the stock field exactly");
+    for (std::size_t i = 0; i < hft::itch::off::kStockSymbolSize; ++i) {
+        out.push_back(static_cast<std::uint8_t>(symbol[i]));
+    }
+}
+
+/// Overload for a runtime symbol pointer, length-checked by the caller.
+void write_stock_symbol(std::vector<std::uint8_t>& out, const char* symbol) noexcept {
     for (std::size_t i = 0; i < hft::itch::off::kStockSymbolSize; ++i) {
         out.push_back(static_cast<std::uint8_t>(symbol[i]));
     }
