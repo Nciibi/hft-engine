@@ -797,17 +797,32 @@ void test_capture_handles_control_packets() {
     }());
 
     // Heartbeat and end-of-session packets are a bare header: no blocks.
+    // The bytes are written by hand rather than with a helper so this
+    // test checks big-endian byte order instead of trusting the same
+    // code it is meant to be checking.
     auto append_header = [](std::vector<std::uint8_t>& out, std::uint64_t sequence,
                             std::uint16_t count) {
         for (std::size_t i = 0; i < itch::mold::kSessionSize; ++i) {
             out.push_back(static_cast<std::uint8_t>(feed::kDefaultSession[i]));
         }
-        itch::write_be64(out, sequence);
-        itch::write_be16(out, count);
+        for (int shift = 56; shift >= 0; shift -= 8) {
+            out.push_back(static_cast<std::uint8_t>((sequence >> shift) & 0xFFu));
+        }
+        out.push_back(static_cast<std::uint8_t>((count >> 8) & 0xFFu));
+        out.push_back(static_cast<std::uint8_t>(count & 0xFFu));
     };
 
     std::vector<std::uint8_t> data;
     feed::append_downstream_packet(data, "SAMPLE0000", 7, frames.data() + 2, frames.size() - 2, 1);
+
+    // The header just written, read back by hand, must be the header we
+    // meant to write.
+    check_eq_int(data[itch::mold::kSequenceOffset], 0x00, "sequence byte 0");
+    check_eq_int(data[itch::mold::kSequenceOffset + 6], 0x00, "sequence byte 6");
+    check_eq_int(data[itch::mold::kSequenceOffset + 7], 0x07, "sequence byte 7 is big endian");
+    check_eq_int(data[itch::mold::kSequenceOffset + 8], 0x00, "count byte 0");
+    check_eq_int(data[itch::mold::kSequenceOffset + 9], 0x01, "count byte 1 is big endian");
+
     append_header(data, 8, itch::mold::kHeartbeatCount);
     feed::append_downstream_packet(data, "SAMPLE0000", 8, frames.data() + 2, frames.size() - 2, 1);
     append_header(data, 9, itch::mold::kEndOfSessionCount);
