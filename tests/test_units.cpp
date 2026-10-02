@@ -224,6 +224,179 @@ void test_add_order_layout_is_spec() {
           "the generator emits exactly the bytes the specification lists, byte for byte");
 }
 
+// The MoldUDP64 frame below is hand-built from the field table, for the
+// same reason the Add Order frame is: a round trip through this
+// repository's own generator proves only that the two agree, and the
+// whole Add Order bug lived in the space where they agreed and the
+// specification did not.
+//
+// Two facts from the specification are asserted here that the rest of
+// this repository previously had backwards, and both are easy to be
+// wrong about:
+//
+//   * the Sequence Number field is EIGHT bytes, not four;
+//   * there is no checksum. MoldUDP64 does not checksum packets --
+//     integrity belongs to SOUP, which is a different protocol. A test
+//     asserting a checksum field here would be asserting a field the
+//     specification does not define.
+void test_moldudp64_against_spec() {
+    std::printf("MoldUDP64 framing against the published field table\n");
+
+    namespace mold = hft::itch::mold;
+
+    // Offsets and widths, asserted as literals rather than as
+    // relationships. See protocol.hpp for why.
+    check_eq_int(static_cast<long long>(mold::kHeaderSize), 20, "header is 20 bytes");
+    check_eq_int(static_cast<long long>(mold::kSessionOffset), 0, "session at offset 0");
+    check_eq_int(static_cast<long long>(mold::kSequenceOffset), 10, "sequence at offset 10");
+    check_eq_int(static_cast<long long>(mold::kCountOffset), 18, "count at offset 18");
+    check_eq_int(static_cast<long long>(mold::kSequenceSize), 8, "sequence is 8 bytes");
+    check_eq_int(static_cast<long long>(mold::kMessageBlockSize), 2, "block length prefix is 2 bytes");
+    check_eq_int(static_cast<long long>(mold::kFirstBlockOffset), 20, "first block at offset 20");
+
+    // The two special Message Count values.
+    check(mold::is_heartbeat(0), "message count 0 is a heartbeat");
+    check(!mold::is_heartbeat(1), "message count 1 is not a heartbeat");
+    check(mold::is_end_of_session(0xFFFF), "message count 0xFFFF is end of session");
+    check(!mold::is_end_of_session(0xFFFE), "0xFFFE is not end of session");
+
+    // ---- A hand-built packet, byte by byte -------------------------
+    //
+    //   "SAMPLE0000"                          session, 10 bytes
+    //   00 00 01 00 00 00 2A 2B                sequence, 8 bytes
+    //   00 02                                count, 2 bytes
+    //   00 24                                block length, 2 bytes
+    //   <36 bytes of Add Order body>          one message block
+    const std::uint8_t packet[] = {
+        'S', 'A', 'M', 'P', 'L', 'E', '0', '0', '0', '0',  // session
+        0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x2A, 0x2B,    // sequence
+        0x00, 0x02,                                          // count = 2
+        0x00, 0x24,                                          // block 1 length = 36
+        'A', 0x04, 0xD2, 0x00, 0x00, 0x1F, 0x1A, 0xCE, 0xD9, 0xF0, 0x7B,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 'B',
+        0x00, 0x00, 0x00, 0x64, 'S', 'I', 'M', 'T', 'E', 'S', 'T', ' ',
+        0x00, 0x16, 0xED, 0x24,
+        0x00, 0x19,                                          // block 2 length = 25
+        'X', 0x04, 0xD2, 0x00, 0x00, 0x1F, 0x1A, 0xCE, 0xD9, 0xF0, 0x7B,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A,
+        0x00, 0x00, 0x00, 0x32,                               // cancel 50 shares
+    };
+
+    mold::PacketHeader header{};
+    check(mold::parse_header(packet, sizeof(packet), header) == mold::HeaderStatus::ok,
+          "the hand-built packet header parses");
+    check(std::string(header.session, 10) == "SAMPLE0000", "session decodes");
+    check_eq_int(static_cast<long long>(header.count), 2, "message count decodes");
+
+    // The eight-byte sequence is the assertion that matters most. A
+    // four-byte read would return 0x2A2B and pass a naive comparison
+    // against a 32-bit literal, while having silently discarded
+    // 0x00000100.
+    check(header.sequence == 0x0000'0100'0000'2A2BULL,
+          "the full 64-bit sequence decodes, high half included");
+    check(header.sequence != 0x2A2BULL, "a 32-bit read would have returned only the low half");
+    check(header.next_expected() == header.sequence,
+          "on a packet with blocks the sequence field is the first message, not next_expected");
+
+    // ---- Walking the blocks ----------------------------------------
+    mold::MessageBlocks blocks(packet + mold::kFirstBlockOffset,
+                               sizeof(packet) - mold::kFirstBlockOffset, header.count);
+    check_eq_int(blocks.remaining(), 2, "two blocks are expected");
+    check(!blocks.truncated(), "the packet is not truncated");
+
+    std::size_t size = 0;
+    const std::uint8_t* first = blocks.next(size);
+    check(first != nullptr, "the first block is present");
+    check_eq_int(static_cast<long long>(size), 36, "the first block is 36 bytes, matching an Add");
+    check(first != nullptr && first[0] == 'A', "the first block is an Add Order");
+
+    const std::uint8_t* second = blocks.next(size);
+    check(second != nullptr, "the second block is present");
+    check_eq_int(static_cast<long long>(size), 25, "the second block is 25 bytes, matching a cancel");
+    check(second != nullptr && second[0] == 'X', "the second block is an Order Cancel");
+
+    check(blocks.next(size) == nullptr, "no third block, because the count said two");
+    check_eq_int(blocks.remaining(), 0, "the count is exhausted");
+    check(!blocks.truncated(), "a cleanly finished packet is not reported truncated");
+
+    // A block body is a valid ITCH frame: the length the framing
+    // reports is exactly what the decoder wants, so the two layers
+    // compose without adjustment.
+    if (first != nullptr) {
+        const itch::DecodeResult r = itch::decode(first, size);
+        check(r.ok(), "a block body decodes as an ITCH frame");
+        if (r.ok()) {
+            const auto* ao = std::get_if<itch::AddOrder>(&r.message.body);
+            check(ao != nullptr, "and it is an Add Order");
+            if (ao != nullptr) {
+                check_eq_int(ao->price.raw(), 1'502'500, "with the price at the right offset");
+                check_eq_int(static_cast<long long>(ao->size.raw()), 100, "and 100 shares");
+            }
+        }
+    }
+
+    // ---- Truncation, at every byte ---------------------------------
+    for (std::size_t n = 0; n < mold::kHeaderSize; ++n) {
+        mold::PacketHeader h{};
+        check(mold::parse_header(packet, n, h) == mold::HeaderStatus::truncated,
+              "a short header is reported, never read past");
+    }
+
+    // A header that parses but whose blocks are cut off is the case
+    // that matters: it reads as a valid packet and then runs out of
+    // data mid-block. `truncated()` is what distinguishes it from a
+    // packet that simply finished.
+    {
+        mold::MessageBlocks cut(packet + mold::kFirstBlockOffset, 10, header.count);
+        (void)cut.next(size);
+        check(cut.truncated(), "a block running past the buffer is reported as truncated");
+    }
+    {
+        mold::MessageBlocks cut(packet + mold::kFirstBlockOffset, 1, header.count);
+        (void)cut.next(size);
+        check(cut.truncated(), "so is a buffer that cannot even hold a length prefix");
+    }
+
+    // ---- Heartbeat --------------------------------------------------
+    // A heartbeat carries the next expected sequence and no blocks. The
+    // sequence field means something DIFFERENT there, which is exactly
+    // why the accessor is named for it.
+    const std::uint8_t heartbeat[mold::kHeaderSize] = {
+        'S', 'A', 'M', 'P', 'L', 'E', '0', '0', '0', '0',
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        0x00, 0x00,
+    };
+    mold::PacketHeader hb{};
+    check(mold::parse_header(heartbeat, sizeof(heartbeat), hb) == mold::HeaderStatus::ok,
+          "a heartbeat header parses");
+    check(mold::is_heartbeat(hb.count), "and is recognised as a heartbeat");
+    check(hb.next_expected() == 0x0000'0000'0001'0000ULL,
+          "a heartbeat's sequence is the next expected, not a message number");
+
+    // ---- Round trip through the generator --------------------------
+    std::vector<std::uint8_t> generated;
+    feed::append_downstream_packet(generated, "SAMPLE0000", 0x0000'0100'0000'2A2BULL, packet + 22, 36,
+                                  1);
+    check_eq_int(static_cast<long long>(generated.size()),
+                 static_cast<long long>(mold::kHeaderSize + mold::kMessageBlockSize + 36),
+                 "a one-message packet is header + length prefix + body");
+    mold::PacketHeader gh{};
+    check(mold::parse_header(generated.data(), generated.size(), gh) == mold::HeaderStatus::ok,
+          "the generated packet parses");
+    check(gh.sequence == 0x0000'0100'0000'2A2BULL, "with the same 64-bit sequence");
+    check(std::string(gh.session, 10) == "SAMPLE0000", "and the same session");
+    mold::MessageBlocks gb(generated.data() + mold::kFirstBlockOffset,
+                           generated.size() - mold::kFirstBlockOffset, gh.count);
+    const std::uint8_t* gb_first = gb.next(size);
+    check(size == 36 && gb_first != nullptr && gb_first[0] == 'A',
+          "and yields the same single Add Order block");
+
+    // No checksum. The packet is exactly header + block, with nothing
+    // appended, because the specification defines no such field.
+    check(generated.size() == 20 + 2 + 36,
+          "MoldUDP64 packets carry no checksum: SOUP provides integrity, not this layer");
+}
+
 void test_decode() {
     std::printf("frame decode\n");
     using namespace hft;
