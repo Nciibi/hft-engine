@@ -205,6 +205,118 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config);
 /// to say.
 inline constexpr std::size_t kCaptureHeaderSize = hft::itch::mold::kHeaderSize;
 
+/// Iterates the frames of a capture without allocating.
+///
+/// Every consumer in this repository used to hand-roll the walk, which
+/// meant the packet format was re-implemented six times and a change to
+/// it was six changes. This is the one walk.
+///
+/// It reads PACKETS and yields FRAMES, because that is the shape of the
+/// problem: a handler is handed packets, and the sequence number lives
+/// on the packet while the frames live in its blocks.
+///
+/// Diagnostics are collected as a side effect rather than asked for, so
+/// a consumer that forgets to check them still cannot silently ignore a
+/// truncated packet. `malformed()` is the one to assert on.
+class CaptureReader final {
+public:
+    CaptureReader(const std::uint8_t* data, std::size_t size) noexcept
+        : data_(data), size_(size) {}
+
+    /// Next ITCH frame, or false at the end of the capture.
+    ///
+    /// The returned pointer is a complete frame -- length prefix
+    /// included -- so it can be handed straight to `itch::decode`.
+    /// `sequence()` is the sequence number of the message just returned,
+    /// which for a multi-message packet differs per frame even though
+    /// the packet header carries only the first.
+    [[nodiscard]] bool next(const std::uint8_t*& frame, std::size_t& frame_size) noexcept {
+        namespace mold = hft::itch::mold;
+        if (remaining_blocks_ == 0 && !load_packet()) {
+            return false;
+        }
+        if (cursor_ + mold::kMessageBlockSize > size_) {
+            truncated_ = true;
+            return false;
+        }
+        const std::size_t length = (static_cast<std::size_t>(data_[cursor_]) << 8) |
+                                   static_cast<std::size_t>(data_[cursor_ + 1]);
+        if (cursor_ + mold::kMessageBlockSize + length > size_) {
+            truncated_ = true;
+            return false;
+        }
+        frame = data_ + cursor_;
+        frame_size = mold::kMessageBlockSize + length;
+        sequence_ = packet_sequence_ + block_index_;
+        ++block_index_;
+        --remaining_blocks_;
+        cursor_ += frame_size;
+        return true;
+    }
+
+    /// Sequence number of the frame most recently returned.
+    [[nodiscard]] std::uint64_t sequence() const noexcept { return sequence_; }
+    [[nodiscard]] std::uint64_t packets() const noexcept { return packets_; }
+    [[nodiscard]] std::uint64_t heartbeats() const noexcept { return heartbeats_; }
+    [[nodiscard]] std::uint64_t end_of_session() const noexcept { return end_of_session_; }
+
+    /// True when a packet header or a block ran past the end of the
+    /// capture.
+    ///
+    /// A half-written file is a real thing -- a capture copied while the
+    /// generator was still writing it -- and it reads as a clean
+    /// shorter stream unless something notices. Every tool that consumes
+    /// a capture asserts on this.
+    [[nodiscard]] bool malformed() const noexcept { return truncated_; }
+
+private:
+    /// Advance to the next packet that actually carries messages.
+    ///
+    /// Heartbeats and end-of-session packets carry none, so they are
+    /// counted and stepped over rather than returned: yielding them
+    /// would give a caller a "frame" with no frame in it.
+    [[nodiscard]] bool load_packet() noexcept {
+        namespace mold = hft::itch::mold;
+        for (;;) {
+            if (cursor_ + mold::kHeaderSize > size_) {
+                if (cursor_ < size_) {
+                    truncated_ = true;
+                }
+                return false;
+            }
+            hft::itch::mold::PacketHeader header{};
+            (void)hft::itch::mold::parse_header(data_ + cursor_, size_ - cursor_, header);
+            cursor_ += mold::kHeaderSize;
+            ++packets_;
+            packet_sequence_ = header.sequence;
+
+            if (hft::itch::mold::is_end_of_session(header.count)) {
+                ++end_of_session_;
+                return false;
+            }
+            if (hft::itch::mold::is_heartbeat(header.count)) {
+                ++heartbeats_;
+                continue;
+            }
+            remaining_blocks_ = header.count;
+            block_index_ = 0;
+            return remaining_blocks_ > 0;
+        }
+    }
+
+    const std::uint8_t* data_ = nullptr;
+    std::size_t size_ = 0;
+    std::size_t cursor_ = 0;
+    std::uint16_t remaining_blocks_ = 0;
+    std::uint64_t block_index_ = 0;
+    std::uint64_t packet_sequence_ = 0;
+    std::uint64_t sequence_ = 0;
+    std::uint64_t packets_ = 0;
+    std::uint64_t heartbeats_ = 0;
+    std::uint64_t end_of_session_ = 0;
+    bool truncated_ = false;
+};
+
 /// A mixed feed: adds interleaved with the cancels, executes and
 /// deletes that actually remove them.
 ///
