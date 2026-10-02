@@ -175,8 +175,11 @@ char terminator_ = kTerminator;
 std::uint8_t length_ = 0;
 };
 
-static_assert(sizeof(Symbol) == kSymbolSize + 1,
-              "a Symbol is the eight-byte wire field plus its terminator, and nothing else");
+/// Two trailing bytes, not one: the terminator and the length. Pinning
+/// the size is what makes it obvious to anyone adding a field that one
+/// of these two is a byte they are about to overlap.
+static_assert(sizeof(Symbol) == kSymbolSize + 2,
+              "a Symbol is the eight-byte wire field plus a terminator and a length");
 
 /// Which shard owns a symbol. FNV-1a over the wire bytes.
 ///
