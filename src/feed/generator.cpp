@@ -498,8 +498,7 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             // the same wide band and overlapped: the best ask sat
             // $15 BELOW the best bid, the mid moved 20 times in 40,000
             // ticks, and a market maker had zero volatility to price.
-            const std::int64_t offset =
-                1 + static_cast<std::int64_t>(rng.below(static_cast<std::uint64_t>(levels)));
+            const std::int64_t offset = draw_offset(rng, levels, config);
             std::int64_t raw_price =
                 side == hft::Side::bid ? mid - offset * tick : mid + offset * tick;
 
