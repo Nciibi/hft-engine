@@ -80,6 +80,38 @@ void append_frame_with_length(std::vector<std::uint8_t>& out, const std::uint8_t
     out.insert(out.end(), body, body + body_size);
 }
 
+void append_downstream_packet(std::vector<std::uint8_t>& out, const char (&session)[11],
+                              std::uint64_t sequence, const std::uint8_t* body,
+                              std::size_t body_size, std::uint16_t message_count) noexcept {
+    using namespace hft::itch::mold;
+
+    // No checksum, deliberately. MoldUDP64 is an unreliable transport
+    // and does not checksum its packets; integrity is SOUP's job, one
+    // layer up. Writing a CRC here would be inventing a field the
+    // specification does not define.
+
+    // Session, fixed ten bytes, written verbatim. No padding rule is
+    // defined for a short name, so the caller's ten characters are the
+    // ten bytes.
+    for (std::size_t i = 0; i < kSessionSize; ++i) {
+        out.push_back(static_cast<std::uint8_t>(session[i]));
+    }
+
+    // Eight bytes, big endian. Writing the full 64 bits rather than
+    // truncating to 32 is the whole point: a gap check that reads four
+    // bytes of this field ignores the high half of every sequence
+    // number.
+    write_be64(out, sequence);
+    write_be16(out, message_count);
+
+    // The Message Block length EXCLUDES its own two bytes, so a block
+    // occupies length + 2 bytes. Getting that backwards produces a
+    // packet that parses one block short and then reads the next
+    // packet's header as message data.
+    write_be16(out, static_cast<std::uint16_t>(body_size));
+    out.insert(out.end(), body, body + body_size);
+}
+
 void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
                       hft::Price price, hft::Quantity size, hft::OrderId id,
                       hft::Nanos timestamp, hft::StockLocate locate,
