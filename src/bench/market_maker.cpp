@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    hft::feed::CaptureConfig capture;
+hft::feed::CaptureConfig capture;
     capture.record_count = records;
     // A shallow, fast-walking book. These are not arbitrary: an
     // unbounded or deep book only accumulates, never clears a price
@@ -73,18 +73,45 @@ int main(int argc, char** argv) {
     // liquid US equity actually looks like. Deeper is not more
     // realistic here, it is just a wider book to quote into.
     capture.price_levels = 4;
-    capture.max_live_orders = 24;
-    capture.drift_raw = 200;
+    // Live-order cap and reversion were both wrong until the Add Order
+    // decoder was corrected, and the reason is worth recording.
+    //
+    // The decoder used to read the SHARE COUNT as the price, so the
+    // "price" the book held was a random number in [1, 500] that
+    // changed on every add. The touch appeared to move constantly, the
+    // volatility estimate was comfortably non-zero, and every strategy
+    // number looked healthy. It was all downstream of a misread field.
+    //
+    // With real prices, 24 live orders across 4 levels a side keeps the
+    // touch permanently populated: it never clears, so the mid never
+    // moves, so volatility is zero, so the A-S risk term is zero, so
+    // the quoted spread collapses below a tick and the strategy quotes
+    // nothing at all. Measured: the mid moved on 0.7% of observations
+    // and sigma was exactly 0.
+    //
+    // Six live orders over 4 levels a side means levels do empty and the
+    // touch does reprice -- about 4.3% of observations -- which is the
+    // precondition for the strategy having anything to price at all.
+    capture.max_live_orders = 6;
+    // Reversion of 64 pulls the walk back toward the anchor by 1/64 of
+    // the distance every single record, which pins it in place no
+    // matter how large the drift. Four lets it travel.
+    capture.reversion = 4;
+    capture.drift_raw = 400;
     hft::feed::CaptureStats stats{};
     const std::vector<std::uint8_t> data = hft::feed::generate_capture(capture, &stats);
 
     strategy::MarketMakerConfig mm_config;
     mm_config.markout_horizon = horizon;
-    // gamma is in 1/price units. Sized so that one tick of inventory
-    // skews the reservation by roughly one tick: risk_term is
-    // gamma*sigma^2*horizon, and with sigma near 13 raw/tick and a
-    // 250-tick horizon that is 40,000*gamma, so 2.5e-3 gives about
-    // 100 raw units, one tick.
+    // gamma is in 1/price units, and the risk term is
+    // gamma*sigma^2*horizon_ticks. On this capture sigma lands near 40
+    // raw units per tick with a 250-tick horizon, so the term is
+    // gamma*1.6e5*250 = 4.0e7*gamma; at 2.5e-3 that is about 1.0e5 raw
+    // units, i.e. the quoted half-spread lands around two to three ticks
+    // and is set by the risk term rather than by the tick constraint.
+    // That matters: a half-spread pinned below one tick is the A-S
+    // model being overridden by the exchange's tick grid, and the
+    // interesting behaviour is invisible.
     //
     // These are illustrative, not fitted. Fitting gamma to this
     // capture would be fitting it to the noise and would flatter every
