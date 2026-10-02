@@ -384,16 +384,16 @@ int main(int argc, char** argv) {
                 "   price of a larger copy. The crossing point is the result.)\n\n");
 
     const RunResult k1 = two_threaded<1>(data, pool, decoder_core, book_core);
-    report("2 threads, K=1", k1, baseline, false);
+    report("2 threads, K=1", k1, baseline, false, kRingCapacity * sizeof(Batch<1>));
 
     const RunResult k8 = two_threaded<8>(data, pool, decoder_core, book_core);
-    report("2 threads, K=8", k8, baseline, false);
+    report("2 threads, K=8", k8, baseline, false, kRingCapacity * sizeof(Batch<8>));
 
     const RunResult k32 = two_threaded<32>(data, pool, decoder_core, book_core);
-    report("2 threads, K=32", k32, baseline, false);
+    report("2 threads, K=32", k32, baseline, false, kRingCapacity * sizeof(Batch<32>));
 
     const RunResult k128 = two_threaded<128>(data, pool, decoder_core, book_core);
-    report("2 threads, K=128", k128, baseline, false);
+    report("2 threads, K=128", k128, baseline, false, kRingCapacity * sizeof(Batch<128>));
 
     // A checksum mismatch invalidates the row it appears on. Reporting a
     // speed for a pipeline that corrupted the book would be the worst
