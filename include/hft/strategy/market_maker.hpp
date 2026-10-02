@@ -287,8 +287,12 @@ private:
     bool bid_live_ = true;
     bool ask_live_ = true;
     std::uint64_t observations_ = 0;
-    std::uint64_t two_sided_ = 0;
+std::uint64_t two_sided_ = 0;
     std::uint64_t one_sided_ = 0;
+    /// Times the two-sided mid changed value. See `mid_moves()`.
+    std::uint64_t mid_moves_ = 0;
+    Price last_observed_mid_{};
+    bool have_mid_ = false;
     std::uint64_t quotes_ = 0;
     std::uint64_t fills_ = 0;
     std::uint64_t fill_checks_ = 0;
