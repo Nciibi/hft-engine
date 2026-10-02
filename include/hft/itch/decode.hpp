@@ -162,6 +162,47 @@ struct BrokenTrade {
     OrderId match = kInvalidOrderId;
 };
 
+/// ITCH 'P', Trade (Non-Cross). Verified against section 1.5.1.
+///
+/// The tag is 'P'. An earlier revision of this repository listed it as
+/// 'T', which no version of TotalView-ITCH 5.0 uses -- see the note on
+/// `off::kTradeSize`.
+///
+/// Reported for non-displayed order types: no Add Order is generated
+/// for such an order, so a Trade message is the only evidence that one
+/// matched. It follows that this message arrives with `id` legitimately
+/// ZERO on the binary feeds ("Nasdaq will populate the Order Reference
+/// Number field ... as zero"), which is why an order reference of zero
+/// is a value to carry rather than reject here. The specification states
+/// these messages do not affect the book, so the apply layer does not
+/// touch it.
+struct Trade {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    OrderId id = kInvalidOrderId;
+    std::uint8_t side = 0;   ///< 'B' or 'S'
+    Quantity shares{};
+    Price price{};
+    OrderId match = kInvalidOrderId;
+};
+
+/// ITCH 'Q', Cross Trade. Verified against section 1.5.2.
+///
+/// Note the share count is EIGHT bytes here, against four in every
+/// other message in this file. A cross prints far more volume than a
+/// single execution, and getting that width wrong shifts every
+/// subsequent field.
+struct CrossTrade {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    std::uint64_t shares = 0;
+    Price price{};
+    OrderId match = kInvalidOrderId;
+    std::uint8_t cross_type = 0;  ///< 'O' opening, 'C' closing, 'H' halt/IPO
+};
+
 using MessageBody = std::variant<AddOrder, OrderExecuted, OrderExecutedAtPrice, OrderCancel,
                                  OrderDelete, OrderReplace, BrokenTrade, Trade, CrossTrade>;
 
