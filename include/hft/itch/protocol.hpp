@@ -244,6 +244,23 @@ static_assert(off::order_replace_price == off::order_replace_shares + 4,
               "Order Replace price follows the shares");
 static_assert(off::kBrokenTradeSize == 19, "ITCH Broken Trade body is 19 bytes (spec 4.5.3)");
 static_assert(off::broken_trade_match == 11, "Broken Trade match number sits at offset 11");
+static_assert(off::kTradeSize == 44, "ITCH Trade (non-cross) body is 44 bytes (spec 1.5.1)");
+static_assert(off::trade_id == 11, "Trade order reference sits at offset 11");
+static_assert(off::trade_side == 19, "Trade side indicator sits at offset 19");
+static_assert(off::trade_shares == 20, "Trade shares sit at offset 20");
+static_assert(off::trade_stock == 24, "Trade stock symbol occupies offset 24");
+static_assert(off::trade_price == 32, "Trade price sits at offset 32");
+static_assert(off::trade_match == 36, "Trade match number sits at offset 36");
+static_assert(off::kCrossTradeSize == 40, "ITCH Cross Trade body is 40 bytes (spec 1.5.2)");
+static_assert(off::cross_shares == 11, "Cross Trade shares sit at offset 11");
+static_assert(off::cross_stock == 19, "Cross Trade stock symbol occupies offset 19");
+static_assert(off::cross_price == 27, "Cross Trade price sits at offset 27");
+static_assert(off::cross_match == 31, "Cross Trade match number sits at offset 31");
+static_assert(off::cross_type == 39, "Cross Trade cross type sits at offset 39");
+static_assert(off::trade_stock == off::trade_shares + off::kSharesSize,
+              "the Trade stock symbol follows its share count");
+static_assert(off::cross_stock == off::cross_shares + 8,
+              "the Cross Trade share count is EIGHT bytes, unlike every other message");
 static_assert(off::kOrderReplaceSize == off::order_replace_price + 4,
               "the Order Replace body ends after the price");
 
