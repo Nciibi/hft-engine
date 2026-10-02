@@ -89,6 +89,7 @@ Three things are now true that were not:
 | Adverse selection: markout, effective/realised spread, toxicity | done |
 | Order Replace (U) decode | done |
 | Broken Trade (B) decode | done |
+| Trade (P) and Cross Trade (Q) decode | done |
 | MoldUDP64 64-bit sequence gap detection | done |
 | SPSC lock-free ring buffer | done |
 | Cache-line isolation, cache-line padded indices | done |
@@ -125,8 +126,8 @@ Going back to the source found two things:
   clearly-erroneous policy — see the note under
   [What this is not](#what-this-is-not).
 
-Verified: **342 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
-sharding = 745 checks**. One of those unit checks is a hand-built,
+Verified: **374 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
+sharding = 777 checks**. One of those unit checks is a hand-built,
 byte-exact Add Order frame decoded without the generator, because
 self-consistency testing is what let the price/size mix-up survive; see
 [The bug that mattered](#the-bug-that-mattered). Order Replace and
