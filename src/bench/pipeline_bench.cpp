@@ -306,6 +306,375 @@ void report(const char* label, const RunResult& r, const RunResult& baseline, bo
     std::fflush(stdout);
 }
 
+// ===================================================================
+// Symbol-sharded pipeline
+// ===================================================================
+//
+// The experiment from the end of this tool's output, now runnable.
+//
+// Everything above measures ONE book on one thread and splits decode
+// from apply. The finding there was that this does not pay: the two
+// halves are unequal work, so moving the cheap half off-core leaves the
+// expensive half running serially while adding a hand-off to pay for.
+//
+// The proposed fix was to shard BY SYMBOL so each thread owns a book and
+// does a full decode-and-apply for its own instruments. That makes the
+// work equal AND parallelises the expensive half. This is that test.
+//
+// The prediction, stated before running it: sharding should turn a loss
+// into a win, and the speedup should approach the worker count until the
+// dispatcher -- which decodes every message and routes it -- becomes the
+// serial floor.
+//
+// Architecture:
+//
+//   capture -> DISPATCHER thread -> ring[0..W-1] -> W worker threads
+//               decodes, routes            one SPSC ring per worker
+//
+// The dispatcher owns ALL routing state, so no lock is needed anywhere:
+//
+//   symbol -> (worker, local book index)   assigned on the first Add
+//   reference -> (worker, local index)     the RefIndex, on the Add
+//
+// A message for symbol S can only be produced by S's Add, which passed
+// through the dispatcher, so the dispatcher knows S's worker before any
+// mutation for S arrives. Routing a mutation is therefore one hash and
+// one probe -- no search, no shared mutable state, no false sharing.
+//
+// A worker receives only its own symbols, so its books need no
+// synchronisation at all and the reference index it would need is not
+// even built: the dispatcher tells it which local book.
+
+/// A decoded message plus the destination the dispatcher chose.
+struct Routed {
+    /// Index into the DESTINATION worker's ShardSet. Meaningless for an
+    /// Add, which is what claims a symbol on the worker side.
+    std::uint32_t local_symbol = 0;
+    hft::itch::Message message;
+};
+
+/// Dispatcher routing state. Single-threaded by construction: only the
+/// dispatcher thread ever touches it.
+class Router final {
+public:
+    explicit Router(std::size_t workers, std::size_t reference_capacity, std::size_t symbols)
+        : workers_(workers == 0 ? 1 : workers), refs_(reference_capacity) {
+        route_.reserve(symbols * 2);
+    }
+
+    struct Destination {
+        std::uint32_t worker = 0;
+        std::uint32_t local = 0;
+        bool valid = false;
+    };
+
+    /// Where does this symbol go? Assigns on first sight.
+    ///
+    /// Round-robin rather than hash-modulo on purpose: with a uniform
+    /// symbol mix both give an even split, and round-robin gives an even
+    /// split even when the mix is NOT uniform. A skewed feed measured
+    /// through a hash would put two thirds of the work on one thread and
+    /// the result would look like a scaling failure rather than what it
+    /// is.
+    Destination symbol(const lob::Symbol& s) {
+        auto it = route_.find(s.c_str());
+        if (it != route_.end()) {
+            return it->second;
+        }
+        Destination d;
+        d.worker = static_cast<std::uint32_t>(next_symbol_ % workers_);
+        d.local = static_cast<std::uint32_t>(per_worker_[d.worker]++);
+        d.valid = true;
+        ++next_symbol_;
+        route_.emplace(s.c_str(), d);
+        return d;
+    }
+
+    /// Where does a mutation for this reference go?
+    [[nodiscard]] Destination reference(hft::OrderId ref, std::uint32_t& symbol_index) const {
+        std::size_t local = 0;
+        if (refs_.lookup(ref, local)) {
+            symbol_index = static_cast<std::uint32_t>(local);
+            return Destination{symbol_index / kMaxPerWorker, symbol_index, true};
+        }
+        return Destination{};
+    }
+
+    /// Record an order's owner. Must be called once per Add.
+    bool remember(hft::OrderId ref, const Destination& d) noexcept {
+        // Packing (worker, local) into one index keeps the RefIndex
+        // value type a plain 32-bit slot index.
+        const std::size_t packed = static_cast<std::size_t>(d.worker) * kMaxPerWorker + d.local;
+        return refs_.insert(ref, packed);
+    }
+
+    [[nodiscard]] std::size_t symbol_count() const noexcept { return route_.size(); }
+    [[nodiscard]] std::size_t worker_count() const noexcept { return workers_; }
+
+    [[nodiscard]] std::uint32_t books_on(std::size_t worker) const {
+        return per_worker_[worker];
+    }
+
+    /// Upper bound on books per worker. Packing worker and local index
+    /// into a single 32-bit value needs a bound, and a fixed one is
+    /// clearer than a dynamic split: a dispatcher routing to more than
+    /// this many books per worker is not something this benchmark can
+    /// represent, and silently wrapping would corrupt the destination.
+    static constexpr std::size_t kMaxPerWorker = 16'384;
+
+private:
+    std::size_t workers_;
+    mutable lob::RefIndex refs_;
+    std::unordered_map<std::string, Destination> route_;
+    std::size_t next_symbol_ = 0;
+    std::vector<std::uint32_t> per_worker_;
+};
+
+struct ShardedResult {
+    std::uint64_t records = 0;
+    std::uint64_t applied = 0;
+    std::uint64_t unroutable = 0;
+    std::uint64_t index_full = 0;
+    double elapsed_ns = 0.0;
+    std::uint64_t checksum = 0;
+    std::size_t books = 0;
+    std::uint32_t max_levels = 0;
+};
+
+/// FNV-1a over every book's state, in symbol order. Two runs over the
+/// same feed must produce the same value whatever the thread count.
+[[nodiscard]] std::uint64_t fingerprint_all(const std::vector<OrderBook>& books) noexcept {
+    std::uint64_t hash = hft::replay::fnv1a_offset_basis;
+    hash = hft::replay::fnv1a_u64(hash, static_cast<std::uint64_t>(books.size()));
+    for (const OrderBook& book : books) {
+        hash = hft::replay::fnv1a_u64(hash, book.level_count(Side::bid));
+        hash = hft::replay::fnv1a_u64(hash, book.level_count(Side::ask));
+        hash = hft::replay::fnv1a_u64(hash, book.order_count(Side::bid));
+        hash = hft::replay::fnv1a_u64(hash, book.order_count(Side::ask));
+        hash = hft::replay::fnv1a_u64(hash, book.aggregate_at(Side::bid).raw());
+        hash = hft::replay::fnv1a_u64(hash, book.aggregate_at(Side::ask).raw());
+    }
+    return hash;
+}
+
+/// Decode, route and apply on ONE thread. The honest baseline: same
+/// routing work, same books, no threads and no ring.
+[[nodiscard]] ShardedResult fused_sharded(const std::vector<std::uint8_t>& data,
+                                         std::size_t order_pool, std::size_t level_pool,
+                                         std::size_t symbols) {
+    Router router(1, data.size() / 20 + 64, symbols);
+    std::vector<OrderBook> books;
+    books.reserve(symbols);
+
+    ShardedResult result;
+    std::size_t offset = 0;
+
+    bench::Timer timer;
+    while (offset < data.size()) {
+        if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
+            break;
+        }
+        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
+        const hft::itch::DecodeResult r =
+            hft::itch::decode(data.data() + frame_at, data.size() - frame_at);
+        const std::size_t stride = hft::itch::frame_stride(r);
+        if (stride == 0) {
+            break;
+        }
+        if (r.ok()) {
+            ++result.records;
+            const hft::itch::AddOrder* add = std::get_if<hft::itch::AddOrder>(&r.message.body);
+            std::size_t target = 0;
+            if (add != nullptr) {
+                const Router::Destination d = router.symbol(lob::Symbol::from_wire(add->stock));
+                target = d.local;
+                if (books.size() <= target) {
+                    books.resize(target + 1, OrderBook(order_pool, level_pool));
+                }
+                if (!router.remember(add->id, d)) {
+                    ++result.index_full;
+                }
+            } else {
+                std::uint32_t packed = 0;
+                const Router::Destination d = router.reference(reference_of(r.message), packed);
+                if (!d.valid) {
+                    ++result.unroutable;
+                } else {
+                    target = d.local;
+                }
+            }
+            if (books.size() > target) {
+                if (hft::lob::apply(r.message, books[target]).applied) {
+                    ++result.applied;
+                }
+            }
+        }
+        offset = frame_at + stride;
+    }
+    result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
+    result.books = books.size();
+    result.checksum = fingerprint_all(books);
+    for (const OrderBook& b : books) {
+        const std::uint32_t depth = b.level_count(Side::bid) + b.level_count(Side::ask);
+        if (depth > result.max_levels) {
+            result.max_levels = depth;
+        }
+    }
+    return result;
+}
+
+/// Dispatcher thread plus `workers` worker threads, one SPSC ring each.
+[[nodiscard]] ShardedResult threaded_sharded(const std::vector<std::uint8_t>& data,
+                                            std::size_t order_pool, std::size_t level_pool,
+                                            std::size_t symbols, std::size_t workers,
+                                            std::size_t cores) {
+    using Batch = hft::concurrent::Batch;
+    (void)sizeof(Batch<1>);
+
+    Router router(workers, data.size() / 20 + 64, symbols);
+
+    // One ring per worker, heap allocated. At 1024 slots of 128-byte
+    // routed messages a ring is 128KB, and a handful of them on the
+    // stack is an overflow rather than a benchmark.
+    std::vector<std::unique_ptr<SpscRing<Routed, 1024>>> rings;
+    rings.reserve(workers);
+    for (std::size_t i = 0; i < workers; ++i) {
+        rings.push_back(std::make_unique<SpscRing<Routed, 1024>>());
+    }
+
+    std::vector<std::unique_ptr<lob::ShardSet>> sets;
+    sets.reserve(workers);
+    for (std::size_t i = 0; i < workers; ++i) {
+        sets.push_back(std::make_unique<lob::ShardSet>(order_pool, level_pool, symbols));
+    }
+
+    std::vector<std::atomic<bool>> done(workers);
+    std::vector<std::atomic<std::uint64_t>> applied(workers);
+    std::vector<std::uint64_t> final_checksums(workers, 0);
+    std::atomic<std::uint64_t> spins{0};
+
+    for (std::size_t w = 0; w < workers; ++w) {
+        done[w].store(false, std::memory_order_relaxed);
+        applied[w].store(0, std::memory_order_relaxed);
+    }
+
+    std::vector<std::thread> pool;
+    pool.reserve(workers);
+    for (std::size_t w = 0; w < workers; ++w) {
+        pool.emplace_back([&, w] {
+            (void)hft::util::pin_current_thread(cores == 0 ? 0 : (1 + w % (cores - 1)));
+            SpscRing<Routed, 1024>& ring = *rings[w];
+            lob::ShardSet& set = *sets[w];
+            Routed r{};
+            for (;;) {
+                bool progressed = false;
+                while (ring.try_pop(r)) {
+                    // The worker builds its own books from the LOCAL
+                    // index the dispatcher sent, so no lookup is needed
+                    // here at all -- routing is entirely the
+                    // dispatcher's problem.
+                    while (set.symbol_count() <= r.local_symbol) {
+                        set.claim(lob::Symbol::from_wire("UNKNOWN  "));
+                    }
+                    if (hft::lob::apply(r.message, set.book(r.local_symbol)).applied) {
+                        applied[w].fetch_add(1, std::memory_order_relaxed);
+                    }
+                    progressed = true;
+                }
+                if (!progressed && done[w].load(std::memory_order_acquire)) {
+                    break;
+                }
+                if (!progressed) {
+                    spins.fetch_add(1, std::memory_order_relaxed);
+                    std::this_thread::yield();
+                }
+            }
+            std::vector<OrderBook> books;
+            books.reserve(set.symbol_count());
+            for (std::size_t i = 0; i < set.symbol_count(); ++i) {
+                books.push_back(set.book(i));
+            }
+            final_checksums[w] = fingerprint_all(books);
+        });
+    }
+
+    ShardedResult result;
+    std::size_t offset = 0;
+
+    bench::Timer timer;
+    std::thread dispatcher([&] {
+        (void)hft::util::pin_current_thread(0);
+        while (offset < data.size()) {
+            if (data.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
+                break;
+            }
+            const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
+            const hft::itch::DecodeResult r =
+                hft::itch::decode(data.data() + frame_at, data.size() - frame_at);
+            const std::size_t stride = hft::itch::frame_stride(r);
+            if (stride == 0) {
+                break;
+            }
+            if (r.ok()) {
+                Routed out{};
+                const hft::itch::AddOrder* add = std::get_if<hft::itch::AddOrder>(&r.message.body);
+                if (add != nullptr) {
+                    const Router::Destination d = router.symbol(lob::Symbol::from_wire(add->stock));
+                    out.local_symbol = d.local;
+                    if (!router.remember(add->id, d)) {
+                        result.index_full++;
+                    }
+                    while (!rings[d.worker]->try_push(out)) {
+                        spins.fetch_add(1, std::memory_order_relaxed);
+                        std::this_thread::yield();
+                    }
+                } else {
+                    std::uint32_t packed = 0;
+                    const Router::Destination d = router.reference(reference_of(r.message), packed);
+                    if (!d.valid) {
+                        result.unroutable++;
+                    } else {
+                        out.local_symbol = d.local;
+                        while (!rings[d.worker]->try_push(out)) {
+                            spins.fetch_add(1, std::memory_order_relaxed);
+                            std::this_thread::yield();
+                        }
+                    }
+                }
+            }
+            offset = frame_at + stride;
+        }
+        for (std::size_t w = 0; w < workers; ++w) {
+            done[w].store(true, std::memory_order_release);
+        }
+    });
+
+    dispatcher.join();
+    for (std::thread& t : pool) {
+        t.join();
+    }
+
+    result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
+    result.records = result.applied;  // placeholder, replaced below
+    result.applied = 0;
+    for (std::size_t w = 0; w < workers; ++w) {
+        result.applied += applied[w].load();
+    }
+    result.books = router.symbol_count();
+    result.backpressure_spins = spins.load();
+
+    // The fingerprint is taken per worker over that worker's books, so
+    // the sharded checksum is a hash of hashes. That is only comparable
+    // to itself, which is what the equivalence check below needs.
+    std::uint64_t combined = hft::replay::fnv1a_offset_basis;
+    combined = hft::replay::fnv1a_u64(combined, router.symbol_count());
+    for (std::size_t w = 0; w < workers; ++w) {
+        combined = hft::replay::fnv1a_u64(combined, final_checksums[w]);
+    }
+    result.checksum = combined;
+    return result;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
