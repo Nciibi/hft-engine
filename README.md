@@ -92,8 +92,9 @@ Three things are now true that were not:
 | Cache-line isolation, cache-line padded indices | done |
 | Thread pinning and SMT topology discovery | done |
 | Mutex + `condition_variable` baseline benchmark | done |
+| Symbol sharding, ref-index routing | done |
 | Threaded pipeline equivalence check | done |
-| Multi-shard by symbol | not started |
+| Multi-shard sequencer, rebalancing, failover | not started |
 | MoldUDP64 packet framing and checksum | not started |
 
 **Order Replace is skipped on purpose.** Its field table was not
