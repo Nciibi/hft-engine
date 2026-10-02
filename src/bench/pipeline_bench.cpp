@@ -490,6 +490,7 @@ struct ShardedResult {
     std::uint64_t applied = 0;
     std::uint64_t unroutable = 0;
     std::uint64_t index_full = 0;
+    std::uint64_t backpressure_spins = 0;
     double elapsed_ns = 0.0;
     std::uint64_t checksum = 0;
     std::size_t books = 0;
