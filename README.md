@@ -1,4 +1,4 @@
-﻿# HFT Engine
+# HFT Engine
 
 A from-scratch NASDAQ TotalView-ITCH 5.0 order book and market-making
 engine in C++20. Fixed-point, arena-backed, zero allocation on the hot

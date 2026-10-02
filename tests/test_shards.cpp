@@ -1,4 +1,4 @@
-﻿// Tests for symbol sharding.
+// Tests for symbol sharding.
 //
 // The thing being tested is ROUTING, and routing is the part of a
 // multi-symbol book that can be wrong without anything crashing. A

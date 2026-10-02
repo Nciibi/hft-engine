@@ -1,4 +1,4 @@
-﻿// SPSC ring benchmark, against a mutex + condition_variable baseline.
+// SPSC ring benchmark, against a mutex + condition_variable baseline.
 //
 // What is being compared
 // ---------------------

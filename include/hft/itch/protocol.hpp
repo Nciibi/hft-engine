@@ -1,4 +1,4 @@
-﻿// NASDAQ TotalView-ITCH 5.0 wire protocol.
+// NASDAQ TotalView-ITCH 5.0 wire protocol.
 //
 // Every offset here is a byte offset from the START OF THE MESSAGE
 // BODY, which includes the one-byte message type tag. The framing

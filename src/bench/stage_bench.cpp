@@ -1,4 +1,4 @@
-﻿// Per-stage latency, at two book depths.
+// Per-stage latency, at two book depths.
 //
 // What this measures
 // ------------------

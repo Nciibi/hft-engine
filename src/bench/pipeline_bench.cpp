@@ -1,4 +1,4 @@
-﻿// Market data pipeline: one thread versus two, with a batching sweep.
+// Market data pipeline: one thread versus two, with a batching sweep.
 //
 // What this measures
 // ------------------
