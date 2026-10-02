@@ -461,10 +461,16 @@ Internally-consistent-but-wrong is a real and underappreciated failure
 mode: it defeats differential testing, because both sides of the
 comparison share the error.
 
-**Order Replace is skipped rather than guessed.** Its field table is not
-verified, and an unverified offset on a live feed produces a decoder that
-confidently misreads it. A skipped message is recoverable; wrong bytes
-are not.
+**Skip rather than guess was the right rule, and it was applied to a
+message that could have been verified.** Order Replace sat on the
+skip-by-length path for most of this project's life because its field
+table could not be confirmed. It could be — and going to the
+specification found the generator writing it four bytes too long, with
+the same phantom order-entry fields that broke Add Order. An unverified
+offset on a live feed produces a decoder that confidently misreads it;
+a skipped message is recoverable and wrong bytes are not. The rule was
+sound. The gap was that "cannot verify" had quietly become "assume it is
+not knowable", which is a different claim and a weaker one.
 
 **Determinism is a feature.** Same capture, same book, same checksum, at
 any optimisation level on any host. This is checked, not claimed:
