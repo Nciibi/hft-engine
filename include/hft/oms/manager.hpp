@@ -494,10 +494,22 @@ private:
     }
 
     /// Return a slot to the free pool. Only for terminal orders.
-    void retire(std::size_t slot) noexcept {
-        if (live_[slot] != 0) {
-            live_[slot] = 0;
-            free_slots_.push_back(slot);
+    ///
+    /// Takes `int` rather than `std::size_t` to match `lookup` and
+    /// every public entry point, so a slot index is converted in exactly
+    /// one place and the negative case is handled rather than being
+    /// converted into a huge unsigned index. Every caller reaches this
+    /// only after `lookup` returned a real order, but an out-of-range
+    /// write into `live_` is a memory corruption rather than a wrong
+    /// answer, and the guard costs one comparison.
+    void retire(int slot) noexcept {
+        if (slot < 0 || static_cast<std::size_t>(slot) >= live_.size()) {
+            return;
+        }
+        const std::size_t index = static_cast<std::size_t>(slot);
+        if (live_[index] != 0) {
+            live_[index] = 0;
+            free_slots_.push_back(index);
         }
     }
 
