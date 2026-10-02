@@ -156,9 +156,6 @@ private:
     add.side = hft::Side::bid;
     add.price = hft::Price::from_int(100);
     add.size = hft::Quantity::from_raw(100);
-    add.order_type = '2';
-    add.time_in_force = '0';
-    add.display = '1';
     for (std::size_t i = 0; i < count; ++i) {
         add.id = static_cast<hft::OrderId>(1'000'000 + i);
         add.tracking = static_cast<hft::TrackingNumber>(i & 0xFFFFu);
