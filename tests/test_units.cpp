@@ -621,34 +621,40 @@ void test_capture_round_trip() {
     bool session_ok = true;
     bool header_ok = true;
     std::size_t tiled_to = 0;
-    std::size_t base = 0;
-    while (base + itch::mold::kHeaderSize <= data.size()) {
-        if (std::memcmp(data.data() + base, config.session, itch::mold::kSessionSize) != 0) {
-            session_ok = false;
-            break;
+    {
+        feed::CaptureReader packets(data.data(), data.size());
+        const std::uint8_t* first = nullptr;
+        std::size_t count = 0;
+        std::uint64_t seq = 0;
+        for (;;) {
+            if (!packets.next_packet(first, count, seq)) {
+                break;
+            }
+            if (count == 0) {
+                header_ok = false;
+                break;
+            }
+            // Walk back from the returned frames to the header that
+            // introduced them. The frames are contiguous and begin
+            // exactly kHeaderSize bytes after it.
+            const std::size_t header_at = static_cast<std::size_t>(first - data.data()) -
+                                          itch::mold::kHeaderSize;
+            if (std::memcmp(data.data() + header_at, config.session,
+                            itch::mold::kSessionSize) != 0) {
+                session_ok = false;
+                break;
+            }
+            tiled_to = static_cast<std::size_t>(first - data.data());
+            // Sum the block lengths to find where the next packet starts.
+            std::size_t span = 0;
+            for (std::size_t b = 0; b < count; ++b) {
+                std::size_t cursor = static_cast<std::size_t>(first - data.data()) + span;
+                const std::size_t len = (static_cast<std::size_t>(data[cursor]) << 8) |
+                                        static_cast<std::size_t>(data[cursor + 1]);
+                span += itch::mold::kMessageBlockSize + len;
+            }
+            tiled_to += span;
         }
-        // Span is summed from the sizes the reader itself returned, not
-        // recomputed by indexing the buffer. Recomputing it here is how
-        // this test first corrupted the heap: it re-derived block
-        // lengths with its own arithmetic, which is exactly the thing
-        // under test, so any error in the reader was mirrored and any
-        // error in this loop was fatal. The reader's own accounting is
-        // the only measurement here that cannot disagree with itself.
-        feed::CaptureReader one(data.data() + base, data.size() - base);
-        const std::uint8_t* f = nullptr;
-        std::size_t n = 0;
-        std::size_t span = 0;
-        std::size_t blocks = 0;
-        while (one.next(f, n)) {
-            ++blocks;
-            span += n;
-        }
-        if (blocks == 0) {
-            header_ok = false;
-            break;
-        }
-        base += itch::mold::kHeaderSize + span;
-        tiled_to = base;
     }
     check(session_ok, "session id is present in every packet header");
     check(header_ok, "every packet header declares at least one block");
