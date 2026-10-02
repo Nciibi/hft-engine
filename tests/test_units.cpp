@@ -1278,6 +1278,49 @@ void test_trade_layouts_are_spec() {
     check_eq_int(static_cast<long long>(book.aggregate_at(Side::bid).raw()),
                  static_cast<long long>(before),
                  "neither a Trade nor a Cross Trade changes the book");
+
+    // The zero-valued fields the specification explicitly allows, which
+    // a decoder that validated offset 11 as an order reference would
+    // reject. Both of these are real, spec-conformant messages.
+    {
+        std::vector<std::uint8_t> zero_shares = tb;
+        put_be64(zero_shares, itch::off::cross_shares, 0);  // no cross interest
+        std::vector<std::uint8_t> q2frame;
+        hft::feed::append_frame(q2frame, zero_shares.data(), zero_shares.size());
+        const auto z = itch::decode(q2frame.data(), q2frame.size());
+        check(z.ok(), "a Cross Trade with ZERO shares decodes (insufficient interest)");
+    }
+    {
+        // A Trade whose order reference is zero, which is what the
+        // binary feeds send, plus a Broken Trade whose match number is
+        // zero. Offset 11 is not an order reference in either message,
+        // so a zero there is a value and not a missing order.
+        std::vector<std::uint8_t> t2 = tb;
+        put_be64(t2, itch::off::trade_match, 0);
+        std::vector<std::uint8_t> t2frame;
+        hft::feed::append_frame(t2frame, t2.data(), t2.size());
+        check(itch::decode(t2frame.data(), t2frame.size()).ok(),
+              "a Trade with a zero match number decodes");
+
+        std::vector<std::uint8_t> b2(itch::off::kBrokenTradeSize, 0);
+        b2[0] = 'B';
+        std::vector<std::uint8_t> b2frame;
+        hft::feed::append_frame(b2frame, b2.data(), b2.size());
+        check(itch::decode(b2frame.data(), b2frame.size()).ok(),
+              "a Broken Trade with a zero match number decodes");
+    }
+
+    // An order-keyed message with a zero order reference is still
+    // rejected: that zero really does mean "no live order", and
+    // admitting it would collide with every subsequent reference.
+    {
+        std::vector<std::uint8_t> bad_add(itch::off::kAddOrderSize, 0);
+        bad_add[0] = 'A';
+        std::vector<std::uint8_t> af;
+        hft::feed::append_frame(af, bad_add.data(), bad_add.size());
+        check(!itch::decode(af.data(), af.size()).ok(),
+              "an Add Order with a zero order reference is still rejected");
+    }
 }
 
 // ---- The other decoded message types --------------------------------
