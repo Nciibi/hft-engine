@@ -203,6 +203,28 @@ book is a number about your loop, not your engine. Reported together,
 the ratio between them is the cost of the linked-list ladder and is the
 single most load-bearing measurement in this repository.
 
+**The deep book does not reprice, and the tool says so on every run.**
+Over 2,000,000 records at 1,000 levels a side, the mid moves about 24
+times — 0.001% of observations. The cause is structural rather than a
+knob: resting orders sit at absolute prices, so a few thousand of them
+spread across a thousand-tick ladder form a wall that the nearest
+resting order does not break through. Measured across a sweep of the
+live-order cap (1 to 6 orders per level) and the reversion strength, no
+setting moved it past 0.015%.
+
+Two things were tried and rejected on that evidence. Concentrating
+liquidity toward the touch, on the theory that real books are
+front-loaded, made it **worse** — 3 to 27 mid moves against uniform's 54
+to 61, because a thick touch is a sticky touch. The shallow shape was
+genuinely mis-tuned, though, and is fixed: three orders of slack per
+level left the touch permanently occupied, so capping at one order per
+level and weakening reversion took the shallow book from 23 mid moves to
+105,001. That is why the shallow figures above are trustworthy as
+strategy-shaped measurements and the deep ones are not: at depth the
+decision stage is timing the quoting arithmetic against a frozen mid,
+which is the arithmetic and not the behaviour. The tool prints this
+distinction with the measured rate rather than a threshold.
+
 ### Correctness
 
 - `[N]` million differential operations against a naive reference model,
