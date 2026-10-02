@@ -95,8 +95,13 @@ struct ApplyResult {
                 // swallowing a tag it does not otherwise handle.
                 return ApplyResult{BookStatus::ok, true};
             } else {
-                const BookStatus s = book.remove(payload.id);
-                return ApplyResult{s, s == BookStatus::ok};
+                // 'P' Trade and 'Q' Cross Trade, like 'B', are reported
+                // execution events rather than book mutations. The
+                // specification says trade messages "do not affect the
+                // book" and may be ignored by a book builder. They are
+                // decoded so a time-and-sales or volume consumer can see
+                // them; nothing here touches the ladder.
+                return ApplyResult{BookStatus::ok, true};
             }
         },
         message.body);
