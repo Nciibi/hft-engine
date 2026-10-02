@@ -82,15 +82,24 @@ inline constexpr std::size_t kSymbolSize = 8;
 /// A stock symbol as carried on the wire: fixed width, space padded.
 ///
 /// Fixed-width rather than a `std::string` because the field is
-/// fixed-width, and comparing eight bytes with `memcmp` is both faster
-/// than comparing strings and immune to the question of what a
-/// right-padded name means. An unpadded comparison would treat
-/// "AAPL     " and "AAPL" as the same symbol, which is correct, and
-/// would also treat "AAPL " and "AAPL" as the same, which is why the
-/// padding is normalised rather than merely stored.
+/// fixed-width, and comparing eight bytes by hand is both faster than
+/// comparing strings and immune to the question of what a right-padded
+/// name means. An unpadded comparison would treat "AAPL     " and
+/// "AAPL" as the same symbol, which is correct, and would also treat
+/// "AAPL " and "AAPL" as the same, which is why the padding is
+/// normalised rather than merely stored.
+///
+/// The trailing NUL is load-bearing. `c_str()` returns a pointer the
+/// caller may hand to anything expecting a C string, and an earlier
+/// revision had `length_` in that ninth byte -- which is exactly what
+/// made `std::unordered_map<std::string, ...>` keyed on `c_str()` read
+/// past the object on every lookup, miss every time, and treat all
+/// sixty-four symbols as distinct on every Add. It cost an afternoon and
+/// one access violation, and the fix is a single character.
 class Symbol final {
 public:
     static constexpr char kPad = ' ';
+    static constexpr char kTerminator = '\0';
 
     constexpr Symbol() noexcept = default;
 
