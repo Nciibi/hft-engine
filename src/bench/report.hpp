@@ -95,6 +95,7 @@ inline void histogram_row(const char* label, const LatencyHistogram& h) {
         std::printf("  %-26s WARNING: %llu samples beyond the histogram range; p999 is censored\n",
                     "", u64(h.overflow_count()));
     }
+    std::fflush(stdout);
 }
 
 /// Cost of a single `Timer::now()` pair.
