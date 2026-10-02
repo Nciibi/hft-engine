@@ -651,6 +651,34 @@ than a failure:
   one per direction. The lesson generalises — a concurrency bug does not
   have to manifest as a hang, and the most dangerous ones are the ones
   that produce a good-looking number.
+- **A drain loop that exited on a flag it had read too early.** The
+  consumer drained the ring, found it empty, and *then* checked the
+  producer's stop flag — and the producer could push more messages and
+  set that flag in between. The consumer left with messages still
+  queued, losing roughly a sixth of the stream. The interesting part is
+  what it did next: the benchmark reported a 20% **slowdown**, and its own
+  output explained that slowdown with a plausible-sounding story about
+  load imbalance and the cost of hand-offs. The story was wrong; the
+  number was an artefact of doing less work. It survived only because it
+  fit, and it was caught only because the benchmark compares books
+  against a baseline and marks a mismatch INVALID instead of reporting
+  it as a result. The same defect had already been found and fixed once,
+  in the concurrency test's drain helper — so it now exists once, in one
+  place, with a comment explaining both failure modes.
+- **A packed routing value returned unpacked.** The sharded dispatcher
+  stored `(worker, local_index)` folded into one 32-bit word and then
+  handed the *packed* word to the worker as the local index. Every
+  mutation arrived with an index in the tens of thousands, failed the
+  bounds check, and was dropped; only the Adds were ever applied. It
+  looked like a successful speedup right up until the checksums
+  disagreed.
+- **`Symbol::c_str()` was not NUL terminated.** The ninth byte held the
+  string *length*, so a `std::unordered_map<std::string, ...>` keyed on
+  it read past the object on every lookup, missed every time, and
+  concluded that all sixty-four symbols in a multi-symbol feed were
+  distinct — so every worker claimed every book. One character, one
+  access violation, and now a regression test that reads the terminator
+  directly.
 - **The consumer drained once and exited**, before the producer had pushed
   anything, which left the producer blocked forever on a full ring. This
   is not a rare interleaving; it is the *common* one, because a freshly
