@@ -336,6 +336,12 @@ void compare_at(const std::vector<Payload>& payloads,
 }  // namespace
 
 int main(int argc, char** argv) {
+    // Line-buffered. This tool is normally run from a shell and its output
+    // is often piped to a file, and block buffering means a run that hangs
+    // or is interrupted loses every line printed before the problem. A
+    // benchmark you cannot see into is a benchmark you cannot debug.
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
+
     std::size_t messages = 2'000'000;
     std::size_t capacity = 1024;
     if (argc > 1) {
