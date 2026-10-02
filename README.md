@@ -408,10 +408,23 @@ confidently misreads it. A skipped message is recoverable; wrong bytes
 are not.
 
 **Determinism is a feature.** Same capture, same book, same checksum, at
-any optimisation level on any host. This is checked, not claimed: the
-suite builds the replay tool at `-O0`, `-O2`, `-O3` and `-Os` and
-compares. Without that property no benchmark is reproducible and no bug
-is reproducible, and a latency number that cannot be re-derived is an
+any optimisation level on any host. This is checked, not claimed:
+`scripts/determinism.sh` and `scripts/determinism.ps1` build the replay
+tool at `-O0`, `-O1`, `-O2`, `-O3`, `-Os` and `-Oz`, replay the same
+generated capture in each, and fail if a single checksum disagrees. Both
+bench scripts run it as a correctness gate, because a book checksum that
+depended on `-O` would invalidate every latency figure in this file: the
+thing being measured would not be the same program twice.
+
+That test was added after this file had been claiming it for some time.
+The `determinism` CTest runs `hft_replay` twice from a single binary,
+which proves the engine repeats within a build and proves nothing about
+the optimiser. A build with an uninitialised read that happened to zero
+itself at every level tried would have passed it. The harness was
+verified by injecting a level-dependent value and confirming it failed
+before the claim was left standing. Without that property no benchmark
+is reproducible and no bug is reproducible, and a latency number that
+cannot be re-derived is an
 anecdote.
 
 **Sequence gaps are detected, never absorbed.** A gap means the book is
