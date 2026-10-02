@@ -1,5 +1,6 @@
 #include "feed/generator.hpp"
 
+#include "hft/itch/moldudp64.hpp"
 #include "hft/itch/protocol.hpp"
 
 namespace hft::feed {
