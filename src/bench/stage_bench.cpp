@@ -66,12 +66,6 @@ namespace lob = hft::lob;
 namespace risk = hft::risk;
 namespace strategy = hft::strategy;
 
-/// A book with nothing on it.
-[[nodiscard]] const std::optional<Price>& no_price() noexcept {
-    static const std::optional<Price> empty;
-    return empty;
-}
-
 /// The two depths, named for what they are rather than for their size.
 struct BookShape {
     const char* name;
@@ -188,7 +182,7 @@ struct StageResult {
         // clock, and the whole check stays deterministic.
         now += kTickNanos;
         const risk::Decision verdict = risk_engine.check(
-            Side::bid, q.valid ? q.bid : mid, q.bid_size, now);
+            Side::bid, q.valid ? q.bid : mid, Quantity::from_raw(q.bid_size), now);
         const std::uint64_t t4 = hft::util::Timer::now();
         r.risk.record(t4 - t3);
         if (verdict.allowed()) {
