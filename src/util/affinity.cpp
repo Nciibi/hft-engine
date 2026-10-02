@@ -222,6 +222,19 @@ bool pin(std::size_t logical) noexcept {
     return groups.size();
 }
 
+/// The logical processor in `group` that is not `logical` itself.
+///
+/// Not `group[1]`: a thread placed on the upper half of a two-way SMT
+/// core would otherwise be reported as sharing its core with itself.
+[[nodiscard]] std::size_t other_in(const CoreGroup& group, std::size_t logical) noexcept {
+    for (const std::size_t member : group) {
+        if (member != logical) {
+            return member;
+        }
+    }
+    return logical;
+}
+
 }  // namespace
 
 std::size_t logical_processor_count() noexcept { return count_logical(); }
