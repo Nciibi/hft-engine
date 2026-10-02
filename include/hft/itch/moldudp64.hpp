@@ -176,11 +176,18 @@ public:
             exhausted_ = true;
             return nullptr;
         }
+        // The body starts AFTER the two length bytes, and the cursor is
+        // advanced past the whole block. Capturing the body pointer
+        // before advancing matters: returning `data_` after the
+        // increment hands the caller a pointer to the NEXT block's
+        // length prefix, which parses as a frame with the wrong length
+        // and fails in a decoder far from here.
+        const std::uint8_t* body = data_ + kMessageBlockSize;
         data_ += kMessageBlockSize + length;
         remaining_bytes_ -= kMessageBlockSize + length;
         --remaining_count_;
         body_size = length;
-        return data_;
+        return body;
     }
 
     /// Blocks still to be read according to the header.
