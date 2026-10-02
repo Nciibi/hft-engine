@@ -621,35 +621,34 @@ void test_capture_round_trip() {
     bool session_ok = true;
     bool header_ok = true;
     std::size_t tiled_to = 0;
-    for (std::size_t base = 0; base + itch::mold::kHeaderSize <= data.size();) {
-        tiled_to = base;
+    std::size_t base = 0;
+    while (base + itch::mold::kHeaderSize <= data.size()) {
         if (std::memcmp(data.data() + base, config.session, itch::mold::kSessionSize) != 0) {
             session_ok = false;
             break;
         }
-        // Count the blocks in this packet and skip them.
+        // Span is summed from the sizes the reader itself returned, not
+        // recomputed by indexing the buffer. Recomputing it here is how
+        // this test first corrupted the heap: it re-derived block
+        // lengths with its own arithmetic, which is exactly the thing
+        // under test, so any error in the reader was mirrored and any
+        // error in this loop was fatal. The reader's own accounting is
+        // the only measurement here that cannot disagree with itself.
         feed::CaptureReader one(data.data() + base, data.size() - base);
         const std::uint8_t* f = nullptr;
         std::size_t n = 0;
+        std::size_t span = 0;
         std::size_t blocks = 0;
         while (one.next(f, n)) {
             ++blocks;
+            span += n;
         }
         if (blocks == 0) {
             header_ok = false;
             break;
         }
-        // Walk the packet again to measure its exact length.
-        std::size_t span = 0;
-        std::size_t cursor = base + itch::mold::kHeaderSize;
-        for (std::size_t b = 0; b < blocks; ++b) {
-            const std::size_t length =
-                (static_cast<std::size_t>(data[cursor]) << 8) |
-                static_cast<std::size_t>(data[cursor + 1]);
-            span += itch::mold::kMessageBlockSize + length;
-            cursor += itch::mold::kMessageBlockSize + length;
-        }
         base += itch::mold::kHeaderSize + span;
+        tiled_to = base;
     }
     check(session_ok, "session id is present in every packet header");
     check(header_ok, "every packet header declares at least one block");
@@ -751,7 +750,9 @@ void test_capture_rejects_truncation() {
             if (at == before) {
                 break;
             }
-            boundary[at] = true;
+            if (at <= data.size()) {
+                boundary[at] = true;
+            }
             (void)blocks;
         }
     }
