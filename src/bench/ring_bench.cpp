@@ -31,6 +31,17 @@
 // Merging them would produce one tidy table of numbers that are wrong in
 // opposite directions, which is worse than two honest tables.
 //
+// A note on the round-trip measurement, because it is the one place
+// this tool is easy to get wrong: the exchange is bidirectional, and a
+// ring is not. One SPSC ring has exactly one producer and one consumer,
+// so a request/response exchange needs TWO of them -- one per direction.
+// An earlier revision of this file pushed the token down one ring and
+// waited for it to come back up the same one, which quietly made both
+// threads consumers of a single-producer queue. It did not deadlock; it
+// reported a plausible, wrong, far-too-fast number. The two-channel
+// shape below is the fix, and it is why the channels are named types
+// rather than a single object passed twice.
+//
 // Usage:
 //   hft_ring_bench [messages] [ring_capacity]
 
@@ -39,6 +50,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -57,9 +69,32 @@ using hft::concurrent::SpscRing;
 /// carrying a `Message` moves `sizeof(Message)`. Those are different
 /// costs, and quoting the first while describing the second is how a
 /// benchmark ends up not measuring the thing it claims to. The decoder's
-/// own output type is used so the figure is the one a real market-data
-/// handler would see. Its size is printed rather than assumed.
+// own output type is used so the figure is the one a real market-data
+// handler would see. Its size is printed rather than assumed.
 using Payload = hft::itch::Message;
+
+/// One-directional channel: the lock-free implementation.
+template <std::size_t N>
+class RingChannel final {
+public:
+    void push(const Payload& value) {
+        // Spin rather than block. The ring has no blocking interface by
+        // design -- that is the whole difference under test -- so a full
+        // channel waits here.
+        while (!ring_.try_push(value)) {
+            std::this_thread::yield();
+        }
+    }
+
+    void pop(Payload& out) {
+        while (!ring_.try_pop(out)) {
+            std::this_thread::yield();
+        }
+    }
+
+private:
+    SpscRing<Payload, N> ring_;
+};
 
 /// Blocking queue with the same capacity semantics as the ring.
 ///
@@ -99,6 +134,19 @@ private:
     std::size_t count_ = 0;
 };
 
+/// One-directional channel: the baseline implementation. Same interface
+/// as `RingChannel`, which is what lets the measurement below be written
+/// once and instantiated twice.
+template <std::size_t N>
+class MutexChannel final {
+public:
+    void push(const Payload& value) { queue_.push(value); }
+    void pop(Payload& out) { queue_.pop(out); }
+
+private:
+    MutexQueue<N> queue_;
+};
+
 /// Pre-built payload sequence, so the producer is not paying to build
 /// messages inside the timed region and neither run measures allocation.
 [[nodiscard]] std::vector<Payload> make_payloads(std::size_t count) {
@@ -124,6 +172,8 @@ struct ThroughputResult {
     double elapsed_ns = 0.0;
     std::uint64_t spins = 0;
     bool consistent = false;
+    std::string producer_placement;
+    std::string consumer_placement;
 };
 
 // ---- Throughput: wall clock, no per-operation clock reads ------------
@@ -135,10 +185,11 @@ template <std::size_t N>
     SpscRing<Payload, N> ring;
     ThroughputResult result;
     std::uint64_t consumed = 0;
-    std::uint64_t spins = 0;
+    std::atomic<std::uint64_t> spins{0};
 
     std::thread consumer([&] {
         (void)hft::util::pin_current_thread(consumer_core);
+        result.consumer_placement = hft::util::describe_affinity("consumer");
         Payload out;
         while (consumed < payloads.size()) {
             if (ring.try_pop(out)) {
@@ -148,18 +199,19 @@ template <std::size_t N>
                 // is where its idle time goes. Yielding rather than
                 // sleeping: a timed sleep would floor the measured
                 // throughput at the sleep interval.
-                ++spins;
+                spins.fetch_add(1, std::memory_order_relaxed);
                 std::this_thread::yield();
             }
         }
     });
 
-    bench::Timer timer;
+    Timer timer;
     std::thread producer([&] {
         (void)hft::util::pin_current_thread(producer_core);
+        result.producer_placement = hft::util::describe_affinity("producer");
         for (const Payload& p : payloads) {
             while (!ring.try_push(p)) {
-                ++spins;
+                spins.fetch_add(1, std::memory_order_relaxed);
                 std::this_thread::yield();
             }
         }
@@ -169,7 +221,7 @@ template <std::size_t N>
     consumer.join();
     result.elapsed_ns = static_cast<double>(timer.elapsed_ns());
     result.messages = consumed;
-    result.spins = spins;
+    result.spins = spins.load();
     result.consistent = consumed == payloads.size();
     return result;
 }
@@ -178,22 +230,24 @@ template <std::size_t N>
 [[nodiscard]] ThroughputResult mutex_throughput(const std::vector<Payload>& payloads,
                                                 std::size_t producer_core,
                                                 std::size_t consumer_core) {
-    MutexQueue<N> queue;
+    MutexChannel<N> channel;
     ThroughputResult result;
 
     std::thread consumer([&] {
         (void)hft::util::pin_current_thread(consumer_core);
+        result.consumer_placement = hft::util::describe_affinity("consumer");
         Payload out;
         for (std::size_t i = 0; i < payloads.size(); ++i) {
-            queue.pop(out);
+            channel.pop(out);
         }
     });
 
-    bench::Timer timer;
+    Timer timer;
     std::thread producer([&] {
         (void)hft::util::pin_current_thread(producer_core);
+        result.producer_placement = hft::util::describe_affinity("producer");
         for (const Payload& p : payloads) {
-            queue.push(p);
+            channel.push(p);
         }
     });
 
@@ -205,28 +259,36 @@ template <std::size_t N>
     return result;
 }
 
-// ---- Latency: one-way hand-off, clock pair per operation ------------
+// ---- Latency: round trip over two channels, clock pair per operation --
 
 struct LatencyResult {
     bench::LatencyHistogram one_way;
     std::uint64_t round_trips = 0;
     bool echoed_correctly = true;
+    std::string producer_placement;
+    std::string consumer_placement;
 };
 
-/// Round trip: push a token, wait for it to come back, halve the elapsed
-/// time.
+/// Request/response over two one-directional channels.
 ///
-/// Half is a deliberate assumption, not a measurement of one direction.
-/// It is the standard way to estimate one-way latency from a two-party
-/// exchange, and it is an UPPER BOUND here: the round trip contains
-/// both cache-line transfers plus the wakeup path, and each side's own
-/// work is in there too.
-template <std::size_t N, bool kUseMutex>
-[[nodiscard]] LatencyResult ping_pong(std::size_t iterations, std::size_t producer_core,
-                                       std::size_t consumer_core) {
+/// Half the elapsed time is reported as the one-way cost. Half is a
+/// deliberate assumption, not a measurement of one direction: it is the
+/// standard way to estimate one-way latency from a two-party exchange,
+/// and it is an UPPER BOUND, because the round trip contains both
+/// cache-line transfers, both wakeup paths, and each side's own work.
+///
+/// The consumer runs exactly as many iterations as the producer, so no
+/// stop flag is needed and none of the shutdown races a stop flag
+/// introduces have to be reasoned about. Each token is echoed once and
+/// consumed once.
+template <typename Forward, typename Backward>
+[[nodiscard]] LatencyResult run_ping_pong(std::size_t iterations, std::size_t producer_core,
+                                          std::size_t consumer_core) {
     bench::LatencyHistogram hist(1, 4'000'000);
-    SpscRing<Payload, N> ring;
-    MutexQueue<N> mutex_queue;
+    Forward forward;
+    Backward backward;
+    std::atomic<bool> echoed_correctly{true};
+    LatencyResult result;
 
     // The token carries the iteration number so the echo can be checked
     // for identity. A hand-off benchmark that only counts messages
@@ -234,59 +296,27 @@ template <std::size_t N, bool kUseMutex>
     Payload token;
     hft::itch::AddOrder& token_add = std::get<hft::itch::AddOrder>(token.body);
 
-    std::atomic<bool> echoed_correctly{true};
-
-    // The consumer runs exactly as many iterations as the producer, so
-    // no stop flag is needed and none of the shutdown races that a stop
-    // flag introduces have to be reasoned about. Each token is echoed
-    // once and consumed once.
     std::thread consumer([&] {
         (void)hft::util::pin_current_thread(consumer_core);
-        std::fprintf(stderr, "[dbg] consumer start iterations=%zu mutex=%d\n", iterations,
-                     kUseMutex ? 1 : 0);
+        result.consumer_placement = hft::util::describe_affinity("consumer");
         for (std::size_t i = 0; i < iterations; ++i) {
-            if (i == 0 || i + 1 == iterations) {
-                std::fprintf(stderr, "[dbg] consumer iter %zu/%zu\n", i, iterations);
-            }
             Payload out;
-            if constexpr (kUseMutex) {
-                mutex_queue.pop(out);
-                mutex_queue.push(out);
-            } else {
-                while (!ring.try_pop(out)) {
-                    std::this_thread::yield();
-                }
-                while (!ring.try_push(out)) {
-                    std::this_thread::yield();
-                }
-            }
+            forward.pop(out);
+            backward.push(out);
         }
-        std::fprintf(stderr, "[dbg] consumer done\n");
     });
 
     (void)hft::util::pin_current_thread(producer_core);
-    std::fprintf(stderr, "[dbg] producer start iterations=%zu mutex=%d\n", iterations,
-                 kUseMutex ? 1 : 0);
+    result.producer_placement = hft::util::describe_affinity("producer");
 
     for (std::size_t i = 0; i < iterations; ++i) {
-        if (i == 0 || i + 1 == iterations) {
-            std::fprintf(stderr, "[dbg] producer iter %zu/%zu\n", i, iterations);
-        }
         token_add.id = static_cast<hft::OrderId>(i + 1);
         const std::uint64_t start = hft::util::Timer::now();
 
+        forward.push(token);
         Payload back;
-        if constexpr (kUseMutex) {
-            mutex_queue.push(token);
-            mutex_queue.pop(back);
-        } else {
-            while (!ring.try_push(token)) {
-                std::this_thread::yield();
-            }
-            while (!ring.try_pop(back)) {
-                std::this_thread::yield();
-            }
-        }
+        backward.pop(back);
+
         const std::uint64_t elapsed = hft::util::Timer::now() - start;
         hist.record(elapsed / 2u);
 
@@ -297,7 +327,6 @@ template <std::size_t N, bool kUseMutex>
 
     consumer.join();
 
-    LatencyResult result;
     result.one_way = hist;
     result.round_trips = iterations;
     result.echoed_correctly = echoed_correctly.load(std::memory_order_relaxed);
@@ -311,14 +340,16 @@ void report_throughput(const char* label, const ThroughputResult& r) {
                 bench::humanize(static_cast<std::uint64_t>(rate)).c_str(), r.elapsed_ns / 1e6,
                 bench::u64(r.spins),
                 r.consistent ? "all messages transferred" : "MESSAGE LOSS -- RESULT INVALID");
+    std::printf("  %-18s producer %s\n", "", r.producer_placement.c_str());
+    std::printf("  %-18s consumer %s\n", "", r.consumer_placement.c_str());
     std::fflush(stdout);
 }
 
-/// Ring and mutex results for one instantiated capacity, run back to
+/// Ring and baseline results for one instantiated capacity, run back to
 /// back in the same process on the same cores.
 template <std::size_t N>
-void compare_at(const std::vector<Payload>& payloads,
-                std::size_t producer_core, std::size_t consumer_core) {
+void compare_at(const std::vector<Payload>& payloads, std::size_t producer_core,
+                std::size_t consumer_core) {
     std::printf("\n  capacity %llu slots\n", bench::u64(N));
 
     // Warm the pages and the buffer before either measured run. A throwaway
@@ -329,31 +360,24 @@ void compare_at(const std::vector<Payload>& payloads,
     const ThroughputResult ring = ring_throughput<N>(payloads, producer_core, consumer_core);
     report_throughput("lock-free ring", ring);
 
-    const ThroughputResult mutex_run =
-        mutex_throughput<N>(payloads, producer_core, consumer_core);
-    report_throughput("mutex + condvar", mutex_run);
+    const ThroughputResult baseline = mutex_throughput<N>(payloads, producer_core, consumer_core);
+    report_throughput("mutex + condvar", baseline);
 
-    if (ring.elapsed_ns > 0.0 && mutex_run.elapsed_ns > 0.0) {
-        std::printf("  %-18s speedup %.2fx\n", "",
-                    mutex_run.elapsed_ns / ring.elapsed_ns);
+    if (ring.elapsed_ns > 0.0 && baseline.elapsed_ns > 0.0) {
+        std::printf("  %-18s speedup %.2fx\n", "", baseline.elapsed_ns / ring.elapsed_ns);
     }
 
     if (ring.spins * 4 > ring.messages) {
-        std::printf("  %-18s note: yields dominated. The run measured scheduling,\n"
-                    "  %-18s       not the hand-off.\n",
+        std::printf("  %-18s note: yields dominated. This run measured thread\n"
+                    "  %-18s       scheduling, not the hand-off.\n",
                     "", "");
     }
+    std::fflush(stdout);
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-    // Line-buffered. This tool is normally run from a shell and its output
-    // is often piped to a file, and block buffering means a run that hangs
-    // or is interrupted loses every line printed before the problem. A
-    // benchmark you cannot see into is a benchmark you cannot debug.
-    std::setvbuf(stdout, nullptr, _IOLBF, 0);
-
     std::size_t messages = 2'000'000;
     std::size_t capacity = 1024;
     if (argc > 1) {
@@ -382,6 +406,18 @@ int main(int argc, char** argv) {
     }
     std::printf("\n");
 
+    // Runs shorter than this are dominated by thread creation and by
+    // the scheduler's first placement of both threads. Reporting a
+    // msgs/sec figure from one would be reporting the cost of starting
+    // a process.
+    constexpr std::size_t kMinimumMessages = 100'000;
+    if (messages < kMinimumMessages) {
+        std::printf("WARNING: %s messages is below %s. Thread startup and first-touch\n"
+                    "         costs dominate at this size and the throughput figures\n"
+                    "         below are not meaningful.\n\n",
+                    bench::humanize(messages).c_str(), bench::humanize(kMinimumMessages).c_str());
+    }
+
     bench::section("MEASUREMENT COST");
     const bench::LatencyHistogram clock = bench::measure_clock_overhead();
     bench::print_clock_overhead(clock);
@@ -395,9 +431,8 @@ int main(int argc, char** argv) {
     const std::size_t consumer_core = hft::util::other_core(producer_core);
 
     bench::section("THROUGHPUT (wall clock, no per-operation clock reads)");
-    std::printf("  producer            %s\n",
-                hft::util::describe_affinity("producer").c_str());
-    std::printf("  consumer            logical %zu\n", consumer_core);
+    std::printf("  producer requested  logical %zu\n", producer_core);
+    std::printf("  consumer requested  logical %zu\n", consumer_core);
     std::printf("  distinct physical cores: %s\n\n",
                 hft::util::shares_physical_core(producer_core, consumer_core) ? "NO" : "yes");
 
@@ -421,25 +456,33 @@ int main(int argc, char** argv) {
         compare_at<64>(payloads, producer_core, consumer_core);
     }
 
-    bench::section("ONE-WAY HAND-OFF (half a round trip, includes a clock pair)");
+    bench::section("ROUND TRIP (halved, includes a clock pair)");
     // Far fewer iterations than the throughput pass: each one is a
     // synchronising round trip rather than a queue operation, so this
     // costs far more per message.
     const std::size_t rounds = messages / 20 + 1'000;
-    std::printf("  round trips        %s\n\n", bench::humanize(rounds).c_str());
-    std::printf("  ring capacity      2 slots, the minimum a ring can have\n\n");
+    std::printf("  round trips        %s\n", bench::humanize(rounds).c_str());
+    std::printf("  channel capacity   2 slots each way, the minimum a ring can have\n\n");
 
     // Warm both variants before measuring either.
-    (void)ping_pong<2, false>(rounds / 10 + 100, producer_core, consumer_core);
-    (void)ping_pong<2, true>(rounds / 10 + 100, producer_core, consumer_core);
+    (void)run_ping_pong<RingChannel<2>, RingChannel<2>>(rounds / 10 + 100, producer_core,
+                                                        consumer_core);
+    (void)run_ping_pong<MutexChannel<2>, MutexChannel<2>>(rounds / 10 + 100, producer_core,
+                                                          consumer_core);
 
-    const LatencyResult ring_lat = ping_pong<2, false>(rounds, producer_core, consumer_core);
-    std::printf("  lock-free ring\n");
-    bench::histogram_row("one-way", ring_lat.one_way);
+    const LatencyResult ring_lat =
+        run_ping_pong<RingChannel<2>, RingChannel<2>>(rounds, producer_core, consumer_core);
+    std::printf("  lock-free ring, two channels\n");
+    bench::histogram_row("half round trip", ring_lat.one_way);
+    std::printf("  %-26s %s\n", "producer", ring_lat.producer_placement.c_str());
+    std::printf("  %-26s %s\n", "consumer", ring_lat.consumer_placement.c_str());
 
-    const LatencyResult mutex_lat = ping_pong<2, true>(rounds, producer_core, consumer_core);
-    std::printf("  mutex + condvar\n");
-    bench::histogram_row("one-way", mutex_lat.one_way);
+    const LatencyResult mutex_lat =
+        run_ping_pong<MutexChannel<2>, MutexChannel<2>>(rounds, producer_core, consumer_core);
+    std::printf("  mutex + condvar, two channels\n");
+    bench::histogram_row("half round trip", mutex_lat.one_way);
+    std::printf("  %-26s %s\n", "producer", mutex_lat.producer_placement.c_str());
+    std::printf("  %-26s %s\n", "consumer", mutex_lat.consumer_placement.c_str());
 
     if (!ring_lat.echoed_correctly || !mutex_lat.echoed_correctly) {
         std::printf("\nWARNING: an echoed token did not match the one sent.\n"
@@ -449,14 +492,22 @@ int main(int argc, char** argv) {
 
     bench::note(
         "Half a round trip, not a measured one-way latency: it contains both\n"
-        "cache-line transfers plus the wakeup path, so it overstates a single\n"
+        "cache-line transfers plus both wakeup paths, so it overstates a single\n"
         "direction. It is the standard estimate and it is an upper bound.\n"
+        "\n"
+        "TWO CHANNELS, NOT ONE. The exchange is bidirectional and an SPSC ring\n"
+        "is not: it has exactly one producer and one consumer. An earlier\n"
+        "revision of this file pushed a token down one ring and waited for it to\n"
+        "come back up the same one, which silently made both threads consumers\n"
+        "of a single-producer queue. It reported a plausible and much too fast\n"
+        "number rather than failing. The channel types above make the direction\n"
+        "explicit so that mistake cannot be made quietly again.\n"
         "\n"
         "The mutex baseline blocks, so each hand-off can cost a futex wakeup and\n"
         "a syscall. That is the whole of the difference on x86-64: the ring's\n"
         "acquire/release pairs compile to plain loads and stores with no fence\n"
         "instruction, because there is exactly one producer and one consumer\n"
-        "and nothing outside the ring needs ordering.\n");
+        "per ring and nothing outside it needs ordering.\n");
 
     bench::print_publication_notice();
     return 0;
