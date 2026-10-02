@@ -116,6 +116,23 @@ void test_symbol() {
     // An all-space field is what a null-filled symbol decodes to.
     const lob::Symbol blank = lob::Symbol::from_wire("        ");
     check(blank.empty(), "an all-space field is empty, not a symbol called '        '");
+
+    // c_str() must be safe to hand to anything expecting a C string.
+    //
+    // This is a regression test for a real bug: the ninth byte of Symbol
+    // held the LENGTH rather than a terminator, so a caller doing
+    // std::unordered_map<std::string, ...> keyed on c_str() read past
+    // the object, missed on every lookup, and treated all sixty-four
+    // symbols in a multi-symbol feed as distinct. It surfaced as an
+    // access violation and then as every worker claiming every book.
+    check(std::string(aapl.c_str()) == "AAPL",
+          "c_str() yields exactly the symbol and stops at the terminator");
+    check(aapl.c_str()[aapl.length()] == '\0', "the byte after the symbol is a terminator");
+    check(std::string(lob::Symbol::from_wire("SYM00042").c_str()) == "SYM00042",
+          "a full eight-character symbol is not over-read");
+    check(std::string(blank.c_str()).empty(), "an empty symbol reads as an empty string");
+    check(aapl.str() == "AAPL", "str() agrees with c_str()");
+    check(lob::Symbol::from_wire("SYM00042").str() == "SYM00042", "str() on a full-width symbol");
 }
 
 // ---- Shard assignment -----------------------------------------------
