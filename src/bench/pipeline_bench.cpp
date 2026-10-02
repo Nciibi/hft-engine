@@ -645,7 +645,7 @@ struct ShardedResult {
             mine.reserve(set.symbol_count());
             for (std::size_t i = 0; i < set.symbol_count(); ++i) {
                 BookSummary s;
-                s.symbol = hft::feed::symbol_name(i);
+                s.symbol = set.symbol(i).c_str();
                 s.hash = fingerprint_book(set.book(i));
                 mine.push_back(s);
             }
