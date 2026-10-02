@@ -108,11 +108,11 @@ if ($cmake) {
 Write-Host ("smt         : {0} logical per physical core" -f `
     $(if ($cpu.NumberOfCores) { [math]::Round($cpu.NumberOfLogicalProcessors / $cpu.NumberOfCores, 0) } else { '?' }))
 
-# Not available without privileges on Windows, and saying so is better
-# than printing nothing.
-Write-Host ("governor    : {0}" -f $(try {
-        (Get-CimInstance -ClassName Win32_Processor).PowerManagementSupported.ToString()
-    } catch { 'unavailable on Windows' }))
+# Windows has no cpufreq governor, so there is nothing equivalent to
+# print. Saying so explicitly is better than a blank line that a reader
+# would have to guess the meaning of, and better than the bare "False"
+# that a PowerManagementSupported query returns.
+Write-Host 'governor    : n/a (Windows has no cpufreq governor; see isolation)'
 Write-Host ("isolation   : none (no core isolation, no SMT pinning, no hugepages)")
 Write-Host ("messages    : {0}" -f $Messages)
 Write-Host ''
