@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "hft/itch/moldudp64.hpp"
 #include "hft/types.hpp"
 
 namespace hft::feed {
@@ -283,7 +284,24 @@ struct CaptureConfig {
     /// up as a book priced in another symbol's currency rather than as a
     /// subtly wrong level.
     std::size_t symbol_count = 1;
+
+    /// Messages per MoldUDP64 packet in the generated capture.
+    ///
+    /// One is the naive layout and is the default because it makes a
+    /// packet boundary visible at every message, which is the worst
+    /// case for a reader and therefore the best one for a test. A real
+    /// venue batches; the replay tool reports the count so a capture
+    /// cannot be mistaken for a wire capture it is not.
+    std::size_t messages_per_packet = 1;
+
+    /// Session identifier in the packet header. Exactly ten characters;
+    /// the field is ten bytes and the specification defines no padding
+    /// rule for a short name.
+    const char* session = "SAMPLE0000";
 };
+
+static_assert(std::size(hft::feed::kCaptureSession) == 10, "a session identifier is exactly ten characters");
+inline constexpr char kCaptureSession[11] = "SAMPLE0000";
 
 /// Eight-character symbol name for index `i`, as it appears on the wire.
 ///
