@@ -42,13 +42,23 @@ using hft::util::Timer;
 
 /// Thousands-separated decimal, for counts a reader has to read rather
 /// than compare.
+///
+/// The `i >= lead` guard is load-bearing. Without it the test
+/// `(i - lead) % 3 == 0` evaluates `i - lead` in unsigned arithmetic for
+/// every digit in the leading group, and the underflow lands on
+/// `SIZE_MAX` -- which is divisible by three, because 2^64 is not. So
+/// every two-digit number came out with a separator between its digits:
+/// 23 mid moves printed as "2 3 mid moves", 10 levels as "1 0 levels",
+/// while 1,471 and 1,999,998 printed correctly. The bug was invisible in
+/// any number wide enough to have real groups and wrong in exactly the
+/// small counts that appear most often in these tables.
 [[nodiscard]] inline std::string humanize(std::uint64_t v) {
     const std::string digits = std::to_string(v);
     std::string out;
     out.reserve(digits.size() + digits.size() / 3);
     const std::size_t lead = digits.size() % 3 == 0 ? 3 : digits.size() % 3;
     for (std::size_t i = 0; i < digits.size(); ++i) {
-        if (i != 0 && (i - lead) % 3 == 0) {
+        if (i != 0 && i >= lead && (i - lead) % 3 == 0) {
             out.push_back(' ');
         }
         out.push_back(digits[i]);
