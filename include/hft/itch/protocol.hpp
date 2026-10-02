@@ -31,10 +31,11 @@ enum class MessageType : std::uint8_t {
     order_executed_at_price = 'C',        ///< Order Executed With Price
     order_cancel = 'X',                   ///< Order Cancel (partial)
     order_delete = 'D',                   ///< Order Delete (entire order)
+    order_replace = 'U',                  ///< Order Replace (spec 4.4.5)
+    broken_trade = 'B',                   ///< Broken Trade (spec 4.5.3)
 
     // Tag known; body layout NOT yet verified against the spec.
     add_order_mpid = 'F',                 ///< Add Order with MPID attribution
-    order_replace = 'U',                  ///< Order Replace
     system_event = 'S',                   ///< System Event
     stock_directory = 'R',                ///< Stock Directory
     trade = 'T',                          ///< Trade (non-cross)
