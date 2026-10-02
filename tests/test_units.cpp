@@ -673,7 +673,7 @@ void test_sequence() {
         check_eq_int(static_cast<long long>(t.missing()), 4, "four messages missing");
         check_eq_int(static_cast<long long>(t.gaps()), 1, "one gap event");
         check(!t.clean(), "stream is not clean");
-        check_eq_int(t.expected(), 106, "expected advances past the gap");
+        check_eq_int(static_cast<long long>(t.expected()), 106, "expected advances past the gap");
     }
 
     // Retransmit and stale packet. Both are backwards jumps and the
@@ -683,7 +683,7 @@ void test_sequence() {
         itch::SequenceTracker t(100);
         check(t.observe(100) == itch::SequenceTracker::State::ok, "100 is ok");
         check(t.observe(99) == itch::SequenceTracker::State::duplicate, "99 is a duplicate");
-        check_eq_int(t.expected(), 101, "a duplicate does not advance the expectation");
+        check_eq_int(static_cast<long long>(t.expected()), 101, "a duplicate does not advance the expectation");
         check(t.observe(50) == itch::SequenceTracker::State::duplicate, "50 is also a duplicate");
         check(!t.clean(), "a retransmitted packet makes the stream unclean");
     }
