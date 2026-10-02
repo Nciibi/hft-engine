@@ -561,6 +561,10 @@ than a failure:
 The last four are the ordinary kind: found by a test, a crash, or a
 compiler. The first is the kind worth remembering.
 
+And the one above all of them is not in this list because no test found
+it. It took reading the published field table against the code, which is
+a check this repository had never performed on itself.
+
 ## Failure modes
 
 Things this build handles explicitly, because they are where real
