@@ -1132,6 +1132,154 @@ void test_broken_trade_layout_is_spec() {
           "but they are distinct tags, so identical size is not conflation");
 }
 
+// ---- Trade (non-cross) and Cross Trade ------------------------------
+//
+// Both verified against TotalView-ITCH 5.0 section 1.5.1 and 1.5.2.
+//
+// Two things about these are worth a test of their own. The non-cross
+// trade tag is 'P', and this file used to say 'T' -- a tag no version
+// of this protocol uses. And the Cross Trade share count is EIGHT bytes
+// where every other message in the decoder uses four, so a decoder that
+// assumed a uniform width would read the stock symbol as a quantity and
+// silently produce a book that never saw a cross.
+
+void test_trade_layouts_are_spec() {
+    std::printf("Trade and Cross Trade layouts against the published field tables\n");
+    using namespace hft;
+
+    // 'P' Trade (Non-Cross):
+    //   0  1  'P'      11  8  Order Reference Number  (zero on binary feeds)
+    //   1  2  locate   19  1  Buy/Sell Indicator
+    //   3  2  tracking 20  4  Shares
+    //   5  6  timestamp 24  8  Stock
+    //                 32  4  Price
+    //                 36  8  Match Number
+    check_eq_int(static_cast<long long>(itch::off::kTradeSize), 44,
+                 "Trade (non-cross) body is 44 bytes (spec 1.5.1)");
+    check_eq_int(static_cast<int>(itch::MessageType::trade), 'P',
+                 "the non-cross trade tag is 'P'");
+    check(static_cast<int>(itch::MessageType::trade) != 'T',
+          "and is NOT 'T', which no version of TotalView-ITCH 5.0 defines");
+
+    std::vector<std::uint8_t> tb(itch::off::kTradeSize, 0);
+    tb[0] = 'P';
+    tb[1] = 0x00;
+    tb[2] = 0x05;  // locate 5
+    tb[3] = 0x11;  // tracking 0x11
+    tb[4] = 0x22;
+    for (int i = 0; i < 6; ++i) {
+        tb[5 + i] = static_cast<std::uint8_t>(0xA0 + i);  // timestamp
+    }
+    put_be64(tb, itch::off::trade_id, 0);  // zero on the binary feeds
+    tb[itch::off::trade_side] = 'B';
+    put_be32(tb, itch::off::trade_shares, 250);
+    const char sym[8] = {'T', 'E', 'S', 'T', 'N', 'M', 'T', ' '};
+    for (int i = 0; i < 8; ++i) {
+        tb[itch::off::trade_stock + static_cast<std::size_t>(i)] =
+            static_cast<std::uint8_t>(sym[i]);
+    }
+    put_be32(tb, itch::off::trade_price, 1'000'400);
+    put_be64(tb, itch::off::trade_match, 0x0102'0304'0506'0708ULL);
+
+    std::vector<std::uint8_t> tf;
+    hft::feed::append_frame(tf, tb.data(), tb.size());
+    check_eq_int(static_cast<long long>(tf.size()), 46, "Trade frame is 46 bytes");
+
+    const auto tr = itch::decode(tf.data(), tf.size());
+    check(tr.ok(), "the hand-built Trade frame decodes");
+    if (tr.ok()) {
+        const auto* p = std::get_if<itch::Trade>(&tr.message.body);
+        check(p != nullptr, "it decodes to Trade");
+        if (p != nullptr) {
+            check_eq_int(static_cast<long long>(p->stock_locate), 5, "trade stock locate");
+            check_eq_int(static_cast<long long>(p->tracking), 0x1122, "trade tracking number");
+            check(p->id == 0, "trade order reference is carried as zero, not rejected");
+            check_eq_int(static_cast<long long>(p->side), 'B', "trade side indicator");
+            check_eq_int(static_cast<long long>(p->shares.raw()), 250, "trade shares");
+            check_eq_int(static_cast<long long>(p->price.raw()), 1'000'400, "trade price");
+            check(p->match == 0x0102'0304'0506'0708ULL, "trade match number");
+            check_eq_int(static_cast<long long>(p->stock_locate), 5,
+                         "the stock symbol did not shift the leading fields");
+            check(std::memcmp(tb.data() + itch::off::trade_stock, sym, 8) == 0,
+                  "the stock symbol sits at offset 24 where Add Order puts it");
+        }
+    }
+
+    // 'Q' Cross Trade:
+    //   0  1  'Q'   11  8  Shares (EIGHT bytes)  27  4  Cross Price
+    //   1  2  locate 19  8  Stock                 31  8  Match Number
+    //   3  2  tracking 39 1  Cross Type
+    //   5  6  timestamp
+    check_eq_int(static_cast<long long>(itch::off::kCrossTradeSize), 40,
+                 "Cross Trade body is 40 bytes (spec 1.5.2)");
+    check_eq_int(static_cast<long long>(itch::off::cross_shares), 11,
+                 "Cross Trade shares start at offset 11");
+
+    std::vector<std::uint8_t> qb(itch::off::kCrossTradeSize, 0);
+    qb[0] = 'Q';
+    qb[1] = 0x00;
+    qb[2] = 0x09;  // locate 9
+    qb[3] = 0x33;  // tracking 0x33
+    qb[4] = 0x44;
+    for (int i = 0; i < 6; ++i) {
+        qb[5 + i] = static_cast<std::uint8_t>(0x50 + i);
+    }
+    // A share count that does not fit in four bytes. If the decoder read
+    // four bytes here it would see 0x00000005 and every field after it
+    // would be shifted by four.
+    put_be64(qb, itch::off::cross_shares, 0x0000'0001'0000'0002ULL);
+    for (int i = 0; i < 8; ++i) {
+        qb[itch::off::cross_stock + static_cast<std::size_t>(i)] =
+            static_cast<std::uint8_t>(sym[i]);
+    }
+    put_be32(qb, itch::off::cross_price, 999'900);
+    put_be64(qb, itch::off::cross_match, 0xF0F0'F0F0'F0F0'F0F0ULL);
+    qb[itch::off::cross_type] = 'C';  // closing cross
+
+    std::vector<std::uint8_t> qf;
+    hft::feed::append_frame(qf, qb.data(), qb.size());
+    check_eq_int(static_cast<long long>(qf.size()), 42, "Cross Trade frame is 42 bytes");
+
+    const auto qr = itch::decode(qf.data(), qf.size());
+    check(qr.ok(), "the hand-built Cross Trade frame decodes");
+    if (qr.ok()) {
+        const auto* q = std::get_if<itch::CrossTrade>(&qr.message.body);
+        check(q != nullptr, "it decodes to CrossTrade");
+        if (q != nullptr) {
+            check_eq_int(static_cast<long long>(q->stock_locate), 9, "cross stock locate");
+            check(q->shares == 0x0000'0001'0000'0002ULL,
+                  "the cross share count is read as eight bytes, not four");
+            check_eq_int(static_cast<long long>(q->price.raw()), 999'900,
+                         "the cross price is at offset 27, which only holds if shares were 8");
+            check(q->match == 0xF0F0'F0F0'F0F0'F0F0ULL, "the cross match number");
+            check_eq_int(static_cast<long long>(q->cross_type), 'C', "the cross type");
+        }
+    }
+
+    // Neither message moves the book: the specification says trade
+    // messages "do not affect the book". Asserted so that a future
+    // change which starts treating a Trade as a mutation has to argue
+    // with this test rather than slipping in.
+    hft::lob::OrderBook book(1u << 10, 1u << 10);
+    hft::lob::BookStatus status{};
+    book.add(Side::bid, Price::from_raw(70'000), Quantity::from_raw(15), 7'000'001, status);
+    const std::uint64_t before = book.aggregate_at(Side::bid).raw();
+
+    itch::Trade p2;
+    p2.shares = Quantity::from_raw(250);
+    p2.price = Price::from_raw(70'000);
+    check(hft::lob::apply(itch::Message{p2}, book).applied,
+          "a Trade message is reported as processed");
+    itch::CrossTrade q2;
+    q2.shares = 1'000'000;
+    q2.price = Price::from_raw(70'000);
+    check(hft::lob::apply(itch::Message{q2}, book).applied,
+          "a Cross Trade is reported as processed");
+    check_eq_int(static_cast<long long>(book.aggregate_at(Side::bid).raw()),
+                 static_cast<long long>(before),
+                 "neither a Trade nor a Cross Trade changes the book");
+}
+
 // ---- The other decoded message types --------------------------------
 
 void test_decode_mutations() {
