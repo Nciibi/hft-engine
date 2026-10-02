@@ -554,13 +554,7 @@ struct ShardedResult {
     books.reserve(set.symbol_count());
     for (std::size_t i = 0; i < set.symbol_count(); ++i) {
         BookSummary s;
-        // ShardSet does not expose its symbols, so the name is recovered
-        // from the generator's deterministic scheme. That is a real
-        // limitation of the comparison, noted rather than hidden: it
-        // means the checksum verifies book STATE, and the symbol COUNT,
-        // but a worker that built two books for one symbol and none for
-        // another would not be caught by name.
-        s.symbol = hft::feed::symbol_name(i);
+        s.symbol = set.symbol(i).c_str();
         s.hash = fingerprint_book(set.book(i));
         const std::uint32_t depth =
             set.book(i).level_count(Side::bid) + set.book(i).level_count(Side::ask);
