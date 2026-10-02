@@ -203,32 +203,16 @@ template <std::size_t K>
     std::thread book_thread([&] {
         (void)hft::util::pin_current_thread(book_core);
         Batch<K> batch;
-        for (;;) {
-            bool progressed = false;
-            while (ring->try_pop(batch)) {
-                for (std::uint32_t i = 0; i < batch.count; ++i) {
-                    const hft::lob::ApplyResult applied = hft::lob::apply(batch.items[i], book);
+        drain_until_producer_done(
+            *ring, decoder_done, batch, [&](Batch<K>& item) {
+                for (std::uint32_t i = 0; i < item.count; ++i) {
+                    const hft::lob::ApplyResult applied = hft::lob::apply(item.items[i], book);
                     if (applied.applied) {
                         ++result.applied;
                     }
                 }
-                batch.count = 0;
-                progressed = true;
-            }
-            if (!progressed && decoder_done.load(std::memory_order_acquire)) {
-                // The acquire above synchronises with the decoder's
-                // release store, which follows its last push, so a
-                // failed pop after it means the ring is empty for good.
-                // Without this second observation a batch that landed
-                // between the pop above and the flag read is dropped,
-                // which is precisely a lost-message bug.
-                break;
-            }
-            if (!progressed) {
-                spins.fetch_add(1, std::memory_order_relaxed);
-                std::this_thread::yield();
-            }
-        }
+                item.count = 0;
+            });
     });
 
     bench::Timer timer;
