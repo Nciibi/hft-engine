@@ -205,27 +205,51 @@ book is a number about your loop, not your engine. Reported together,
 the ratio between them is the cost of the linked-list ladder and is the
 single most load-bearing measurement in this repository.
 
-**The deep book does not reprice, and the tool says so on every run.**
-Over 2,000,000 records at 1,000 levels a side, the mid moves about 24
-times — 0.001% of observations. The cause is structural rather than a
-knob: resting orders sit at absolute prices, so a few thousand of them
-spread across a thousand-tick ladder form a wall that the nearest
-resting order does not break through. Measured across a sweep of the
-live-order cap (1 to 6 orders per level) and the reversion strength, no
-setting moved it past 0.015%.
+**A benchmark of a book that does not reprice measures nothing, and for
+a while that was what the deep shape was.** Over 2,000,000 records at
+1,000 levels a side the mid moved 24 times — 0.001% of observations —
+so the decision stage was timing quoting arithmetic against a frozen mid.
+That is the arithmetic and not the behaviour, and the number was
+misleading in the direction that flatters.
 
-Two things were tried and rejected on that evidence. Concentrating
-liquidity toward the touch, on the theory that real books are
-front-loaded, made it **worse** — 3 to 27 mid moves against uniform's 54
-to 61, because a thick touch is a sticky touch. The shallow shape was
-genuinely mis-tuned, though, and is fixed: three orders of slack per
-level left the touch permanently occupied, so capping at one order per
-level and weakening reversion took the shallow book from 23 mid moves to
-105,001. That is why the shallow figures above are trustworthy as
-strategy-shaped measurements and the deep ones are not: at depth the
-decision stage is timing the quoting arithmetic against a frozen mid,
-which is the arithmetic and not the behaviour. The tool prints this
-distinction with the measured rate rather than a threshold.
+The cause was not the book, it was two numbers that had nothing to do
+with each other. The walk had a fixed drift of four ticks while the
+ladder was a thousand ticks wide, so resting orders spread over a band
+two hundred times wider than the price ever travelled and the best bid
+became the maximum over that band — a stable extreme-value statistic
+rather than a price anyone was quoting. Measured at 1,000 levels over
+150,000 records: reversion 64 gave 5 mid moves, 500 gave 50, 1000 gave
+220. Drift is now scaled to the ladder and the anchor with it.
+
+The deep shape now moves the mid **17,367 times in 2,000,000 records,
+0.87% of observations**, up from 24, with the book uncrossed throughout
+and no truncation. The tool prints the measured rate on every run and
+distinguishes a repricing book from a static one rather than bucketing
+both under a threshold.
+
+Four fixes were tried along the way and three of them made it worse,
+which is the more useful half of the result:
+
+- **Concentrating liquidity toward the touch**, on the theory that real
+  books are front-loaded. Worse everywhere: 3 to 27 mid moves against
+  uniform's 54 to 61. A thick touch is a sticky touch.
+- **Removing the furthest-from-mid removal policy**, on the theory it
+  was pinning the touch. It was not the cause, and its documented
+  justification — crossing prevention — is false: with adds clamped
+  against the resting book, a thousand-level book across several
+  hundred thousand records was never crossed once either way.
+- **Distance-biased tournament selection** as a model of stale-quote
+  cancellation. Also worse: 4 to 14 moves. The measured fact is that a
+  recent-biased draw does *not* remove stale orders, which is why the
+  all-or-nothing policy was outperforming it.
+- **Capping at one order per level** instead of three. This one worked.
+  Three orders of slack at the touch is three orders too many; the touch
+  never empties.
+
+The shallow shape went from 23 mid moves to 130,270 over the same
+rewrite, so the shallow-versus-deep ratio — the most load-bearing
+measurement in this repository — is now a comparison of depth rather
+than of two different price processes.
 
 ### Correctness
 
