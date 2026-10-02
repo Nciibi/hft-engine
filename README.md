@@ -639,9 +639,10 @@ Phase 4 added six more, and two of them are worth reading twice:
   passive, which is always. It was replaced with the markout, which is
   the number that carries information.
 
-Phase 5 added five more, and the first one is the most instructive
-defect in this repository, because it produced a plausible number rather
-than a failure:
+Phases 5 and 6 added eight more. The first two are the most instructive
+defects in this repository, because both produced a plausible *number*
+rather than a failure, and one of them produced a plausible *explanation*
+for a number that was itself wrong:
 
 - **The round-trip benchmark used one ring in both directions.** It
   pushed a token down an SPSC queue and waited for it to come back up the
