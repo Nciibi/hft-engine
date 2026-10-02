@@ -284,12 +284,90 @@ void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original,
 
 namespace {
 
-/// One record of a capture: sequence number, then the raw ITCH frame.
-void append_capture_record(std::vector<std::uint8_t>& out, std::uint32_t sequence,
-                           const std::vector<std::uint8_t>& frame) noexcept {
-    write_be32(out, sequence);
-    out.insert(out.end(), frame.begin(), frame.end());
-}
+/// Buffers one packet's worth of messages and flushes it as a
+/// MoldUDP64 Downstream Packet.
+///
+/// A packet cannot be written as it is assembled, because the header
+/// carries the message count and the sequence number of its first
+/// message, neither of which is known until the packet is full. So the
+/// blocks are collected and the header is written in front of them.
+///
+/// Flushing a short packet at the end of the stream matters: a tail left
+/// unflushed is a silent truncation, and the only symptom would be a
+/// checksum mismatch much later.
+class PacketWriter final {
+public:
+    PacketWriter(std::vector<std::uint8_t>& out, const char* session, std::size_t per_packet,
+                 std::uint64_t first_sequence)
+        : out_(out), session_(session), per_packet_(per_packet == 0 ? 1 : per_packet),
+          next_sequence_(first_sequence) {}
+
+    void append(const std::vector<std::uint8_t>& frame) {
+        if (frames_.empty()) {
+            packet_first_sequence_ = next_sequence_;
+        }
+        frames_.push_back(frame);
+        ++next_sequence_;
+        if (frames_.size() >= per_packet_) {
+            flush();
+        }
+    }
+
+    /// Emit whatever is left, even if it is a partial packet.
+    void finish() { flush(); }
+
+    [[nodiscard]] std::uint64_t packets() const noexcept { return packets_; }
+
+private:
+    void flush() {
+        if (frames_.empty()) {
+            return;
+        }
+        // The header carries the COUNT, so the blocks cannot go first.
+        // The count is the number of blocks in this packet; the sequence
+        // is that of the FIRST message, and the specification says the
+        // rest are implicitly sequential.
+        reserve_blocks();
+        std::size_t at = out_.size();
+        out_.resize(at + hft::itch::mold::kHeaderSize);
+        // Write the header directly into the reserved space, then the
+        // blocks after it.
+        write_header(at);
+        for (const std::vector<std::uint8_t>& frame : frames_) {
+            out_.insert(out_.end(), frame.begin(), frame.end());
+        }
+        frames_.clear();
+        ++packets_;
+    }
+
+    void reserve_blocks() {
+        std::size_t bytes = hft::itch::mold::kHeaderSize;
+        for (const std::vector<std::uint8_t>& frame : frames_) {
+            bytes += frame.size();
+        }
+        out_.reserve(out_.size() + bytes);
+    }
+
+    void write_header(std::size_t at) {
+        namespace mold = hft::itch::mold;
+        std::vector<std::uint8_t> header;
+        header.reserve(mold::kHeaderSize);
+        for (std::size_t i = 0; i < mold::kSessionSize; ++i) {
+            header.push_back(static_cast<std::uint8_t>(session_[i]));
+        }
+        write_be64(header, packet_first_sequence_);
+        write_be16(header, static_cast<std::uint16_t>(frames_.size()));
+        std::copy(header.begin(), header.end(), out_.begin() + static_cast<std::ptrdiff_t>(at));
+    }
+
+    std::vector<std::uint8_t>& out_;
+    const char* session_;
+    std::size_t per_packet_;
+    std::uint64_t next_sequence_;
+    std::uint64_t packet_first_sequence_ = 0;
+    std::uint64_t packets_ = 0;
+    std::vector<std::vector<std::uint8_t>> frames_;
+};
 
 }  // namespace
 
