@@ -533,9 +533,10 @@ void test_oms_slot_recycling() {
 
     std::vector<int> slots;
     for (int i = 0; i < 4; ++i) {
-        const int s = m.submit(Side::bid, kRef, Quantity::from_raw(10), 1'000 + i);
+        const int s = m.submit(Side::bid, kRef, Quantity::from_raw(10),
+                               static_cast<hft::Nanos>(1'000 + i));
         check(s >= 0, "filled a slot");
-        m.on_ack(s, 100 + i, 1'000 + i);
+        m.on_ack(s, static_cast<hft::OrderId>(100 + i), static_cast<hft::Nanos>(1'000 + i));
         slots.push_back(s);
     }
     // Pool is full. Refusing beats evicting a live order, which would

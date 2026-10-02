@@ -293,7 +293,10 @@ void test_book_never_crosses() {
             break;
         }
         if (r.ok()) {
-            hft::lob::apply(r.message, book);
+            // The apply result is deliberately discarded: a mutation for an order
+            // the book has never seen is reported, not fatal, and the
+            // replay tool is where that count is examined.
+            (void)hft::lob::apply(r.message, book);
             const auto b = book.best_bid();
             const auto a = book.best_ask();
             if (b && a) {
