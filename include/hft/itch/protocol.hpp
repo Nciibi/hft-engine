@@ -32,7 +32,6 @@ enum class MessageType : std::uint8_t {
     order_cancel = 'X',                   ///< Order Cancel (partial)
     order_delete = 'D',                   ///< Order Delete (entire order)
     order_replace = 'U',                  ///< Order Replace (spec 4.4.5)
-    broken_trade = 'B',                   ///< Broken Trade (spec 4.5.3)
 
     // Tag known; body layout NOT yet verified against the spec.
     add_order_mpid = 'F',                 ///< Add Order with MPID attribution
@@ -40,7 +39,7 @@ enum class MessageType : std::uint8_t {
     stock_directory = 'R',                ///< Stock Directory
     trade = 'T',                          ///< Trade (non-cross)
     cross_trade = 'Q',                    ///< Cross Trade
-    broken_trade = 'B',                   ///< Broken Trade
+    broken_trade = 'B',                   ///< Broken Trade (spec 4.5.3)
     end_of_market_hours = 'M',
     end_of_system_hours = 'Z',
 };
