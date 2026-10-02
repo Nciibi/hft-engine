@@ -168,6 +168,30 @@ add_test(NAME replay_clean COMMAND hft_replay 100000)
 set_tests_properties(replay_clean PROPERTIES
     PASS_REGULAR_EXPRESSION "malformed +0")
 
+# The threaded pipeline must build the same book as the single-threaded
+# one from the same feed. That is a correctness property, not a speed
+# measurement, so it belongs in CI: a pipeline that drops or reorders a
+# message looks exactly like a win in every other column.
+#
+# A small record count is deliberate. The checksum comparison is
+# deterministic and needs no volume, and the run-to-run drift at small
+# sizes would make the speedup column meaningless anyway -- the tool says
+# so in its own output.
+add_test(NAME pipeline_threaded_equivalence
+         COMMAND hft_pipeline_bench 50000)
+set_tests_properties(pipeline_threaded_equivalence PROPERTIES
+    PASS_REGULAR_EXPRESSION "All four threaded runs produced a book identical")
+
+# The ring benchmark is a measurement, not a test, so only the part that
+# is a correctness claim is asserted: every message must be transferred,
+# and every echoed token must come back intact.
+add_test(NAME ring_transfer_integrity COMMAND hft_ring_bench 200000)
+set_tests_properties(ring_transfer_integrity PROPERTIES
+    PASS_REGULAR_EXPRESSION "all messages transferred")
+set_tests_properties(ring_transfer_integrity PROPERTIES
+    PASS_REGULAR_EXPRESSION "MESSAGE LOSS -- RESULT INVALID"
+    SKIP_RETURN_CODE 77)
+
 # ---- Reporting -----------------------------------------------------
 message(STATUS "hft_engine ${PROJECT_VERSION}")
 message(STATUS "  build type ....... ${CMAKE_BUILD_TYPE}")
