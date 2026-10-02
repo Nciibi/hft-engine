@@ -804,20 +804,29 @@ void test_capture_rejects_truncation() {
     std::size_t n = 0;
     while (whole.next(f, n)) {
     }
-    // The length of the FIRST packet, measured rather than assumed:
-    // frames in a capture are not all the same size.
+    // The length of the FIRST packet, measured with packet iteration.
+    // Assumed strides do not survive contact with a capture: frames
+    // here are Add, Delete, Cancel and Execute, of four different
+    // lengths.
+    feed::CaptureReader first_packet(data.data(), data.size());
+    const std::uint8_t* pf = nullptr;
+    std::size_t pf_count = 0;
+    std::uint64_t pf_seq = 0;
+    const bool have_first = first_packet.next_packet(pf, pf_count, pf_seq);
+    check(have_first, "the first packet is readable");
     std::size_t first_span = 0;
-    {
-        feed::CaptureReader one(data.data(), data.size());
-        std::size_t cursor = itch::mold::kHeaderSize;
-        while (one.next(f, n)) {
-            first_span += n;
-            ++cursor;
+    std::size_t frames_in_first = 0;
+    if (have_first) {
+        std::size_t cursor = static_cast<std::size_t>(pf - data.data());
+        for (std::size_t b = 0; b < pf_count; ++b) {
+            const std::size_t len = (static_cast<std::size_t>(data[cursor]) << 8) |
+                                    static_cast<std::size_t>(data[cursor + 1]);
+            cursor += itch::mold::kMessageBlockSize + len;
+            ++frames_in_first;
         }
-        (void)cursor;
-        first_span += itch::mold::kHeaderSize;
+        first_span = cursor;
     }
-    if (first_span < data.size()) {
+    if (have_first && first_span < data.size()) {
         feed::CaptureReader partial(data.data(), first_span);
         const std::uint8_t* f2 = nullptr;
         std::size_t n2 = 0;
@@ -828,7 +837,8 @@ void test_capture_rejects_truncation() {
         check(!partial.malformed(), "a capture ending on a packet boundary is valid");
         check_eq_int(static_cast<long long>(partial.packets()), 1,
                      "a single whole packet is one packet");
-        check(got > 0, "a single whole packet yields its frames");
+        check_eq_int(static_cast<long long>(got), static_cast<long long>(frames_in_first),
+                     "the lone packet yields all of its frames");
     }
 
     // Empty and zero-length buffers must not read as malformed.
