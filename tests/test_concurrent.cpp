@@ -226,31 +226,53 @@ void test_observation() {
 
 // ---- Two threads ---------------------------------------------------
 
-/// Drain `ring` until the producer is finished and the ring is empty.
+/// Move every item the producer sends into `on_item`, and return once
+/// the producer is finished and the ring is provably empty.
 ///
-/// The second drain pass is not redundancy. `try_pop` returning false is
-/// a statement about one instant; the producer may push again before the
-/// stop flag is read. Reading the flag with acquire orders us after the
-/// producer's last release store on head_, so the retry after it cannot
-/// miss anything -- which is exactly the property that makes the exit
-/// condition sound rather than merely usually right.
+/// Two things this has to get right, and both were wrong in the first
+/// version of it:
+///
+///  * It must WAIT. Draining once and returning is a deadlock whenever
+///    the consumer gets scheduled before the producer has pushed
+///    anything: it observes an empty ring, decides it is finished, and
+///    leaves the producer blocked forever on a full one. That is not a
+///    theoretical scheduling, it is the common case.
+///  * After seeing the stop flag it must drain ONE more time. The flag
+///    is set after the last push, and the acquire load below
+///    synchronises with the producer's release store, so every push is
+///    visible to a subsequent `try_pop` -- but the pass that found the
+///    ring empty may have run BEFORE the last push landed. Without the
+///    extra pass the tail of the stream is silently dropped, which is
+///    the exact failure a loss check exists to catch.
 template <typename Ring, typename Fn>
 std::uint64_t drain_until_done(Ring& ring, const std::atomic<bool>& producer_done, Fn&& on_item) {
     std::uint64_t consumed = 0;
     typename Ring::value_type out{};
-    while (ring.try_pop(out)) {
-        on_item(out);
-        ++consumed;
-    }
-    while (producer_done.load(std::memory_order_acquire)) {
-        bool progressed = false;
+
+    for (;;) {
+        const std::uint64_t before = consumed;
         while (ring.try_pop(out)) {
             on_item(out);
             ++consumed;
-            progressed = true;
         }
-        if (!progressed) {
+
+        if (producer_done.load(std::memory_order_acquire)) {
+            // The producer is finished and everything it did is visible
+            // to us now. This pass therefore empties the ring for good,
+            // and the next failed `try_pop` is not a race to be
+            // retried.
+            while (ring.try_pop(out)) {
+                on_item(out);
+                ++consumed;
+            }
             break;
+        }
+
+        // Nothing to do yet. Yield rather than sleep: the producer is
+        // running and will refill the ring within microseconds, and a
+        // timed sleep would dominate the runtime of every case here.
+        if (consumed == before) {
+            std::this_thread::yield();
         }
     }
     return consumed;
