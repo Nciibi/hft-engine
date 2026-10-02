@@ -130,14 +130,52 @@ Reproduce with `./scripts/bench.sh`. Full environment in
 
 ### Latency, by pipeline stage
 
-Per message, p50 / p99 / p999, single thread, pinned core:
+Per message, p50 / p99 / p999, single thread. `hft_stage_bench` produces
+both tables; `hft_bench` produces the add-only ingest figures.
 
-| Stage                | p50           | p99           | p999          |
-|----------------------|---------------|---------------|---------------|
-| Decode (binary)      | `[MEASURED]`  | `[MEASURED]`  | `[MEASURED]`  |
-| Book update          | `[MEASURED]`  | `[MEASURED]`  | `[MEASURED]`  |
-| Market data -> trade | `[MEASURED]`  | `[MEASURED]`  | `[MEASURED]`  |
-| Risk check           | `[MEASURED]`  | `[MEASURED]`  | `[MEASURED]`  |
+The ladder is a sorted linked list, so inserting a price that is not
+adjacent to the best walks from the head of the ladder. **Book-update
+cost is proportional to ladder depth**, which is why there are two tables
+rather than one — a single figure across both would be a figure about
+nothing.
+
+**Shallow book — 10 price levels a side**
+
+| Stage            | p50          | p99          | p999         |
+|------------------|--------------|--------------|--------------|
+| Decode           | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Book update      | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Decision         | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Risk check       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| End to end       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Encode           | not measured — see below        |            |              |
+
+**Deep book — 1000 price levels a side**
+
+| Stage            | p50          | p99          | p999         |
+|------------------|--------------|--------------|--------------|
+| Decode           | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Book update      | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Decision         | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Risk check       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| End to end       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
+| Encode           | not measured — see below        |            |              |
+
+**Encode is missing on purpose.** The outbound message is ITCH Order
+Entry ('B'), and this repository does not implement it because its field
+table could not be verified against the published specification. That is
+not a scheduling problem — inventing an outbound layout is precisely the
+mistake documented in [The bug that mattered](#the-bug-that-mattered),
+and it survived every test because the generator was guessing the same
+way. A second guessed table would be a second way to be confidently
+wrong on a wire format. `hft_stage_bench` prints this section at the end
+of every run so the row cannot be quietly forgotten.
+
+`end to end` is a single pass over the pipeline, **not** the sum of the
+rows above it. A sum would describe four independent measurements; the
+pass describes the pipeline. They will not agree exactly, because each
+row includes its own clock pair and the four pairs are attributed
+differently.
 
 ### Throughput
 
