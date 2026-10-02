@@ -274,12 +274,30 @@ void report(const BookShape& shape, const StageResult& r, std::size_t records) {
     // figures are, if anything, optimistic for the deep shape. The
     // shallow-versus-deep comparison is unaffected, because both shapes
     // have the same mix.
-    if (r.mid_moves * 50 < r.records) {
-        std::printf(
-            "  note: the mid moved on under 2%% of observations, so the touch was\n"
-            "        static for most of the run. Book-update cost here is therefore\n"
-            "        weighted towards interior-level adds. Both depths share the\n"
-            "        same mix, so the comparison between them still holds.\n");
+    //
+    // The rate is printed as a percentage rather than bucketed into
+    // "under 2%". The deep shape sits near 0.01% and the shallow shape
+    // near 2%, and a note that calls both "under 2%" describes neither.
+    if (r.records > 0) {
+        const double pct = 100.0 * static_cast<double>(r.mid_moves) /
+                           static_cast<double>(r.records);
+        if (pct < 0.1) {
+            std::printf(
+                "  note: the mid moved on %.3f%% of observations. The touch is\n"
+                "        effectively static: at this depth a few orders are spread\n"
+                "        across a ladder wide enough that the nearest resting order\n"
+                "        does not change hands often. The decision stage below is\n"
+                "        therefore timing the quoting arithmetic on a frozen mid,\n"
+                "        which is the arithmetic and not the behaviour. Stage figures\n"
+                "        stand; this tool does not claim a deep-book strategy result.\n",
+                pct);
+        } else if (pct < 2.0) {
+            std::printf(
+                "  note: the mid moved on %.3f%% of observations. Repricing, but\n"
+                "        rarely. Book-update cost is weighted towards interior-level\n"
+                "        adds because the touch is often occupied.\n",
+                pct);
+        }
     }
     std::fflush(stdout);
 }
