@@ -159,6 +159,22 @@ int main(int argc, char** argv) {
     std::printf("two-sided book       %llu  (%.1f%%)\n", u64(mm.two_sided_observations()),
                 two_sided_pct);
     std::printf("one-sided book       %llu\n", u64(mm.one_sided_observations()));
+    // Read this before anything below it. A mid that does not move
+    // means zero volatility, which means the A-S risk term is zero,
+    // which means the spread collapses below a tick. Every spread,
+    // markout and PnL figure below is conditioned on the book actually
+    // being a market.
+    std::printf("mid moves            %llu of %llu two-sided (%.3f%%)\n", u64(mm.mid_moves()),
+                u64(mm.two_sided_observations()),
+                mm.two_sided_observations() == 0
+                    ? 0.0
+                    : 100.0 * static_cast<double>(mm.mid_moves()) /
+                          static_cast<double>(mm.two_sided_observations()));
+    if (mm.mid_moves() == 0 && mm.two_sided_observations() > 0) {
+        std::printf(
+            "                    WARNING: the mid never moved. Volatility is zero by\n"
+            "                    construction and everything below is degenerate.\n");
+    }
     std::printf("quotes placed        %llu\n", u64(mm.quotes()));
     std::printf("fill checks          %llu  (bid %llu / ask %llu)\n", u64(mm.fill_checks()),
                 u64(mm.bid_side_checks()), u64(mm.ask_side_checks()));
