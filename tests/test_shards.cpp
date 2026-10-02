@@ -1,4 +1,4 @@
-// Tests for symbol sharding.
+﻿// Tests for symbol sharding.
 //
 // The thing being tested is ROUTING, and routing is the part of a
 // multi-symbol book that can be wrong without anything crashing. A
@@ -77,7 +77,6 @@ namespace lob = hft::lob;
 [[nodiscard]] OrderId reference_of(const itch::Message& message) noexcept {
     return std::visit(
         [](const auto& payload) noexcept -> OrderId {
-            using T = std::decay_t<decltype(payload)>;
             if constexpr (requires { payload.id; }) {
                 return payload.id;
             } else {
@@ -93,8 +92,7 @@ void test_symbol() {
     std::printf("Symbol\n");
 
     const lob::Symbol aapl = lob::Symbol::from_wire("AAPL    ");
-    const lob::Symbol bare = lob::Symbol::from_wire("AAPL    ");
-    check(aapl == bare, "padding normalises: 'AAPL    ' equals itself");
+    check(aapl == lob::Symbol::from_wire("AAPL    "), "padding normalises: 'AAPL    ' equals itself");
 
     // Case folding. The venue upper-cases symbols and feeds are not
     // consistent about it; a case-sensitive compare would split one
