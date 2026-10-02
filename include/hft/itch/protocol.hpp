@@ -35,13 +35,13 @@ enum class MessageType : std::uint8_t {
     broken_trade = 'B',                   ///< Broken Trade (spec 4.5.3), NOT
                                          ///< order entry: see the note on
                                          ///< kBrokenTradeSize below.
+    trade = 'P',                          ///< Trade, non-cross (spec 1.5.1)
+    cross_trade = 'Q',                    ///< Cross Trade (spec 1.5.2)
 
     // Tag known; body layout NOT yet verified against the spec.
     add_order_mpid = 'F',                 ///< Add Order with MPID attribution
     system_event = 'S',                   ///< System Event
     stock_directory = 'R',                ///< Stock Directory
-    trade = 'T',                          ///< Trade (non-cross)
-    cross_trade = 'Q',                    ///< Cross Trade
     end_of_market_hours = 'M',
     end_of_system_hours = 'Z',
 };
