@@ -278,11 +278,15 @@ void test_moldudp64_against_spec() {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 'B',
         0x00, 0x00, 0x00, 0x64, 'S', 'I', 'M', 'T', 'E', 'S', 'T', ' ',
         0x00, 0x16, 0xED, 0x24,
-        0x00, 0x19,                                          // block 2 length = 25
+        0x00, 0x17,                                          // block 2 length = 23
         'X', 0x04, 0xD2, 0x00, 0x00, 0x1F, 0x1A, 0xCE, 0xD9, 0xF0, 0x7B,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A,
         0x00, 0x00, 0x00, 0x32,                               // cancel 50 shares
     };
+    // The block lengths above are 36 (Add) and 23 (Cancel) because those
+    // are the spec body sizes for 'A' and 'X'. Writing a plausible-looking
+    // length that disagrees with the body shifts every following field,
+    // which is exactly the class of error this file exists to catch.
 
     mold::PacketHeader header{};
     check(mold::parse_header(packet, sizeof(packet), header) == mold::HeaderStatus::ok,
