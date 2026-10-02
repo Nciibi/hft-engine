@@ -464,7 +464,12 @@ public:
             o.leaves_qty = Quantity{};
             o.last_update = now;
             transition(o, OrdState::cancelled);
-            retire(i);
+            // `i` indexes `orders_`, whose size is bounded by the
+            // capacity the manager was constructed with, and every
+            // other slot index in this class is an int. Converting here
+            // rather than giving `retire` a size_t overload keeps one
+            // representation of "a slot" throughout the class.
+            retire(static_cast<int>(i));
         }
     }
 
