@@ -127,7 +127,31 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
     }
 
     const OrderHeader header = read_order_header(body);
-    if (header.id == kInvalidOrderId) {
+    // The order reference is validated only for messages that ARE keyed
+    // on one. Offset 11 means different things in different messages,
+    // and pretending otherwise is how a correct frame gets rejected:
+    //
+    //   'A' 'E' 'C' 'X' 'D' 'U'  order reference -- must be live
+    //   'P' Trade                  order reference, but the binary feeds
+    //                              populate it with ZERO by design
+    //   'B' Broken Trade           a MATCH number, not an order
+    //   'Q' Cross Trade            an EIGHT-byte share count, which the
+    //                              specification says may be zero when
+    //                              interest is insufficient to cross
+    //
+    // So the zero check below applies to the first group only. Rejecting
+    // 'P' or 'Q' on a zero in that field would drop real, spec-conformant
+    // messages -- and no generator round-trip would ever catch it,
+    // because this build does not generate them. The hand-built frames
+    // in test_units.cpp are the only thing exercising these paths.
+    const bool order_keyed =
+        static_cast<MessageType>(tag) == MessageType::add_order ||
+        static_cast<MessageType>(tag) == MessageType::order_executed ||
+        static_cast<MessageType>(tag) == MessageType::order_executed_at_price ||
+        static_cast<MessageType>(tag) == MessageType::order_cancel ||
+        static_cast<MessageType>(tag) == MessageType::order_delete ||
+        static_cast<MessageType>(tag) == MessageType::order_replace;
+    if (order_keyed && header.id == kInvalidOrderId) {
         // ITCH uses 0 to mean "no order reference" in some contexts;
         // treating it as a live handle would collide with every
         // subsequent order.
