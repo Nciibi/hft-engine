@@ -587,7 +587,9 @@ systems fail:
 
 | Condition                   | Behaviour                             |
 |-----------------------------|---------------------------------------|
+| Field offset disagrees with the spec | Compile error, per-offset  |
 | SOUP sequence gap           | Detected, reported, replay can resync |
+| Book that does not reprice  | Reported before any other metric      |
 | Unknown message type        | Skipped by length                     |
 | Execute after cancel        | Detected and rejected                 |
 | Replace chain / lost order  | Detected and rejected                 |
