@@ -271,7 +271,6 @@ cmake --build build --parallel
 ./build/hft_strategy       # quoting model, adverse selection, book invariant
 ./build/hft_concurrent     # SPSC ring, single- and two-threaded
 ./build/hft_shards         # symbol routing vs a std::map oracle
-# ../../../scripts/bench.ps1  # one-command reproduce on Windows
 ./build/hft_differential   # fast book vs naive model, full state compare
 ./build/hft_replay         # deterministic replay, prints the book checksum
 ./build/hft_market_maker   # market maker over a replay, prints toxicity
