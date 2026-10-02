@@ -6,8 +6,15 @@
 # output, not as an afterthought. A latency table without its host
 # specification is an anecdote.
 #
+# THE ORDER IS THE POINT: environment, then build, then correctness,
+# then results. A reader must not be able to skip past a failed
+# correctness run and reach a number, because a fast wrong pipeline is
+# exactly the failure this repository cares most about.
+#
 # Run on the benchmark host, not on a laptop:
 #   ./scripts/bench.sh [message_count]
+#
+# On Windows, scripts/bench.ps1 does the same thing.
 #
 # Intended for a rented bare-metal instance (AWS c7i.metal or
 # c7gn.metal) with the core isolated and the frequency governor
