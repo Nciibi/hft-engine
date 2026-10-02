@@ -133,7 +133,6 @@ struct StageResult {
     while (reader.next(frame, frame_size)) {
         const std::uint64_t t0 = hft::util::Timer::now();
         const itch::DecodeResult decoded = itch::decode(frame, frame_size);
-        const std::size_t stride = itch::frame_stride(decoded);
         const std::uint64_t t1 = hft::util::Timer::now();
 
         ++r.records;
