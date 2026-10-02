@@ -652,17 +652,99 @@ void test_sequence() {
     std::printf("sequence tracker\n");
     using namespace hft;
 
-    // Contiguous stream across the 32-bit wrap, which is where naive
+    // Contiguous stream across the sequence wrap, which is where naive
     // `observed == expected + 1` comparisons fail.
+    //
+    // The wrap is 64 bits wide because that is the width of the field:
+    // the MoldUDP64 Sequence Number is eight bytes, asserted in
+    // include/hft/itch/moldudp64.hpp against the specification's field
+    // table. An earlier revision of this test wrapped at 32 bits,
+    // matching a tracker that was also 32 bits -- and both were wrong,
+    // because the high half of every sequence number was being discarded
+    // before anything downstream saw it.
+    //
+    // The arithmetic argument does not depend on the width: modular
+    // comparison is correct at the wrap and nowhere else ambiguous,
+    // provided the gap being measured is under half the space.
     {
-        itch::SequenceTracker t(0xFFFF'FFFEu);
-        check(t.observe(0xFFFF'FFFEu) == itch::SequenceTracker::State::ok, "first is ok");
-        check(t.observe(0xFFFF'FFFFu) == itch::SequenceTracker::State::ok, "second is ok");
-        check(t.observe(0x0000'0000u) == itch::SequenceTracker::State::ok,
-              "wrap from FFFFFFFF to 00000000 is ok, not a gap");
-        check(t.observe(0x0000'0001u) == itch::SequenceTracker::State::ok, "past the wrap is ok");
+        constexpr std::uint64_t kMax = 0xFFFF'FFFF'FFFF'FFFFULL;
+        itch::SequenceTracker t(kMax - 1u);
+        check(t.observe(kMax - 1u) == itch::SequenceTracker::State::ok, "first is ok");
+        check(t.observe(kMax) == itch::SequenceTracker::State::ok, "second is ok");
+        check(t.observe(0) == itch::SequenceTracker::State::ok,
+              "wrap from the maximum to zero is ok, not a gap");
+        check(t.observe(1) == itch::SequenceTracker::State::ok, "past the wrap is ok");
         check(t.clean(), "wrapped stream is clean");
         check_eq_int(static_cast<long long>(t.missing()), 0, "nothing missing across the wrap");
+        check_eq_int(static_cast<long long>(t.accepted()), 4, "all four messages accepted");
+    }
+
+    // A gap that spans the wrap must still be counted, and counted with
+    // the right magnitude. Losing the wrap makes a forward jump look
+    // like a backwards one -- the one case modular arithmetic cannot
+    // rescue, because the sign of the jump is genuinely ambiguous.
+    {
+        constexpr std::uint64_t kMax = 0xFFFF'FFFF'FFFF'FFFFULL;
+        itch::SequenceTracker t(kMax);
+        check(t.observe(kMax) == itch::SequenceTracker::State::ok, "at the maximum is ok");
+        // 3 forward, across the wrap to sequence 2.
+        check(t.observe(2) == itch::SequenceTracker::State::gap,
+              "a forward jump across the wrap is a gap, not a duplicate");
+        check_eq_int(static_cast<long long>(t.missing()), 3, "three messages missing");
+    }
+
+    // Whole-packet observation, which is the entry point a real handler
+    // uses: a handler is handed packets, not messages, and the sequence
+    // field applies to the FIRST block of a packet.
+    {
+        itch::SequenceTracker t(1'000);
+        check(t.observe_packet(1'000, 10) == itch::SequenceTracker::State::ok,
+              "a packet starting where we expect is ok");
+        check_eq_int(static_cast<long long>(t.accepted()), 10,
+                     "and all ten of its messages are counted");
+        check_eq_int(static_cast<long long>(t.expected()), 1'010,
+                     "and the expectation advanced by the message count");
+        check(t.clean(), "a contiguous packet stream is clean");
+    }
+    {
+        // A gap of whole packets: 10 messages expected, next packet
+        // starts 10 further on, so ten messages were lost.
+        itch::SequenceTracker t(1'000);
+        (void)t.observe_packet(1'000, 10);
+        check(t.observe_packet(1'020, 5) == itch::SequenceTracker::State::gap,
+              "a packet starting late is a gap");
+        check_eq_int(static_cast<long long>(t.missing()), 10,
+                     "and the loss is counted in messages, not packets");
+        check_eq_int(static_cast<long long>(t.gaps()), 1, "one gap event");
+    }
+    {
+        // A duplicate packet must not be counted, nor its implicit
+        // tail: the whole packet has already been seen.
+        itch::SequenceTracker t(1'000);
+        (void)t.observe_packet(1'000, 10);
+        (void)t.observe_packet(1'010, 10);
+        check_eq_int(static_cast<long long>(t.accepted()), 20, "twenty messages so far");
+        check(t.observe_packet(1'010, 10) == itch::SequenceTracker::State::duplicate,
+              "a repeated packet is a duplicate");
+        check_eq_int(static_cast<long long>(t.accepted()), 20,
+                     "and contributes nothing to the accepted count");
+    }
+    {
+        // A heartbeat carries the next expected sequence and no
+        // messages. Reporting the difference is the whole point: a
+        // heartbeat arriving mid-stream is the sender telling us we
+        // have missed something, and accepting it silently would hide
+        // exactly the event this class exists to surface.
+        itch::SequenceTracker t(1'000);
+        (void)t.observe_packet(1'000, 10);
+        check(t.observe_packet(1'010, 0) == itch::SequenceTracker::State::ok,
+              "a heartbeat agreeing with our position is ok");
+        check_eq_int(static_cast<long long>(t.accepted()), 10,
+                     "and contributes no messages of its own");
+        check(t.observe_packet(1'100, 0) == itch::SequenceTracker::State::gap,
+              "a heartbeat ahead of us means messages were lost");
+        check_eq_int(static_cast<long long>(t.missing()), 90,
+                     "and the shortfall is counted");
     }
 
     // Forward gap.
