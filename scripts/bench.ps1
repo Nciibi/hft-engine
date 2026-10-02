@@ -39,7 +39,10 @@ D:\w64devkit\bin if that exists, then to whatever is already on PATH.
 [CmdletBinding()]
 param(
     [long] $Messages = 5000000,
-    [string] $Toolchain = ''
+    [string] $Toolchain = '',
+    # Skip the six-variant cross-optimisation determinism build. Faster to
+    # iterate with; never valid for a published run.
+    [switch] $SkipDeterminism
 )
 
 $ErrorActionPreference = 'Stop'
