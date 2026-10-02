@@ -354,6 +354,19 @@ int main(int argc, char** argv) {
                     "         and a paged run measures the page fault.\n\n");
     }
 
+    // Short runs are fine for checking that the threaded path builds the
+    // same book, which is what the smoke test uses this tool for. They
+    // are not fine for reading a speedup: at 50k records the run-to-run
+    // drift on a shared machine is measured in tens of percent, which
+    // swamps every ratio the sweep produces.
+    constexpr std::size_t kMinimumRecords = 500'000;
+    if (records < kMinimumRecords) {
+        std::printf("WARNING: %s records is below %s. Run-to-run drift at this size\n"
+                    "         swamps every speedup below; treat the ratio column as\n"
+                    "         noise. The checksum comparison is still meaningful.\n\n",
+                    bench::humanize(records).c_str(), bench::humanize(kMinimumRecords).c_str());
+    }
+
     bench::section("MEASUREMENT COST");
     const bench::LatencyHistogram clock = bench::measure_clock_overhead();
     bench::print_clock_overhead(clock);
