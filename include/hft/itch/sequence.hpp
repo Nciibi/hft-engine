@@ -117,15 +117,27 @@ public:
             // mid-stream is a real signal that messages were lost, and
             // applying it silently would hide exactly the event this
             // class exists to surface.
+            //
+            // It is not counted either way -- a heartbeat contains no
+            // messages -- so `accepted` does not move. Only the verdict
+            // is computed.
             const std::uint64_t delta = first_sequence - next_;
-            if (delta != 0 && delta < kHalfSpace) {
+            if (delta == 0) {
+                // The sender agrees with us. That is the healthy case
+                // and it must not be reported as a duplicate, or every
+                // idle feed would look like a retransmission storm and
+                // `clean()` would never be true.
+                last_ = State::ok;
+                return last_;
+            }
+            if (delta < kHalfSpace) {
                 missing_ += delta;
                 ++gaps_;
                 last_ = State::gap;
-            } else {
-                last_ = State::duplicate;
-                ++rejects_;
+                return last_;
             }
+            last_ = State::duplicate;
+            ++rejects_;
             return last_;
         }
 
