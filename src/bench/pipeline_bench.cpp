@@ -967,7 +967,8 @@ int main(int argc, char** argv) {
                     bench::humanize(base.books).c_str(),
                     bench::humanize(base.applied).c_str(), base.max_levels);
 
-        const std::size_t cores = hft::util::physical_core_count();`n        bool shard_mismatch = false;
+        const std::size_t cores = hft::util::physical_core_count();
+        bool shard_mismatch = false;
 
         for (const std::size_t workers : {std::size_t{2}, std::size_t{3}, std::size_t{5}}) {
             if (workers > cores - 1) {
