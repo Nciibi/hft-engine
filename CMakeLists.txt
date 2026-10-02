@@ -67,7 +67,8 @@ add_library(hft_core STATIC
     src/types.cpp
     src/itch/decode.cpp
     src/lob/order_book.cpp
-    src/feed/generator.cpp)
+    src/feed/generator.cpp
+    src/util/affinity.cpp)
 
 target_include_directories(hft_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
