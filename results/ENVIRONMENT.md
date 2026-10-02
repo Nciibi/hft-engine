@@ -51,21 +51,39 @@ See the caveats below and `hft_pipeline_bench`'s own output, which prints
 the run-to-run noise floor that governs how these ratios may be read.
 
 ```
-decode + apply, 1 thread          778 K msg/s   (mixed capture, 603/255 levels)
 lock-free ring, 1024 slots      26.4 M msg/s   (vs 431 K msg/s mutex baseline)
-
-K=1    704 K msg/s   0.91x
-K=8    628 K msg/s   0.81x
-K=32   621 K msg/s   0.80x
-K=128  630 K msg/s   0.81x
-
-baseline drift between two identical runs: -4.4%
 ```
 
-Two threads lose to one at every batch size, and the drift between
-identical runs is several percent. The finding is that the decode/apply
-split does not pay at this granularity; see the concurrency section of
-`README.md`.
+Splitting decode from apply through one ring is **break even** at every
+batch size from 1 to 128 — within the measured noise floor, which on this
+host is under one percent. An earlier revision of `hft_pipeline_bench`
+reported 0.81x–0.91x here and blamed load imbalance. That was a bug:
+messages queued at shutdown were never applied, so the run did less work
+and timed as slower. The load-imbalance story was a rationalisation that
+fit the symptom and was wrong about the cause.
+
+Sharding the same work by symbol across 64 books:
+
+```
+1 thread, fused, 64 books       3.40 M msg/s   (baseline)
+dispatcher + 2 workers          6.85 M msg/s   2.01x   books identical
+dispatcher + 3 workers          6.42 M msg/s   1.89x   books identical
+dispatcher + 5 workers          6.05 M msg/s   1.78x   books identical
+```
+
+Ratios flatten past two workers because the dispatcher decodes and routes
+every message and is therefore a serial floor. On a machine with more
+cores that floor moves; on a bare-metal host the numbers should be
+re-measured rather than extrapolated.
+
+Every sharded row is checked to have produced books byte-identical to the
+single-threaded baseline. That check is not a formality — it is what
+caught the dropped-message bug above, and what catches a misrouted
+mutation, which looks exactly like a speedup.
+
+Two things to take from this beyond the numbers. A benchmark reporting a
+*slowdown* deserves the same suspicion as one reporting a speedup. And a
+plausible mechanism is not a verified one.
 
 ### Superseded: figures taken before the Add Order decoder fix
 
