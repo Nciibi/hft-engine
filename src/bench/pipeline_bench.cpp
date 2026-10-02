@@ -46,10 +46,11 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <thread>
 #include <type_traits>
-#include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "bench/report.hpp"
@@ -58,6 +59,7 @@
 #include "hft/itch/decode.hpp"
 #include "hft/lob/apply.hpp"
 #include "hft/lob/order_book.hpp"
+#include "hft/lob/shards.hpp"
 #include "replay/checksum.hpp"
 #include "hft/util/affinity.hpp"
 
@@ -68,6 +70,7 @@ using hft::Price;
 using hft::Side;
 using hft::concurrent::SpscRing;
 using hft::lob::OrderBook;
+namespace lob = hft::lob;
 
 /// Slot capacity: enough to ride out a scheduling hiccup on either side
 /// without letting the queue grow large enough to hide latency in a
