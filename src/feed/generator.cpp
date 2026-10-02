@@ -316,7 +316,22 @@ public:
     }
 
     /// Emit whatever is left, even if it is a partial packet.
+    ///
+    /// Idempotent: flushing an empty buffer does nothing, so calling
+    /// this twice is harmless. That matters because the destructor also
+    /// flushes.
     void finish() { flush(); }
+
+    /// A tail packet is flushed here rather than at a call site.
+    ///
+    /// This class had a `finish()` that nothing called, and the symptom
+    /// was that the last partial packet was silently dropped: 1,000
+    /// messages at 7 per packet produced 994 frames, not 1,000. Nothing
+    /// reported an error, because from every reader's point of view the
+    /// stream simply ended -- earlier than it should have, and in a way
+    /// that looked intentional. A missing `finish()` call is a bug that
+    /// costs six messages and explains itself as nothing at all.
+    ~PacketWriter() { flush(); }
 
     [[nodiscard]] std::uint64_t packets() const noexcept { return packets_; }
 
