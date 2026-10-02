@@ -1168,7 +1168,7 @@ void test_trade_layouts_are_spec() {
     tb[3] = 0x11;  // tracking 0x11
     tb[4] = 0x22;
     for (int i = 0; i < 6; ++i) {
-        tb[5 + i] = static_cast<std::uint8_t>(0xA0 + i);  // timestamp
+        tb[static_cast<std::size_t>(5 + i)] = static_cast<std::uint8_t>(0xA0 + i);  // ts
     }
     put_be64(tb, itch::off::trade_id, 0);  // zero on the binary feeds
     tb[itch::off::trade_side] = static_cast<std::uint8_t>('B');
@@ -1222,7 +1222,7 @@ void test_trade_layouts_are_spec() {
     qb[3] = 0x33;  // tracking 0x33
     qb[4] = 0x44;
     for (int i = 0; i < 6; ++i) {
-        qb[5 + i] = static_cast<std::uint8_t>(0x50 + i);
+        qb[static_cast<std::size_t>(5 + i)] = static_cast<std::uint8_t>(0x50 + i);
     }
     // A share count that does not fit in four bytes. If the decoder read
     // four bytes here it would see 0x00000005 and every field after it
