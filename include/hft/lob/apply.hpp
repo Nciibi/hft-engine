@@ -59,6 +59,9 @@ struct ApplyResult {
             } else if constexpr (std::is_same_v<T, itch::OrderCancel>) {
                 const BookStatus s = book.cancel_partial(payload.id, payload.shares);
                 return ApplyResult{s, s == BookStatus::ok};
+            } else if constexpr (std::is_same_v<T, itch::OrderDelete>) {
+                const BookStatus s = book.remove(payload.id);
+                return ApplyResult{s, s == BookStatus::ok};
             } else if constexpr (std::is_same_v<T, itch::OrderReplace>) {
                 // Remove the original outright, then add the replacement.
                 //
