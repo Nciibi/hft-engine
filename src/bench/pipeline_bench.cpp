@@ -45,6 +45,7 @@
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <memory>
 #include <vector>
 
 #include "bench/report.hpp"
