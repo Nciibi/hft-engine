@@ -607,7 +607,7 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             // around the mid, which is what makes the touch move and
             // gives a market maker something to trade against.
             std::size_t pick = 0;
-            if (false && at_capacity) {
+            if (at_capacity) {
                 std::int64_t worst_distance = -1;
                 for (std::size_t k = 0; k < live.size(); ++k) {
                     const std::int64_t distance =
