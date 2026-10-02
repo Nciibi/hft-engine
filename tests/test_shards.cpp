@@ -125,14 +125,20 @@ void test_symbol() {
     // the object, missed on every lookup, and treated all sixty-four
     // symbols in a multi-symbol feed as distinct. It surfaced as an
     // access violation and then as every worker claiming every book.
-    check(std::string(aapl.c_str()) == "AAPL",
-          "c_str() yields exactly the symbol and stops at the terminator");
-    check(aapl.c_str()[aapl.length()] == '\0', "the byte after the symbol is a terminator");
+    //
+    // The contract is: c_str() is the WIRE field, eight bytes, space
+    // padded, NUL terminated. str() is the canonical name with the
+    // padding removed. They are different on purpose -- one is what the
+    // venue sent, the other is what you would call the instrument.
+    check(aapl.c_str()[lob::kSymbolSize] == '\0',
+          "the terminator sits immediately after the eight-byte wire field");
     check(std::string(lob::Symbol::from_wire("SYM00042").c_str()) == "SYM00042",
-          "a full eight-character symbol is not over-read");
-    check(std::string(blank.c_str()).empty(), "an empty symbol reads as an empty string");
-    check(aapl.str() == "AAPL", "str() agrees with c_str()");
-    check(lob::Symbol::from_wire("SYM00042").str() == "SYM00042", "str() on a full-width symbol");
+          "a full eight-character symbol reads back exactly, with no over-read");
+    check(std::string(lob::Symbol::from_wire("AAPL    ").c_str()) == "AAPL    ",
+          "c_str() preserves the padding, because it is the wire form");
+    check(aapl.str() == "AAPL", "str() strips the padding, because it is the canonical name");
+    check(blank.str().empty(), "an empty symbol has an empty name");
+    check_eq_size(lob::kSymbolSize, 8, "the wire field is eight bytes");
 }
 
 // ---- Shard assignment -----------------------------------------------
