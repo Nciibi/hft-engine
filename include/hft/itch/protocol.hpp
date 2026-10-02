@@ -103,7 +103,7 @@ inline constexpr std::size_t add_order_side = 19;     ///< 1, 'B' or 'S'
 inline constexpr std::size_t add_order_size = 20;     ///< 4, shares
 inline constexpr std::size_t add_order_stock = 24;    ///< 8, alpha, space padded
 inline constexpr std::size_t kStockSymbolSize = 8;
-inline constexpr std::size_t add_order_price = 20;    ///< 4
+inline constexpr std::size_t add_order_price = 32;    ///< 4
 inline constexpr std::size_t kAddOrderSize = add_order_price + kPriceSize;
 
 // ---- Order Executed, tag 'E' ----
