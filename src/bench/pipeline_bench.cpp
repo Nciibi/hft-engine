@@ -415,6 +415,7 @@ public:
     explicit Router(std::size_t workers, std::size_t reference_capacity, std::size_t symbols)
         : workers_(workers == 0 ? 1 : workers), refs_(reference_capacity) {
         route_.reserve(symbols * 2);
+        per_worker_.assign(workers_, 0);
     }
 
     struct Destination {
