@@ -76,6 +76,13 @@ bool pin_current_thread(std::size_t logical) noexcept;
 /// The point is that the reader of a benchmark result can see the
 /// placement without trusting it. A string is not a machine-readable
 /// topology, and it is not meant to be: it is the audit trail.
-[[nodiscard]] std::string describe_affinity(const char* role) noexcept;
+///
+/// Allocates, and is therefore not `noexcept`. A benchmark that cannot
+/// describe its own environment is not producing a publishable number,
+/// so this is on the path where a failure should be visible.
+[[nodiscard]] std::string describe_affinity(const char* role);
+
+/// Topology summary, e.g. "6 physical cores / 12 logical processors".
+[[nodiscard]] std::string describe_topology();
 
 }  // namespace hft::util
