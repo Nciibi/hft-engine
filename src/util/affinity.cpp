@@ -323,7 +323,7 @@ std::string describe_affinity(const char* role) {
     if (index < groups.size()) {
         out += " (physical core " + std::to_string(index) + " of " + std::to_string(groups.size());
         if (groups[index].size() > 1) {
-            out += ", shares with logical " + std::to_string(groups[index][1]);
+            out += ", shares with logical " + std::to_string(other_in(groups[index], logical));
         } else {
             out += ", no SMT sibling";
         }
