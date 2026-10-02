@@ -133,6 +133,47 @@ inline constexpr std::size_t order_cancel_shares = 19;  ///< 4
 // Removes the entire order regardless of remaining quantity.
 inline constexpr std::size_t order_delete_id = 11;  ///< 8
 
+// ---- Order Replace, tag 'U' ----
+// Verified against TotalView-ITCH 5.0 section 4.4.5 (Order Replace
+// Message), the Nasdaq document itself.
+//
+// This one was skipped for a long time on the grounds that its layout
+// could not be verified. It could be; the specification is public. What
+// was actually true is that the layouts differ between protocol
+// VERSIONS, so a table copied from ITCH 3.1 or 4.0 -- which both exist
+// and both differ, 4.0 omitting the Display field that 5.0 never had at
+// this position -- is wrong in a way that looks right. Skip-by-length
+// was the correct call then; it is not the reason any longer.
+//
+// Side, stock and MPID are absent by design and must be carried over
+// from the original Add Order. A new reference number means NEW time
+// priority, so the replacement sorts behind everything already resting
+// at its price -- see the apply layer.
+inline constexpr std::size_t order_replace_original_id = 11;  ///< 8
+inline constexpr std::size_t order_replace_new_id = 19;       ///< 8
+inline constexpr std::size_t order_replace_shares = 27;      ///< 4, new total
+inline constexpr std::size_t order_replace_price = 31;       ///< 4
+inline constexpr std::size_t kOrderReplaceSize = order_replace_price + kPriceSize;
+
+// ---- Broken Trade, tag 'B' ----
+// Verified against TotalView-ITCH 5.0 section 4.5.3 (Broken Trade /
+// Order Execution Message), identical in the Nasdaq NQ, BX and PSX
+// specifications.
+//
+// 'B' is NOT order entry. An earlier revision of this repository
+// described an "ITCH Order Entry ('B')" encode stage that it declined
+// to implement for lack of a verified table; the specification states
+// that TotalView-ITCH "is an outbound market data feed only" and
+// "does not support order entry", and 'B' here is an inbound report
+// that an execution was broken under the clearly-erroneous policy.
+//
+// It has no effect on the book -- the specification says a firm using
+// the feed to build a book "may ignore these messages" -- but it is not
+// ignorable for a time-and-sales view, and it is decoded here so that a
+// caller can see it rather than discover a hole in its own handling.
+inline constexpr std::size_t broken_trade_match = 11;  ///< 8
+inline constexpr std::size_t kBrokenTradeSize = broken_trade_match + kOrderIdSize;
+
 /// Body sizes are DERIVED from the last field's offset, never written
 /// as independent constants. An earlier revision of this file
 /// hard-coded 20 and 16 for these two and was wrong by 3 bytes each;
