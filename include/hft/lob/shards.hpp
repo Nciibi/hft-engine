@@ -174,26 +174,34 @@ public:
     /// `order_capacity` and `level_capacity` are PER BOOK, not total.
     /// Sized from the per-symbol share of the feed, not from the whole
     /// feed, or a hundred-symbol run allocates a hundred times too much.
+    ///
+    /// Memory is O(symbols x capacity) and that is inherent rather than
+    /// an implementation detail: holding a hundred books means holding a
+    /// hundred books. Sizing each one for the whole feed is the mistake
+    /// to avoid, and it is why these are two numbers rather than one.
     ShardSet(std::size_t order_capacity, std::size_t level_capacity,
              std::size_t max_symbols = 1024)
-        : books_{order_capacity, level_capacity} {
+        : order_capacity_(order_capacity), level_capacity_(level_capacity) {
         symbols_.reserve(max_symbols);
     }
 
     /// Claim a symbol for this set. Idempotent: claiming a symbol twice
-    /// returns the same shard and does not double-count.
+    /// returns the same index and does not build a second book.
     ///
     /// Claims must be made from a single thread before any work starts.
-    /// They are not cheap and they are not synchronised, because doing
-    /// them concurrently would mean a symbol could land on two shards,
-    /// which is the one outcome nothing downstream can detect.
+    /// They are not synchronised, because doing them concurrently would
+    /// mean a symbol could land on two indices, which is the one outcome
+    /// nothing downstream can detect: both books would accept orders for
+    /// one instrument and neither would ever be complete.
     std::size_t claim(const Symbol& symbol) noexcept {
         const std::size_t existing = find(symbol);
         if (existing != kNotFound) {
             return existing;
         }
+        const std::size_t index = symbols_.size();
         symbols_.push_back(symbol);
-        return symbols_.size() - 1;
+        books_.emplace_back(order_capacity_, level_capacity_);
+        return index;
     }
 
     [[nodiscard]] std::size_t find(const Symbol& symbol) const noexcept {
