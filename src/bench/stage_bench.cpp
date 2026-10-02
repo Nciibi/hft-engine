@@ -108,13 +108,8 @@ struct StageResult {
 };
 
 /// One full pass over the feed, timing each stage separately.
-[[nodiscard]] StageResult run(const std::vector<std::uint8_t>& data, std::size_t pool,
-                              const BookShape& shape, hft::Nanos horizon) {
+[[nodiscard]] StageResult run(const std::vector<std::uint8_t>& data, std::size_t pool) {
     StageResult r;
-
-    hft::feed::CaptureConfig config;
-    config.record_count = data.size() / 40;  // rough; overwritten by the caller's capture
-    (void)config;
 
     lob::OrderBook book(pool, pool);
 
