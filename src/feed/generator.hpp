@@ -168,20 +168,41 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config);
 
 // ---- Capture format -------------------------------------------------
 
-/// A capture is a sequence of records, each:
+/// A capture is a stream of MoldUDP64 Downstream Packets.
 ///
-///     [4 bytes  SOUP sequence, big-endian]
-///     [2 bytes  body length, big-endian, includes the tag]
-///     [N bytes  ITCH message body]
+/// Each packet is a 20-byte header followed by a sequence of Message
+/// Blocks, and each block is `[2-byte length][ITCH body]`:
 ///
-/// The sequence number is carried per record rather than in a
-/// MoldUDP64 packet header. Full MoldUDP64 framing and its checksum are
-/// out of scope, and pretending to implement them while actually
-/// inventing a layout would be worse than naming the boundary. What
-/// this format does provide is the property the replay tool needs: a
-/// number to check contiguity against, so a dropped message is
-/// detectable rather than silent.
-inline constexpr std::size_t kCaptureSequenceSize = 4;
+///     [20 bytes  MoldUDP64 Downstream Packet Header]
+///     [ 2 bytes  block length][N bytes  ITCH body]
+///     [ 2 bytes  block length][N bytes  ITCH body]
+///     ... `messages_per_packet` blocks in total
+///
+/// The header's 8-byte Sequence Number applies to the FIRST message in
+/// the packet; the rest are implicitly sequential, per the
+/// specification. Read it with `hft::itch::mold::parse_header` and walk
+/// the blocks with `hft::itch::mold::MessageBlocks` -- which hands each
+/// block back as a complete ITCH frame, because a Message Block and an
+/// frame have the same layout.
+///
+/// The format CHANGED. It used to be one 4-byte sequence number per
+/// record, which is not a wire format at all: it carried a sequence
+/// number MoldUDP64 does not put there, at a width MoldUDP64 does not
+/// use, with no packet boundaries and no heartbeats. The old layout is
+/// retained below as a documented constant only so the difference is
+/// visible in the diff.
+///
+/// There is still no checksum, and that is correct: MoldUDP64 does not
+/// checksum packets. Integrity belongs to SOUP, one protocol up, and
+/// its field table has not been verified here.
+///
+/// `messages_per_packet` exists because it is a real variable, not a
+/// cosmetic one. One message per packet is what a naive implementation
+/// does and it makes every message pay a 20-byte header; a hundred per
+/// packet is what a real venue sends. Nothing else in this repository
+/// changes behaviour between the two, which is itself worth being able
+/// to say.
+inline constexpr std::size_t kCaptureHeaderSize = hft::itch::mold::kHeaderSize;
 
 /// A mixed feed: adds interleaved with the cancels, executes and
 /// deletes that actually remove them.
