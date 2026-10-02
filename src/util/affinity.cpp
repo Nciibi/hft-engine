@@ -253,11 +253,21 @@ std::size_t smt_sibling(std::size_t logical) noexcept {
     if (index >= groups.size()) {
         return logical;
     }
-    const CoreGroup& group = groups[index];
-    // A group of one has no sibling, and returning `logical` makes that
-    // case indistinguishable from "the sibling is me", which is exactly
-    // right: a thread cannot share a core with itself.
-    return group.size() < 2 ? logical : group[1];
+    return other_in(groups[index], logical);
+}
+
+std::size_t other_core(std::size_t logical) noexcept {
+    const auto& groups = topology();
+    const std::size_t index = group_of(logical);
+    if (index >= groups.size()) {
+        return logical;
+    }
+    // Step to the next core and take its first thread. Single-core
+    // hosts and hosts where SMT is disabled have nothing better to
+    // offer, and returning `logical` lets the caller detect that rather
+    // than silently measuring two threads on one core.
+    const std::size_t next = (index + 1u) % groups.size();
+    return groups[next].front();
 }
 
 bool shares_physical_core(std::size_t a, std::size_t b) noexcept {
