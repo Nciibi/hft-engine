@@ -120,6 +120,7 @@ void test_big_endian() {
 
 void test_add_order_layout_is_spec() {
     std::printf("Add Order layout against the published field table\n");
+    using namespace hft;
 
     // This test exists because of a bug it would have caught.
     //
