@@ -450,7 +450,8 @@ public:
         std::size_t local = 0;
         if (refs_.lookup(ref, local)) {
             symbol_index = static_cast<std::uint32_t>(local);
-            return Destination{symbol_index / kMaxPerWorker, symbol_index, true};
+            return Destination{static_cast<std::uint32_t>(local / kMaxPerWorker),
+                               symbol_index, true};
         }
         return Destination{};
     }
