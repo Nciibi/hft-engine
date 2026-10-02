@@ -447,12 +447,12 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
         std::vector<Live>& live = sym_state.live;
 
         const std::uint64_t roll = rng.below(100);
-        // The sequence number of THIS record, then advance for the
-        // next. Incrementing first would make the first record carry
-        // first_sequence + 1, which a consumer seeded with
-        // first_sequence would correctly report as a lost message.
-        const std::uint32_t record_sequence = sequence;
-        ++sequence;
+        // The sequence number is assigned by the PacketWriter when the
+        // packet is flushed, not here, because a packet's sequence is
+        // that of its FIRST message and the count is not known until
+        // the packet is full. Incrementing a counter per record and
+        // stamping it on each one was the old format's approach and it
+        // put the sequence number where MoldUDP64 does not put it.
         ++local.records;
 
         const bool may_mutate = !live.empty();
