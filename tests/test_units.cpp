@@ -726,44 +726,48 @@ void test_capture_rejects_truncation() {
     // and require that any cut which lands inside a packet or a block is
     // reported. A cut that lands exactly on a packet boundary is a
     // legitimate shorter capture and must NOT be flagged.
+    //
+    // Packet boundaries are found by walking the intact capture with a
+    // reader, which advances past exactly one packet's worth of blocks
+    // per header -- a reader is the only thing here that knows where a
+    // packet ends, because frame lengths vary within a packet.
+    std::vector<bool> boundary(data.size() + 1, false);
+    {
+        feed::CaptureReader walker(data.data(), data.size());
+        std::size_t at = 0;
+        boundary[0] = true;
+        for (;;) {
+            const std::uint8_t* wf = nullptr;
+            std::size_t wn = 0;
+            const std::size_t before = at;
+            at += itch::mold::kHeaderSize;
+            std::size_t blocks = 0;
+            while (walker.next(wf, wn)) {
+                at += wn;
+                ++blocks;
+            }
+            if (at == before) {
+                break;
+            }
+            boundary[at] = true;
+            (void)blocks;
+        }
+    }
+
     std::size_t reported = 0;
     std::size_t silent = 0;
     for (std::size_t cut = 1; cut < data.size() && cut < 400; ++cut) {
+        if (boundary[cut]) {
+            continue;
+        }
         feed::CaptureReader reader(data.data(), cut);
         const std::uint8_t* frame = nullptr;
         std::size_t frame_size = 0;
         while (reader.next(frame, frame_size)) {
         }
-        // Determine whether `cut` was a clean packet boundary: walk the
-        // intact capture to that offset and see if a header starts there.
-        bool on_boundary = false;
-        {
-            feed::CaptureReader walker(data.data(), data.size());
-            std::size_t at = 0;
-            while (at < cut) {
-                if (at + itch::mold::kHeaderSize > data.size()) {
-                    break;
-                }
-                if (at == cut) {
-                    on_boundary = true;
-                    break;
-                }
-                feed::CaptureReader one(data.data() + at, data.size() - at);
-                std::size_t consumed = 0;
-                const std::uint8_t* f = nullptr;
-                std::size_t n = 0;
-                while (one.next(f, n)) {
-                    consumed += n;
-                }
-                if (consumed == 0) {
-                    break;
-                }
-                at += itch::mold::kHeaderSize + consumed;
-            }
-        }
         if (reader.malformed()) {
             ++reported;
-        } else if (!on_boundary) {
+        } else {
             ++silent;
         }
     }
