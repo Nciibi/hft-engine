@@ -284,6 +284,12 @@ ctest --test-dir build     # everything
 Zero external dependencies in the library target. CMake, a C++20
 compiler, and `git`.
 
+To reproduce the benchmark numbers rather than just build, use the
+script: `./scripts/bench.sh` on Linux, `./scripts/bench.ps1` on Windows.
+Both print the environment first, gate on the correctness tests, and
+only then run the benchmarks — in that order, because a reader who
+skips past a failed correctness run should not be able to.
+
 ## Architecture
 
 ```
