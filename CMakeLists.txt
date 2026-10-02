@@ -92,6 +92,12 @@ target_link_libraries(hft_market_maker PRIVATE hft_core)
 add_executable(hft_ring_bench src/bench/ring_bench.cpp)
 target_link_libraries(hft_ring_bench PRIVATE hft_core)
 
+# Market data pipeline: decode + apply on one thread versus two threads
+# separated by the ring, across a sweep of batch sizes. Fingerprints both
+# paths and reports a mismatch rather than a speedup.
+add_executable(hft_pipeline_bench src/bench/pipeline_bench.cpp)
+target_link_libraries(hft_pipeline_bench PRIVATE hft_core)
+
 # Replay: deterministic reconstruction of a book from a capture, with a
 # state checksum and SOUP sequence validation.
 add_executable(hft_replay src/replay/replay.cpp)
