@@ -478,7 +478,9 @@ If you are evaluating this repository, the three questions it was
 built to answer are:
 
 1. **Design a low-latency market data handler.** Decoder, sequence
-   tracking, and the benchmark harness.
+   tracking, the SPSC hand-off between decode and apply, and the
+   benchmark harness — including the measurement that says splitting
+   those two stages does not pay at this granularity.
 2. **Design an OMS that stays correct under high message rates.** The
    apply layer, the order state machine, and pre-trade risk, with the
    differential test and 60,000 randomised operations as the
@@ -489,8 +491,8 @@ built to answer are:
    candidates most under-prepare for, and the one most likely to be
    asked regardless of the round.
 
-Not yet built, and named honestly: sharding, the SPSC ring buffer, and
-MoldUDP64 framing.
+Not yet built, and named honestly: symbol sharding and MoldUDP64
+framing.
 
 ## What this is not
 
