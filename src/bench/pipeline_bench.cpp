@@ -682,7 +682,6 @@ struct ShardedResult {
                     const Router::Destination d = router.reference(reference_of(r.message), local);
                     if (!d.valid) {
                         result.unroutable++;
-                        offset = frame_at + stride;
                         continue;
                     }
                     worker = d.worker;
