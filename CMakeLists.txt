@@ -92,6 +92,12 @@ target_link_libraries(hft_market_maker PRIVATE hft_core)
 add_executable(hft_ring_bench src/bench/ring_bench.cpp)
 target_link_libraries(hft_ring_bench PRIVATE hft_core)
 
+# Per-stage latency at a shallow and a deep book. Shallow is 10 price
+# levels a side, deep is 1000, because the price ladder is a sorted
+# linked list and book-update cost is proportional to ladder depth.
+add_executable(hft_stage_bench src/bench/stage_bench.cpp)
+target_link_libraries(hft_stage_bench PRIVATE hft_core)
+
 # Market data pipeline: decode + apply on one thread versus two threads
 # separated by the ring, across a sweep of batch sizes. Fingerprints both
 # paths and reports a mismatch rather than a speedup.
