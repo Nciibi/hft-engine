@@ -242,6 +242,7 @@ void test_add_order_layout_is_spec() {
 //     specification does not define.
 void test_moldudp64_against_spec() {
     std::printf("MoldUDP64 framing against the published field table\n");
+    using namespace hft;
 
     namespace mold = hft::itch::mold;
 
