@@ -78,13 +78,15 @@ inline constexpr std::size_t kRingCapacity = 1024;
 /// answer it.
 template <std::size_t K>
 struct Batch {
-    static_assert(std::is_trivially_copyable_v<Batch<K>> ||
-                      std::is_trivially_copyable_v<decltype(Batch<K>{}.items)> ||
-                      true,
-                  "");
     hft::itch::Message items[K]{};
     std::uint32_t count = 0;
 };
+
+static_assert(std::is_trivially_copyable_v<Batch<1>>,
+              "the ring hands a batch over as bytes; a Batch that is not trivially "
+              "copyable cannot be moved between threads by this queue");
+static_assert(std::is_trivially_destructible_v<Batch<128>>,
+              "the ring never runs destructors on its slots");
 
 /// Book fingerprint.
 ///
