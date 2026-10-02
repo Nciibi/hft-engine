@@ -242,7 +242,12 @@ template <std::size_t N, bool kUseMutex>
     // once and consumed once.
     std::thread consumer([&] {
         (void)hft::util::pin_current_thread(consumer_core);
+        std::fprintf(stderr, "[dbg] consumer start iterations=%zu mutex=%d\n", iterations,
+                     kUseMutex ? 1 : 0);
         for (std::size_t i = 0; i < iterations; ++i) {
+            if (i == 0 || i + 1 == iterations) {
+                std::fprintf(stderr, "[dbg] consumer iter %zu/%zu\n", i, iterations);
+            }
             Payload out;
             if constexpr (kUseMutex) {
                 mutex_queue.pop(out);
@@ -256,11 +261,17 @@ template <std::size_t N, bool kUseMutex>
                 }
             }
         }
+        std::fprintf(stderr, "[dbg] consumer done\n");
     });
 
     (void)hft::util::pin_current_thread(producer_core);
+    std::fprintf(stderr, "[dbg] producer start iterations=%zu mutex=%d\n", iterations,
+                 kUseMutex ? 1 : 0);
 
     for (std::size_t i = 0; i < iterations; ++i) {
+        if (i == 0 || i + 1 == iterations) {
+            std::fprintf(stderr, "[dbg] producer iter %zu/%zu\n", i, iterations);
+        }
         token_add.id = static_cast<hft::OrderId>(i + 1);
         const std::uint64_t start = hft::util::Timer::now();
 
