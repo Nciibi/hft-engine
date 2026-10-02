@@ -74,6 +74,8 @@ Three things are now true that were not:
 |---|---|
 | Fixed-point `Price`, no float constructor | done |
 | ITCH decode: `A`, `E`, `C`, `X`, `D` | done |
+| Add Order field table pinned to the published spec | done |
+| Stock symbol field carried, not discarded | done |
 | Split 48-bit timestamp reassembly | done |
 | Unknown-type skip by length, truncation reporting | done |
 | SOUP sequence tracking, gap and duplicate detection | done |
