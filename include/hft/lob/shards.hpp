@@ -137,6 +137,15 @@ public:
     [[nodiscard]] constexpr std::size_t length() const noexcept { return length_; }
     [[nodiscard]] constexpr bool empty() const noexcept { return length_ == 0; }
 
+    /// The symbol as a `std::string`, for use as a map key.
+    ///
+    /// Constructed from `length()` rather than from `c_str()` on
+    /// purpose. They are the same today, because `c_str()` is
+    /// NUL-terminated, but only one of them stays correct if the
+    /// terminator ever moves: this one cannot read past the field
+    /// whatever happens to the bytes after it.
+    [[nodiscard]] std::string str() const { return std::string(bytes_, length_); }
+
     /// Case-insensitive, per the venue's own convention: ITCH symbols
     /// are upper case on the wire and feeds are not consistent about it.
     /// Comparing raw bytes would split one instrument into two books and
