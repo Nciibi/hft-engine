@@ -313,31 +313,43 @@ void test_moldudp64_against_spec() {
     std::size_t size = 0;
     const std::uint8_t* first = blocks.next(size);
     check(first != nullptr, "the first block is present");
-    check_eq_int(static_cast<long long>(size), 36, "the first block is 36 bytes, matching an Add");
-    check(first != nullptr && first[0] == 'A', "the first block is an Add Order");
+    // The returned frame includes the two-byte length prefix, because a
+    // MoldUDP64 Message Block and an ITCH frame have the same layout and
+    // the block should feed `decode` unadjusted.
+    check_eq_int(static_cast<long long>(size), 38,
+                 "the first frame is 38 bytes: a 36-byte Add plus its 2-byte prefix");
+    check(first != nullptr && static_cast<int>(first[0] * 256 + first[1]) == 36,
+          "and it starts with the length prefix the framing reports");
 
     const std::uint8_t* second = blocks.next(size);
     check(second != nullptr, "the second block is present");
-    check_eq_int(static_cast<long long>(size), 23, "the second block is 23 bytes, matching a cancel");
-    check(second != nullptr && second[0] == 'X', "the second block is an Order Cancel");
+    check_eq_int(static_cast<long long>(size), 25,
+                 "the second frame is 25 bytes: a 23-byte cancel plus its 2-byte prefix");
 
     check(blocks.next(size) == nullptr, "no third block, because the count said two");
     check_eq_int(blocks.remaining(), 0, "the count is exhausted");
     check(!blocks.truncated(), "a cleanly finished packet is not reported truncated");
 
-    // A block body is a valid ITCH frame: the length the framing
-    // reports is exactly what the decoder wants, so the two layers
-    // compose without adjustment.
+    // A block IS an ITCH frame, with no adjustment at either layer.
+    // That identity is the point of returning the prefix.
     if (first != nullptr) {
         const itch::DecodeResult r = itch::decode(first, size);
-        check(r.ok(), "a block body decodes as an ITCH frame");
+        check(r.ok(), "a block decodes as an ITCH frame with no adjustment");
         if (r.ok()) {
+            check(r.message.type() == itch::MessageType::add_order, "and it is an Add Order");
             const auto* ao = std::get_if<itch::AddOrder>(&r.message.body);
-            check(ao != nullptr, "and it is an Add Order");
             if (ao != nullptr) {
                 check_eq_int(ao->price.raw(), 1'502'500, "with the price at the right offset");
                 check_eq_int(static_cast<long long>(ao->size.raw()), 100, "and 100 shares");
             }
+        }
+    }
+    if (second != nullptr) {
+        const itch::DecodeResult r = itch::decode(second, size);
+        check(r.ok(), "the second block decodes too");
+        if (r.ok()) {
+            check(r.message.type() == itch::MessageType::order_cancel,
+                  "and it is an Order Cancel");
         }
     }
 
