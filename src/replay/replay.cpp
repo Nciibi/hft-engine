@@ -191,22 +191,15 @@ int main(int argc, char** argv) {
     std::uint64_t checksum = 0;
     std::size_t checksummed = 0;
 
-    while (offset < capture.size()) {
-        if (capture.size() - offset < hft::feed::kCaptureSequenceSize + hft::itch::kLengthPrefixSize) {
-            std::printf("truncated capture tail at offset %zu\n", offset);
-            break;
-        }
+    while (reader.next(frame, frame_size)) {
+        // Per-message sequence tracking, from the packet the frame came
+        // from. The reader reports the sequence of the message, not of
+        // the packet, so a multi-message packet is tracked message by
+        // message -- which is what a handler that rebuilds a book needs,
+        // because a gap anywhere is a gap.
+        const hft::itch::SequenceTracker::State seq_state = sequence.observe(reader.sequence());
 
-        const std::uint32_t seq = hft::itch::read_be32(capture.data() + offset);
-        const hft::itch::SequenceTracker::State seq_state = sequence.observe(seq);
-
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-        const hft::itch::DecodeResult r =
-            hft::itch::decode(capture.data() + frame_at, capture.size() - frame_at);
-        const std::size_t stride = hft::itch::frame_stride(r);
-        if (stride == 0) {
-            break;
-        }
+        const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
 
         if (r.ok()) {
             const hft::lob::ApplyResult ar = hft::lob::apply(r.message, book);
