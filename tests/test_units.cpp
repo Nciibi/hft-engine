@@ -1385,7 +1385,7 @@ void test_report_percentiles() {
         for (int i = 0; i < 10; ++i) {
             h.record(100'000);  // beyond the range
         }
-        check_eq_int(static_cast<long long>(h.overflow()), 10,
+        check_eq_int(static_cast<long long>(h.overflow_count()), 10,
                      "samples beyond the range are counted as overflow");
         check(h.percentile(0.999) <= 100,
               "a censored percentile never exceeds the histogram range");
