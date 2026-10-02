@@ -50,7 +50,7 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
                       hft::TrackingNumber tracking) noexcept {
     using namespace hft::itch;
 
-    // The length prefix counts the tag, so it is 32, not 31.
+    // The length prefix counts the tag, so it is 36, not 35.
     write_be16(out, static_cast<std::uint16_t>(off::kAddOrderSize));
     out.push_back(static_cast<std::uint8_t>(MessageType::add_order));
     write_be16(out, locate);
@@ -59,12 +59,13 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
     write_be64(out, id);
     out.push_back(side == hft::Side::bid ? static_cast<std::uint8_t>('B')
                                          : static_cast<std::uint8_t>('S'));
-    write_be32(out, static_cast<std::uint32_t>(price.raw()));
+    // Shares, then the eight-byte stock symbol, then the price. The
+    // order of the first two is the opposite of what this function used
+    // to write, which is the whole of the Add Order bug: it agreed with
+    // the decoder and disagreed with the specification.
     write_be32(out, static_cast<std::uint32_t>(size.raw()));
-    out.push_back('2');  // Order Type: Limit
-    out.push_back('0');  // Time in Force: Immediate or Cancel
-    out.push_back('1');  // Displayed
-    out.push_back('N');  // Participant: NSDQ
+    write_stock_symbol(out, kGeneratedSymbol);
+    write_be32(out, static_cast<std::uint32_t>(price.raw()));
 }
 
 std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
