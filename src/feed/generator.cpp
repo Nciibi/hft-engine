@@ -373,7 +373,9 @@ private:
 
 std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureStats* stats) {
     std::vector<std::uint8_t> out;
-    out.reserve(config.record_count * 48);
+    // 20-byte packet header plus a frame, amortised over the packet.
+    const std::size_t per_packet = config.messages_per_packet == 0 ? 1 : config.messages_per_packet;
+    out.reserve(config.record_count * (40 + 20 / per_packet));
 
     SplitMix64 rng(config.seed);
     CaptureStats local{};
@@ -387,7 +389,8 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
     // declaring one here would shadow it and every record would be
     // priced against symbol 0's walk.
     hft::OrderId next_id = config.first_order_id;
-    std::uint32_t sequence = config.first_sequence;
+    PacketWriter packets(out, config.session, config.messages_per_packet,
+                      static_cast<std::uint64_t>(config.first_sequence));
     std::uint64_t clock = 0;
     std::uint64_t match_number = 0;
 
@@ -548,7 +551,7 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             append_add_order(frame, side, price, hft::Quantity::from_raw(shares), next_id, clock, 1,
                              static_cast<hft::TrackingNumber>(i & 0xFFFFu),
                              names[sym].c_str());
-            append_capture_record(out, record_sequence, frame);
+            packets.append(frame);
 
             live.push_back(Live{next_id, price, side, shares});
             ++next_id;
@@ -658,7 +661,7 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             // consuming a sequence number. The replay tool reported it
             // as 79,707 missing messages, which is precisely the
             // failure the sequence check exists to surface.
-            append_capture_record(out, record_sequence, frame);
+            packets.append(frame);
         }
 
 #ifdef HFT_DEBUG_CROSS
