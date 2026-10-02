@@ -174,6 +174,12 @@ add_test(NAME replay_clean COMMAND hft_replay 100000)
 set_tests_properties(replay_clean PROPERTIES
     PASS_REGULAR_EXPRESSION "malformed +0")
 
+# Symbol sharding: symbol routing and the order-reference index that
+# makes it possible. Header-only.
+add_executable(hft_shards tests/test_shards.cpp)
+target_link_libraries(hft_shards PRIVATE hft_core)
+add_test(NAME shards COMMAND hft_shards)
+
 # The threaded pipeline must build the same book as the single-threaded
 # one from the same feed. That is a correctness property, not a speed
 # measurement, so it belongs in CI: a pipeline that drops or reorders a
