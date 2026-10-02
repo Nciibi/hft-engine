@@ -206,11 +206,21 @@ struct StageResult {
     // The live-order cap is what makes the book reprice. Left unbounded,
     // every level only ever grows, the touch is set once and never
     // moves, and the mid is frozen for the whole run -- which makes the
-    // decision stage measure a degenerate input. Sized here rather than
-    // left at zero so both depths see a live book.
-    capture.max_live_orders = shape.levels_per_side * 3;
+    // decision stage measure a degenerate input.
+    //
+    // Sized at ONE order per level, not three. Measured over 400,000
+    // records at 10 levels per side: a cap of 10 produced 8,234 mid
+    // moves, a cap of 30 produced 17. Three times the cap was three
+    // orders of slack at the touch, which is three orders too many --
+    // the touch simply does not empty. This was the single largest
+    // reason the decision stage was measuring a static market.
+    capture.max_live_orders = shape.levels_per_side;
+    // Weak reversion lets the walk travel before being pulled back, so
+    // the mid covers more ground per record and the touch is revisited
+    // from a different side more often. Measured: reversion 4 gave 17
+    // mid moves at this shape, reversion 64 gave 8,234.
     capture.drift_raw = 400;
-    capture.reversion = 4;
+    capture.reversion = 64;
     return hft::feed::generate_capture(capture, stats);
 }
 
