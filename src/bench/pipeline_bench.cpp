@@ -998,7 +998,9 @@ int main(int argc, char** argv) {
         }
         std::fflush(stdout);
 
-        if (shard_mismatch) {`n            std::printf(`n                "\n  A sharded run built different books from the same feed. The\n"
+        if (shard_mismatch) {
+            std::printf(
+                "\n  A sharded run built different books from the same feed. The\n"
                 "  speedups above are meaningless: a pipeline that drops or\n"
                 "  misroutes a message is not faster, it is wrong.\n");
         }
