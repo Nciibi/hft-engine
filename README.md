@@ -248,7 +248,8 @@ cmake --build build --parallel
 ./build/hft_differential   # fast book vs naive model, full state compare
 ./build/hft_replay         # deterministic replay, prints the book checksum
 ./build/hft_market_maker   # market maker over a replay, prints toxicity
-./build/hft_bench          # latency and throughput table
+./build/hft_bench          # add-only ingest: latency and throughput table
+./build/hft_stage_bench    # per-stage latency, shallow vs deep book
 ./build/hft_ring_bench     # ring vs mutex baseline, throughput and round trip
 ./build/hft_pipeline_bench # 1 thread vs 2, batch-size sweep, checksum-matched
 ctest --test-dir build     # everything
