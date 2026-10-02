@@ -107,8 +107,8 @@ message is recoverable; a decoder that reads the wrong bytes is not.
 This is the one place the decoder declines to be complete on purpose,
 and the reason is recorded in `include/hft/itch/protocol.hpp`.
 
-Verified: **281 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
-sharding = 684 checks**. One of those unit checks is a hand-built,
+Verified: **307 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
+sharding = 710 checks**. One of those unit checks is a hand-built,
 byte-exact Add Order frame decoded without the generator, because
 self-consistency testing is what let the price/size mix-up survive; see
 [The bug that mattered](#the-bug-that-mattered). The routing that symbol
