@@ -55,6 +55,21 @@ namespace hft::util {
 /// True when `a` and `b` are two logical processors on one physical core.
 [[nodiscard]] bool shares_physical_core(std::size_t a, std::size_t b) noexcept;
 
+/// First logical processor that is NOT on the same physical core as
+/// `logical`.
+///
+/// This is what a two-thread benchmark wants for its second thread. The
+/// obvious alternatives are both wrong on at least one common machine:
+/// `logical + 1` lands on an SMT sibling under an interleaved
+/// enumeration, and `logical + physical_cores` assumes the
+/// first-half/second-half layout. Asking is cheap and is correct on
+/// both layouts.
+///
+/// Returns `logical` when there is no other physical core, so the caller
+/// can detect a single-core host rather than quietly measuring two
+/// threads on one core.
+[[nodiscard]] std::size_t other_core(std::size_t logical) noexcept;
+
 /// Pin the CALLING thread to a single logical processor.
 ///
 /// A thread is pinned by mutating its own affinity mask, so this must
