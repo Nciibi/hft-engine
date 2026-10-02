@@ -272,7 +272,9 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
     const std::int64_t reversion = config.reversion < 1 ? 1 : config.reversion;
     const std::size_t levels = config.price_levels == 0 ? 1 : config.price_levels;
 
-    std::int64_t mid = config.anchor_raw;
+    // The mid is per symbol and lives with that symbol's live set below;
+    // declaring one here would shadow it and every record would be
+    // priced against symbol 0's walk.
     hft::OrderId next_id = config.first_order_id;
     std::uint32_t sequence = config.first_sequence;
     std::uint64_t clock = 0;
