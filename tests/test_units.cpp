@@ -12,6 +12,8 @@
 #include "feed/generator.hpp"
 #include "hft/itch/decode.hpp"
 #include "hft/itch/moldudp64.hpp"
+
+#include "../src/bench/report.hpp"
 #include "hft/itch/protocol.hpp"
 #include "hft/itch/sequence.hpp"
 #include "hft/lob/apply.hpp"
