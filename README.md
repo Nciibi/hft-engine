@@ -418,6 +418,45 @@ Phase 4 added six more, and two of them are worth reading twice:
   passive, which is always. It was replaced with the markout, which is
   the number that carries information.
 
+Phase 5 added five more, and the first one is the most instructive
+defect in this repository, because it produced a plausible number rather
+than a failure:
+
+- **The round-trip benchmark used one ring in both directions.** It
+  pushed a token down an SPSC queue and waited for it to come back up the
+  same one. That quietly makes *both* threads consumers of a
+  single-producer queue. It did not deadlock and it did not crash: it
+  reported a clean, confident, roughly sixty-fold speedup that was
+  measuring two threads racing on the same index. The fix is two queues,
+  one per direction. The lesson generalises — a concurrency bug does not
+  have to manifest as a hang, and the most dangerous ones are the ones
+  that produce a good-looking number.
+- **The consumer drained once and exited**, before the producer had pushed
+  anything, which left the producer blocked forever on a full ring. This
+  is not a rare interleaving; it is the *common* one, because a freshly
+  spawned consumer usually gets scheduled first. The exit condition also
+  needed one more drain pass after the stop flag: the pass that found the
+  ring empty may have run before the final push landed, and skipping the
+  retry silently drops the tail of the stream.
+- **A ring of 1024 slots × 128-message batches is 8MB**, and it was a
+  stack local. The tool died with a stack overflow two thirds of the way
+  through its own output, having already printed four rows of a table
+  that were therefore never seen.
+- **The OMS could `retire()` a negative slot.** Every public entry point
+  takes `int slot`, and `retire` took `std::size_t`, so a bad slot became
+  a huge unsigned index and a write out of bounds. It was unreachable
+  only because `lookup` happened to reject the bad value first — a
+  property of the call order, not of the callee.
+- **`__int128` under `-Wpedantic`.** The overflow-safe notional multiply
+  is the right way to do it and `__int128` is not ISO C++, so the
+  project built with clang and failed with GCC. The relaxation is now
+  scoped to those four lines rather than applied to the translation unit,
+  because widening a pedantic setting project-wide to accommodate one
+  extension is how a second extension gets added unnoticed.
+
+The last four are the ordinary kind: found by a test, a crash, or a
+compiler. The first is the kind worth remembering.
+
 ## Failure modes
 
 Things this build handles explicitly, because they are where real
