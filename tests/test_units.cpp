@@ -687,10 +687,13 @@ void test_sequence() {
         constexpr std::uint64_t kMax = 0xFFFF'FFFF'FFFF'FFFFULL;
         itch::SequenceTracker t(kMax);
         check(t.observe(kMax) == itch::SequenceTracker::State::ok, "at the maximum is ok");
-        // 3 forward, across the wrap to sequence 2.
+        // Accepting the maximum advanced the expectation to 0. Seeing
+        // sequence 2 therefore means 0 and 1 were lost: two, not three.
         check(t.observe(2) == itch::SequenceTracker::State::gap,
               "a forward jump across the wrap is a gap, not a duplicate");
-        check_eq_int(static_cast<long long>(t.missing()), 3, "three messages missing");
+        check_eq_int(static_cast<long long>(t.missing()), 2, "two messages missing");
+        check_eq_int(static_cast<long long>(t.expected()), 3,
+                     "and the expectation lands just past what was observed");
     }
 
     // Whole-packet observation, which is the entry point a real handler
