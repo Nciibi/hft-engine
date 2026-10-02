@@ -260,6 +260,55 @@ public:
     [[nodiscard]] std::uint64_t heartbeats() const noexcept { return heartbeats_; }
     [[nodiscard]] std::uint64_t end_of_session() const noexcept { return end_of_session_; }
 
+    /// The next packet, as a contiguous run of frames.
+    ///
+    /// This is the view the format is actually built around: a handler
+    /// is given PACKETS, checks one sequence number, and processes the
+    /// messages inside. Iterating only `next()` throws that away and
+    /// leaves the caller unable to tell where a packet ended -- which is
+    /// the one thing a gap detector needs to know, because the packet
+    /// header is the only place the stream states its sequence number.
+    ///
+    /// Frames within a packet are contiguous: a header, then blocks
+    /// back to back with no padding, so one pointer and a count are
+    /// enough to reach all of them.
+    ///
+    /// Heartbeat and end-of-session packets yield nothing; a heartbeat
+    /// is counted and stepped over, and end-of-session ends iteration.
+    [[nodiscard]] bool next_packet(const std::uint8_t*& first_frame,
+                                   std::size_t& frame_count,
+                                   std::uint64_t& packet_sequence) noexcept {
+        if (!load_packet()) {
+            return false;
+        }
+        // Validate the whole packet before handing any of it out. A
+        // partial packet is not a shorter packet: yielding the blocks
+        // that did arrive would report a packet whose last message is
+        // missing, which is precisely the silent truncation this class
+        // exists to catch.
+        std::size_t cursor = cursor_;
+        for (std::uint16_t b = 0; b < packet_blocks_; ++b) {
+            if (cursor + hft::itch::mold::kMessageBlockSize > size_) {
+                truncated_ = true;
+                return false;
+            }
+            const std::size_t length =
+                (static_cast<std::size_t>(data_[cursor]) << 8) |
+                static_cast<std::size_t>(data_[cursor + 1]);
+            if (cursor + hft::itch::mold::kMessageBlockSize + length > size_) {
+                truncated_ = true;
+                return false;
+            }
+            cursor += hft::itch::mold::kMessageBlockSize + length;
+        }
+        first_frame = cursor_;
+        frame_count = packet_blocks_;
+        packet_sequence = packet_sequence_;
+        cursor_ = cursor;
+        remaining_blocks_ = 0;
+        return true;
+    }
+
     /// True when a packet header or a block ran past the end of the
     /// capture.
     ///
