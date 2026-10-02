@@ -435,7 +435,8 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
             frame.reserve(itch::frame_size(itch::off::kAddOrderSize));
             clock += 1 + rng.below(4'000);
             append_add_order(frame, side, price, hft::Quantity::from_raw(shares), next_id, clock, 1,
-                             static_cast<hft::TrackingNumber>(i & 0xFFFFu));
+                             static_cast<hft::TrackingNumber>(i & 0xFFFFu),
+                             names[sym].c_str());
             append_capture_record(out, record_sequence, frame);
 
             live.push_back(Live{next_id, price, side, shares});
