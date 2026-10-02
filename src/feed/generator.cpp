@@ -146,7 +146,6 @@ std::vector<std::uint8_t> generate_add_orders(const GeneratorConfig& config) {
     out.reserve(config.message_count * ic::frame_size(ic::off::kAddOrderSize));
 
     SplitMix64 rng(config.seed);
-
     // A negative drift or half-spread would make the level-offset
     // arithmetic produce prices at or below zero, which the walker
     // would then silently skip. Clamp once, loudly, rather than let a
