@@ -398,17 +398,6 @@ struct CaptureConfig {
     uint32_t pct_execute = 15;
     uint32_t pct_cancel = 15;
     /// Remainder is delete.
-    ///
-    /// Share of adds, per cent, drawn from the window of levels nearest
-    /// the touch rather than from the whole ladder.
-    ///
-    /// A book drawn uniformly across its full depth has a touch that
-    /// almost never empties, so the mid is frozen and there is nothing
-    /// for a market maker to price. See `draw_offset`.
-    uint32_t touch_share_pct = 75;
-    /// Width of that window, as a per cent of total depth. At 1,000
-    /// levels the default puts 75% of adds in the nearest 125.
-    uint32_t touch_window_pct = 12;
     /// Cap on simultaneously live orders. Zero means unbounded.
     ///
     /// This is what makes the book REPRICE, and it is not a
