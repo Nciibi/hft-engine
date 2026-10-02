@@ -143,6 +143,18 @@ compiler, and `git`.
       |
       v
   [ PnL ]  marked to market, inventory aware
+
+  --- optional, measured separately ---
+
+  capture.itch
+      |
+      v
+  [ decoder thread ]  -> [ SPSC ring ] -> [ book thread ]
+                          one slot per batch
+                          of decoded messages
+      |
+      +---> [ FNV-1a state checksum ]  compared against the
+                                       single-threaded book
 ```
 
 ## Design decisions
