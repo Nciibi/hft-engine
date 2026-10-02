@@ -69,6 +69,20 @@ ctest --test-dir "${ROOT}/build" --output-on-failure \
   || { echo "concurrency tests FAILED"; exit 1; }
 echo
 
+# Cross-optimisation determinism. A correctness gate, not a benchmark,
+# and it sits with the other gates for that reason: a book checksum that
+# depends on -O level would invalidate every latency figure below it,
+# because the thing being measured would not be the same program twice.
+if [[ "${SKIP_DETERMINISM:-0}" != "1" ]]; then
+    echo "=== determinism across optimisation levels ==="
+    "${ROOT}/scripts/determinism.sh" 50000 \
+        || { echo "cross-optimisation determinism FAILED"; exit 1; }
+else
+    echo "=== determinism across optimisation levels ==="
+    echo "SKIPPED (SKIP_DETERMINISM=1). Not valid for publication."
+fi
+echo
+
 echo "=== latency and throughput: add-only ingest ==="
 "${ROOT}/build/hft_bench" "${MESSAGES}"
 echo
