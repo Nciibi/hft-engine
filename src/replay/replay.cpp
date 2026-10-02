@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
         record_count = stats.records;
     }
 
-    // Seed the tracker from the first record actually present.
+    // Seed the tracker from the first packet header actually present.
     //
     // A hardcoded seed would be wrong twice over: it would be a
     // duplicate source of truth alongside CaptureConfig, and it would
@@ -156,17 +156,22 @@ int main(int argc, char** argv) {
     // one were lost. Nothing in the capture can answer that, so the
     // tracker starts where the data starts and only reports gaps it
     // can actually see.
-    const std::uint32_t first_sequence =
-        capture.size() >= hft::feed::kCaptureSequenceSize
-            ? hft::itch::read_be32(capture.data())
-            : 0u;
+    std::uint64_t first_sequence = 0;
+    if (capture.size() >= hft::feed::kCaptureHeaderSize) {
+        hft::itch::mold::PacketHeader header{};
+        if (hft::itch::mold::parse_header(capture.data(), capture.size(), header) ==
+            hft::itch::mold::HeaderStatus::ok) {
+            first_sequence = header.sequence;
+        }
+    }
+    hft::feed::CaptureReader reader(capture.data(), capture.size());
 
     std::printf("HFT Engine replay\n");
     std::printf("-----------------\n");
     std::printf("source             %s\n", path != nullptr ? path : "(generated in memory)");
     std::printf("capture bytes      %zu\n", capture.size());
     std::printf("records            %zu\n", record_count);
-    std::printf("first sequence     %u\n", first_sequence);
+    std::printf("first sequence     %llu\n", static_cast<unsigned long long>(first_sequence));
     std::printf("\n");
 
     hft::lob::OrderBook book(1u << 20, 1u << 16);
