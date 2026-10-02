@@ -156,13 +156,20 @@ public:
     MessageBlocks(const std::uint8_t* data, std::size_t available, std::uint16_t count) noexcept
         : data_(data), remaining_bytes_(available), remaining_count_(count) {}
 
-    /// Next message body, or null when the blocks are exhausted or a
-    /// block runs past the end of the buffer.
+    /// Next message, as a complete ITCH frame.
     ///
-    /// `body_size` is the block's length field, which excludes the two
-    /// length bytes -- so a caller passing this straight to
-    /// `hft::itch::decode` gets the right frame.
-    [[nodiscard]] const std::uint8_t* next(std::size_t& body_size) noexcept {
+    /// The returned pointer is the start of the Message Block --
+    /// INCLUDING its two-byte length prefix -- and `frame_size` counts
+    /// the prefix too. That is deliberate and it is the useful shape: a
+    /// MoldUDP64 Message Block and an ITCH frame have the identical
+    /// `[2-byte length][body]` layout, so the block can be handed
+    /// straight to `hft::itch::decode` with no adjustment at either
+    /// layer. Returning the bare body instead would force every caller
+    /// to re-derive the prefix arithmetic that this class already did.
+    ///
+    /// Returns null when the blocks are exhausted or one runs past the
+    /// end of the buffer. Check `truncated()` to tell those apart.
+    [[nodiscard]] const std::uint8_t* next(std::size_t& frame_size) noexcept {
         if (remaining_count_ == 0) {
             return nullptr;
         }
@@ -176,18 +183,17 @@ public:
             exhausted_ = true;
             return nullptr;
         }
-        // The body starts AFTER the two length bytes, and the cursor is
-        // advanced past the whole block. Capturing the body pointer
-        // before advancing matters: returning `data_` after the
-        // increment hands the caller a pointer to the NEXT block's
-        // length prefix, which parses as a frame with the wrong length
-        // and fails in a decoder far from here.
-        const std::uint8_t* body = data_ + kMessageBlockSize;
+        // The block's length field excludes its own two bytes, so the
+        // frame occupies length + 2. Advancing before returning would
+        // hand the caller a pointer to the NEXT block, which decodes as
+        // a frame with the wrong length and fails in the decoder rather
+        // than here.
+        const std::uint8_t* frame = data_;
         data_ += kMessageBlockSize + length;
         remaining_bytes_ -= kMessageBlockSize + length;
         --remaining_count_;
-        body_size = length;
-        return body;
+        frame_size = kMessageBlockSize + length;
+        return frame;
     }
 
     /// Blocks still to be read according to the header.
