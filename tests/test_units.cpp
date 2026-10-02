@@ -612,20 +612,47 @@ void test_capture_round_trip() {
     check_eq_int(static_cast<long long>(reader.end_of_session()), 0, "no end-of-session generated");
 
     // The session must survive the round trip: it is in every header,
-    // and it is how a handler tells one feed from another.
+    // and it is how a handler tells one feed from another. The headers
+    // are visited by walking the capture through a second reader rather
+    // than by assuming a stride -- a capture holds Add, Delete, Cancel
+    // and Execute frames of different lengths, so any fixed stride here
+    // would be a coincidence that happens to work for a single message
+    // type and silently stops working for the next.
     bool session_ok = true;
-    for (std::size_t p = 0; p < reader.packets(); ++p) {
-        const std::size_t base = p * (itch::mold::kHeaderSize + 38);
-        if (base + itch::mold::kSessionSize > data.size()) {
-            session_ok = false;
-            break;
-        }
+    bool header_ok = true;
+    for (std::size_t base = 0; base + itch::mold::kHeaderSize <= data.size();) {
         if (std::memcmp(data.data() + base, config.session, itch::mold::kSessionSize) != 0) {
             session_ok = false;
             break;
         }
+        // Count the blocks in this packet and skip them.
+        feed::CaptureReader one(data.data() + base, data.size() - base);
+        const std::uint8_t* f = nullptr;
+        std::size_t n = 0;
+        std::size_t blocks = 0;
+        while (one.next(f, n)) {
+            ++blocks;
+        }
+        if (blocks == 0) {
+            header_ok = false;
+            break;
+        }
+        // Walk the packet again to measure its exact length.
+        std::size_t span = 0;
+        std::size_t cursor = base + itch::mold::kHeaderSize;
+        for (std::size_t b = 0; b < blocks; ++b) {
+            const std::size_t length =
+                (static_cast<std::size_t>(data[cursor]) << 8) |
+                static_cast<std::size_t>(data[cursor + 1]);
+            span += itch::mold::kMessageBlockSize + length;
+            cursor += itch::mold::kMessageBlockSize + length;
+        }
+        base += itch::mold::kHeaderSize + span;
     }
     check(session_ok, "session id is present in every packet header");
+    check(header_ok, "every packet header declares at least one block");
+    check_eq_int(static_cast<long long>(base), static_cast<long long>(data.size()),
+                 "packet headers and blocks tile the capture exactly");
 }
 
 void test_capture_multi_message_packets() {
