@@ -96,12 +96,19 @@ public:
 
     /// Build from eight wire bytes.
     ///
+    /// Takes a `const char*` rather than a `char[8]` reference because
+    /// the callers do not all have arrays: a decoded Add Order has one,
+    /// but a symbol named at runtime by a configuration loader does not,
+    /// and a reference parameter would force a copy into a temporary
+    /// buffer on every call for the sake of a length nobody varies.
+    /// Exactly eight bytes are read, which is the field width.
+    ///
     /// Trailing spaces are stripped and the remainder is blank filled,
     /// so the same symbol written with and without padding compares
     /// equal. Leading and interior spaces are preserved, because a
     /// symbol may legitimately contain one and silently normalising it
     /// would merge two different instruments.
-    [[nodiscard]] static Symbol from_wire(const char (&bytes)[kSymbolSize]) noexcept {
+    [[nodiscard]] static Symbol from_wire(const char* bytes) noexcept {
         Symbol s;
         std::size_t end = kSymbolSize;
         while (end > 0 && bytes[end - 1] == kPad) {
