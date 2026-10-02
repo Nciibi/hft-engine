@@ -156,7 +156,10 @@ cmake --build build --parallel
 ctest --test-dir build
 ```
 
-GCC 16.2, clang 18 and MSVC all build the tree clean under the project's
-`-Werror` policy. That is deliberate: a latency project that only
-compiles warning-free under one compiler is a project whose warnings
-have simply not been read yet.
+GCC 16.2.0 builds the tree clean under the project's `-Werror` policy.
+That is the only toolchain **verified** here; clang 18 and MSVC are
+expected to work and are not claimed. Getting clang or MSVC building is
+worth doing before the benchmark host run, because the twelve warnings
+that GCC surfaced were exactly the class of defect a second compiler
+finds — a latency project that only compiles warning-free under one
+compiler is one whose warnings have not been read yet.
