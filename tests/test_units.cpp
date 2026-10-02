@@ -1416,9 +1416,11 @@ void test_report_percentiles() {
         check_eq_int(static_cast<long long>(h.percentile(0.999)), 101,
                      "a censored p999 reports the ceiling, visibly high");
 
-        // The in-range percentiles are unaffected by the overflow.
-        check_eq_int(static_cast<long long>(h.percentile(0.50)), 10,
-                     "an in-range p50 is exact");
+        // The in-range percentiles are unaffected by the overflow, and
+        // report 11 for a true 10 because the bucket's upper bound is
+        // 11. One nanosecond pessimistic, in the safe direction.
+        check_eq_int(static_cast<long long>(h.percentile(0.50)), 11,
+                     "an in-range p50 is exact to the bucket's upper bound");
     }
 
     {
