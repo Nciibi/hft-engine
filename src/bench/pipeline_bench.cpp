@@ -723,6 +723,46 @@ struct ShardedResult {
     return result;
 }
 
+/// Consume everything the producer sends, until it is finished and the
+/// ring is provably empty.
+///
+/// Two requirements, and getting either wrong silently loses the tail of
+/// the stream rather than failing:
+///
+///  * It must WAIT. Draining once and returning strands the producer on a
+///    full ring. This is not a rare interleaving; a consumer scheduled
+///    before the producer has pushed anything hits it every time.
+///  * After observing the stop flag it must drain ONE more time. The
+///    drain pass that found the ring empty may have run BEFORE the last
+///    pushes landed. The acquire below orders us after the producer's
+///    release store, so a subsequent pass sees everything -- but only if
+///    there IS a subsequent pass.
+///
+/// This is the same defect twice in this repository: the concurrency
+/// test's drain helper had it, and then this benchmark's did. It is
+/// written once, here, so there is no third copy to get wrong.
+template <typename Ring, typename Fn>
+void drain_until_producer_done(Ring& ring, const std::atomic<bool>& producer_done,
+                               Fn&& handle) {
+    for (;;) {
+        bool progressed = false;
+        while (ring.try_pop(handle)) {
+            progressed = true;
+        }
+        if (producer_done.load(std::memory_order_acquire)) {
+            // Every push happens-before the flag, so this pass is the
+            // last one that can find anything. Anything still in the
+            // ring after it was never pushed.
+            while (ring.try_pop(handle)) {
+            }
+            break;
+        }
+        if (!progressed) {
+            std::this_thread::yield();
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
