@@ -372,16 +372,14 @@ void test_routing_matches_oracle() {
                     std::size_t oi = 0;
                     std::size_t fi = 0;
                     const bool in_oracle = oracle.count(ref) != 0;
-                    const bool in_fast = fast_index.lookup(ref, fi);
                     if (in_oracle) {
                         oi = oracle[ref];
                     }
+                    const bool in_fast = fast_index.lookup(ref, fi);
                     if (in_oracle && in_fast) {
                         (void)lob::apply(r.message, oracle_books.book(oi));
                         (void)lob::apply(r.message, fast_books.book(fi));
-                        if (in_fast) {
-                            ++routed_by_index;
-                        }
+                        ++routed_by_index;
                     } else {
                         ++unknown_reference;
                     }
