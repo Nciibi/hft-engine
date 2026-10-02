@@ -147,17 +147,40 @@ inline constexpr std::size_t kOrderDeleteSize = order_delete_id + kOrderIdSize;
 
 // Guard the verified layouts. These fail at compile time, not at 3am.
 //
-// The body sizes are asserted against the offset of the final field in
-// each message, so a typo in either the offset or the size is a build
-// error rather than a silently misparsed feed.
-static_assert(off::kAddOrderSize == 32, "ITCH Add Order body is 32 bytes");
+// Every offset below is ALSO asserted against its literal value from the
+// published field table, not merely against the offset of the next
+// field. That distinction is not pedantry: an earlier revision of this
+// file asserted only the relationships (`size == last offset + width`),
+// so a wholesale mislabelling of the fields passed every check in the
+// file. The relationship asserts prove the sizes are internally
+// consistent; the literal asserts prove they are CONSISTENT WITH THE
+// SPECIFICATION. Both are needed, and only the second one would have
+// caught the Add Order bug.
+static_assert(off::kAddOrderSize == 36, "ITCH Add Order body is 36 bytes");
 static_assert(off::kOrderExecutedSize == 32, "ITCH Order Executed body is 32 bytes");
-static_assert(off::kOrderExecutedAtPriceSize == 36, "ITCH Order Exec @ Price is 36 bytes");
+static_assert(off::kOrderExecutedAtPriceSize == 36, "ITCH Order Exec @ Price body is 36 bytes");
 static_assert(off::kOrderCancelSize == 23, "ITCH Order Cancel body is 23 bytes");
 static_assert(off::kOrderDeleteSize == 19, "ITCH Order Delete body is 19 bytes");
 
+// Add Order, spec section 1.3.1, field by field.
+static_assert(off::add_order_id == 11, "Add Order reference sits at offset 11");
+static_assert(off::add_order_side == 19, "Add Order side indicator sits at offset 19");
+static_assert(off::add_order_size == 20, "Add Order SHARES sit at offset 20, not the price");
+static_assert(off::add_order_stock == 24, "Add Order stock symbol occupies offset 24");
+static_assert(off::kStockSymbolSize == 8, "the stock symbol field is 8 bytes");
+static_assert(off::add_order_price == 32, "Add Order PRICE sits at offset 32, not 20");
+static_assert(off::add_order_price == off::add_order_stock + off::kStockSymbolSize,
+              "the price begins immediately after the stock symbol");
+static_assert(off::add_order_stock == off::add_order_size + off::kSharesSize,
+              "the stock symbol begins immediately after the share count");
+
+// Order Executed, spec section 1.4.1.
+static_assert(off::order_executed_shares == 19, "Order Executed shares sit at offset 19");
+static_assert(off::order_executed_match == 23, "Order Executed match number sits at offset 23");
+static_assert(off::order_executed_printable == 31, "Order Executed printable flag at offset 31");
+
 // Every size must equal the end of its last field.
-static_assert(off::add_order_participant + 1 == off::kAddOrderSize,
+static_assert(off::add_order_price + off::kPriceSize == off::kAddOrderSize,
               "Add Order size must equal the end of its last field");
 static_assert(off::order_executed_printable + 1 == off::kOrderExecutedSize,
               "Order Executed size must equal the end of its last field");
