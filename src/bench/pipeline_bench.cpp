@@ -424,6 +424,32 @@ int main(int argc, char** argv) {
     }
     std::fflush(stdout);
 
+    // ---- Noise floor -------------------------------------------------
+    // Every ratio above is a single sample against a single baseline
+    // sample, and on a shared development machine that is not enough to
+    // resolve a few percent. Re-running the baseline after the sweep
+    // costs one run and turns "is 1.17x real?" into a question with a
+    // number attached: if the baseline does not reproduce to within the
+    // margin, then neither does anything in the table, and the table
+    // should be read as a set of order-of-magnitude results.
+    bench::section("NOISE FLOOR (the same baseline, measured again)");
+    const RunResult repeat = single_threaded(data, pool, decoder_core);
+    const double drift = rate_of(baseline) > 0.0
+                             ? (rate_of(repeat) - rate_of(baseline)) / rate_of(baseline)
+                             : 0.0;
+    std::printf("  first run           %12s msg/s  %9.3f ms\n",
+                bench::humanize(static_cast<std::uint64_t>(rate_of(baseline))).c_str(),
+                baseline.elapsed_ns / 1e6);
+    std::printf("  second run          %12s msg/s  %9.3f ms\n",
+                bench::humanize(static_cast<std::uint64_t>(rate_of(repeat))).c_str(),
+                repeat.elapsed_ns / 1e6);
+    std::printf("  drift               %+.2f%%\n", drift * 100.0);
+    std::printf("  checksum            %s\n",
+                repeat.checksum == baseline.checksum ? "identical" : "DIFFERENT -- see below");
+    std::printf("\n  A drift of this size is the resolution limit of every ratio\n"
+                "  in the table above. Differences smaller than it are not results.\n");
+    std::fflush(stdout);
+
     bench::note(
         "READ THE RATIO COLUMN AS A CLAIM TO BE FALSIFIED, NOT A RESULT.\n"
         "\n"
