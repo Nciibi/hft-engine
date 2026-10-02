@@ -1299,29 +1299,32 @@ void test_humanize() {
     }
     check(property_ok, "humanize adds only separators and never changes the value");
 
-    // Larger values, at each group boundary.
+    // Values beyond 32 bits. Grouping is positional, not arithmetic, so
+    // width is no obstacle; what has to hold is that stripping the
+    // separators recovers the digits exactly.
     bool large_ok = true;
-    for (int shift = 3; shift <= 18; shift += 3) {
+    for (int shift = 3; shift <= 63; shift += 3) {
         const std::uint64_t v = 1ULL << shift;
-        std::string expected;
-        const std::string digits = std::to_string(v);
-        const std::size_t lead = digits.size() % 3 == 0 ? 3 : digits.size() % 3;
-        for (std::size_t i = 0; i < digits.size(); ++i) {
-            if (i != 0 && i >= lead && (i - lead) % 3 == 0) {
-                expected.push_back(' ');
+        const std::string printed = humanize(v);
+        std::string stripped;
+        for (const char ch : printed) {
+            if (ch != ' ') {
+                stripped.push_back(ch);
             }
-            expected.push_back(digits[i]);
         }
-        // A power of two has no separators at all: its low group is all
-        // zeros.
-        if (humanize(v) != digits) {
-            std::printf("  FAIL  humanize(%llu): expected \"%s\", got \"%s\"\n",
-                        static_cast<unsigned long long>(v), digits.c_str(),
-                        humanize(v).c_str());
+        if (stripped != std::to_string(v)) {
+            std::printf("  FAIL  humanize(2^%d): stripped \"%s\" != \"%s\"\n", shift,
+                        stripped.c_str(), std::to_string(v).c_str());
             large_ok = false;
         }
     }
-    check(large_ok, "humanize handles values beyond 32 bits");
+    check(large_ok, "humanize handles values up to 64 bits");
+
+    check(humanize(4096) == "4 096", "four digits group from the right");
+    check(humanize(32768) == "32 768", "five digits group from the right");
+    check(humanize(0xFFFFFFFF) == "4 294 967 295", "the largest 32-bit value groups correctly");
+    check(humanize(0xFFFFFFFFFFFFFFFFULL) == "18 446 744 073 709 551 615",
+          "the largest 64-bit value groups correctly");
 }
 
 void test_report_percentiles() {
