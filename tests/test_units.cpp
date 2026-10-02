@@ -779,16 +779,31 @@ void test_capture_rejects_truncation() {
     std::size_t n = 0;
     while (whole.next(f, n)) {
     }
-    const std::size_t packet_span = itch::mold::kHeaderSize + 4 * (itch::mold::kMessageBlockSize + 38);
-    if (packet_span < data.size()) {
-        feed::CaptureReader partial(data.data(), packet_span);
+    // The length of the FIRST packet, measured rather than assumed:
+    // frames in a capture are not all the same size.
+    std::size_t first_span = 0;
+    {
+        feed::CaptureReader one(data.data(), data.size());
+        std::size_t cursor = itch::mold::kHeaderSize;
+        while (one.next(f, n)) {
+            first_span += n;
+            ++cursor;
+        }
+        (void)cursor;
+        first_span += itch::mold::kHeaderSize;
+    }
+    if (first_span < data.size()) {
+        feed::CaptureReader partial(data.data(), first_span);
         const std::uint8_t* f2 = nullptr;
         std::size_t n2 = 0;
+        std::size_t got = 0;
         while (partial.next(f2, n2)) {
+            ++got;
         }
         check(!partial.malformed(), "a capture ending on a packet boundary is valid");
         check_eq_int(static_cast<long long>(partial.packets()), 1,
                      "a single whole packet is one packet");
+        check(got > 0, "a single whole packet yields its frames");
     }
 
     // Empty and zero-length buffers must not read as malformed.
