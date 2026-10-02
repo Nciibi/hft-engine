@@ -741,19 +741,21 @@ struct ShardedResult {
 /// This is the same defect twice in this repository: the concurrency
 /// test's drain helper had it, and then this benchmark's did. It is
 /// written once, here, so there is no third copy to get wrong.
-template <typename Ring, typename Fn>
-void drain_until_producer_done(Ring& ring, const std::atomic<bool>& producer_done,
+template <typename Ring, typename T, typename Fn>
+void drain_until_producer_done(Ring& ring, const std::atomic<bool>& producer_done, T& out,
                                Fn&& handle) {
     for (;;) {
         bool progressed = false;
-        while (ring.try_pop(handle)) {
+        while (ring.try_pop(out)) {
+            handle(out);
             progressed = true;
         }
         if (producer_done.load(std::memory_order_acquire)) {
             // Every push happens-before the flag, so this pass is the
             // last one that can find anything. Anything still in the
             // ring after it was never pushed.
-            while (ring.try_pop(handle)) {
+            while (ring.try_pop(out)) {
+                handle(out);
             }
             break;
         }
