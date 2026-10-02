@@ -235,6 +235,47 @@ clean one. The tracker handles the 32-bit wrap explicitly, because
 `observed == expected + 1` is correct everywhere except the one moment
 it is hardest to reproduce.
 
+**The ring's counters are monotonic, not masked and reused.** The obvious
+implementation keeps `head` and `tail` as indices that wrap at capacity,
+which makes `head == tail` mean the ring is both empty *and* full. Here
+the counters only increase: `size` is `head - tail`, `full` is
+`head - tail == capacity`, and each case is unambiguous with no reserved
+slot and no auxiliary flag. The cost is one extra counter.
+
+**Acquire and release, and nothing stronger.** A release store publishing
+a slot and an acquire load observing it is exactly the edge that makes
+the slot's writes visible before the index that publishes it. A
+`seq_cst` fence would order those two atomics against every *other*
+atomic in the program, which this queue has no business doing — it is not
+synchronising anything outside itself. On x86-64 the acquire/release pair
+compiles to plain loads and stores with no fence instruction at all, which
+is the whole reason to use it here rather than the stronger option.
+
+**Four cache lines for the indices, and the count is deliberate.** The
+producer writes `head` and reads `tail`; the consumer does the reverse. If
+those shared a line, every push would invalidate the line the consumer is
+reading — pure coherence traffic achieving nothing. The two producer-
+private cache indices are padded separately for the same reason: they are
+written on opposite threads, and the refresh happens on the full/empty
+path, which in a saturated pipeline is *every* operation. Four lines of
+indices against a 1024-slot ring is well under 1% overhead against a
+coherence tax of 50-100ns per message.
+
+**The topology is discovered, never assumed.** Picking "core 0" and
+"core 1" for the two threads is a guess that is wrong on a large fraction
+of machines. On the development host here, siblings are laid out as
+`(0,1), (2,3), (4,5)...`, so a `logical + 6` heuristic — correct for the
+first-half/second-half layout — would put both threads on the same core
+and halve the result while looking entirely plausible. The benchmark asks
+the OS and prints the placement it actually achieved.
+
+**A bidirectional exchange needs two rings, not one.** This one is in the
+bugs section below, but the design consequence belongs here: an SPSC
+queue has exactly one producer and one consumer, so a request/response
+hand-off is two queues, one per direction. The benchmark models the two
+directions as two named channel types rather than passing one object
+twice, specifically so the mistake cannot be made quietly again.
+
 **Time is injected, never read.** Every risk and OMS entry point that
 needs the current time takes it as a parameter. A component that called
 a clock internally could not be tested deterministically and could not
