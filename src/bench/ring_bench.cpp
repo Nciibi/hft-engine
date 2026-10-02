@@ -348,7 +348,7 @@ void report_throughput(const char* label, const ThroughputResult& r) {
 /// Ring and baseline results for one instantiated capacity, run back to
 /// back in the same process on the same cores.
 template <std::size_t N>
-void compare_at(const std::vector<Payload>& payloads, std::size_t producer_core,
+bool compare_at(const std::vector<Payload>& payloads, std::size_t producer_core,
                 std::size_t consumer_core) {
     std::printf("\n  capacity %llu slots\n", bench::u64(N));
 
@@ -373,6 +373,7 @@ void compare_at(const std::vector<Payload>& payloads, std::size_t producer_core,
                     "", "");
     }
     std::fflush(stdout);
+    return ring.consistent && baseline.consistent;
 }
 
 }  // namespace
