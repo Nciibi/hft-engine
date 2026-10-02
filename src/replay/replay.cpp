@@ -184,9 +184,20 @@ int main(int argc, char** argv) {
     std::size_t other_rejects = 0;
     // Frames that decoded to neither ok nor skippable. An earlier
     // revision dropped these silently, which let a heap-corrupting bug
-    // in the feed generator masquerade as merely "some records did not
-    // apply" instead of "this pipeline is broken". Any non-zero value
-    // here is a hard failure.
+        // The first sequence number comes from the first packet's header,
+    // which is the only place a MoldUDP64 stream carries one. The
+    // tracker starts where the data starts and reports only gaps it can
+    // actually see; whether anything BEFORE this capture was lost is not
+    // a question this file can answer.
+    std::uint64_t first_sequence = 0;
+    if (capture.size() >= hft::feed::kCaptureHeaderSize) {
+        hft::itch::mold::PacketHeader header{};
+        if (hft::itch::mold::parse_header(capture.data(), capture.size(), header) ==
+            hft::itch::mold::HeaderStatus::ok) {
+            first_sequence = header.sequence;
+        }
+    }
+    hft::feed::CaptureReader reader(capture.data(), capture.size());
     std::size_t malformed = 0;
     std::uint64_t checksum = 0;
     std::size_t checksummed = 0;
