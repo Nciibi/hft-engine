@@ -422,6 +422,43 @@ hand-off is two queues, one per direction. The benchmark models the two
 directions as two named channel types rather than passing one object
 twice, specifically so the mistake cannot be made quietly again.
 
+**Routing an order is the hard part of sharding, not the books.** ITCH
+carries a stock symbol in Add Order and in nothing else — Execute, Cancel
+and Delete name only the order reference. So a multi-symbol handler
+cannot decide which book a mutation belongs to by reading the message;
+it has to remember. Three options, and the obvious one is rejected:
+
+- *Search every shard* — O(shards) per mutation, and worse exactly where
+  sharding was supposed to help.
+- *Encode the shard in the reference number* — the venue lets the client
+  choose it, so this is O(1) with no shared state, and many venues'
+  documentation suggests it. Not used here: it puts a correctness
+  requirement into a number that arrives from outside. If the reference
+  does not carry the shard — a venue-assigned reference, a second client
+  on the same feed — routing is silently wrong, and the symptom is a
+  mutation applied to a book that never saw the order. That is not a
+  crash. It is inventory created out of nothing.
+- *Keep the index* — a table from reference to book, written by the Add
+  that created it.
+
+The third is what `include/hft/lob/shards.hpp` does. It needs no
+cooperation from the venue and it degrades to "the order is unknown"
+rather than "the order is on the wrong book". Because ITCH references
+are unique for the trading day, the table is insert-only — no deletions,
+no tombstones, and none of the clustering problems open addressing
+acquires under long runs of removals.
+
+**No locks, because the routing is arranged rather than synchronised.**
+Sharding by symbol alone would put two symbols in one shard, and two
+threads writing one index bucket. Instead the dispatcher owns *all*
+routing state, so the sequence is: the dispatcher decodes, learns the
+symbol on an Add, records the owner, and pushes to that worker's ring.
+A mutation for that symbol cannot arrive before its Add, so the
+dispatcher always knows where to send it — one hash and one probe, no
+search and no shared mutable state. The workers never touch the index at
+all. The trick is not making the index concurrent; it is arranging for
+there to be exactly one thread that writes it.
+
 **Time is injected, never read.** Every risk and OMS entry point that
 needs the current time takes it as a parameter. A component that called
 a clock internally could not be tested deterministically and could not
