@@ -398,6 +398,20 @@ struct CaptureConfig {
     uint32_t pct_execute = 15;
     uint32_t pct_cancel = 15;
     /// Remainder is delete.
+    ///
+    /// Per cent of mutations that are biased towards the order furthest
+    /// from the current mid, rather than chosen uniformly or
+    /// recent-first.
+    ///
+    /// This is the stale-quote mechanism, and it is what lets a deep
+    /// book follow its own price process. Without it the touch is
+    /// pinned: a recent-biased draw almost never removes the orders
+    /// whose mid has moved away, so the best bid stops being a price
+    /// anyone is quoting and becomes the maximum over a wide band of
+    /// resting orders. See the removal block in `generator.cpp`.
+    ///
+    /// Zero restores a purely uniform/recent-biased book.
+    uint32_t pct_stale_bias = 60;
     /// Cap on simultaneously live orders. Zero means unbounded.
     ///
     /// This is what makes the book REPRICE, and it is not a
