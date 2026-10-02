@@ -122,6 +122,24 @@ add_executable(hft_strategy tests/test_strategy.cpp)
 target_link_libraries(hft_strategy PRIVATE hft_core)
 add_test(NAME strategy COMMAND hft_strategy)
 
+# The SPSC ring: single-threaded property checks plus two-threaded
+# transfer and payload-integrity checks. Both threaded cases are run at
+# several sizes by the argument below, because a concurrency bug that
+# only appears at one ring depth is one this test would miss.
+add_test(NAME concurrent COMMAND hft_concurrent)
+foreach(depth
+        2
+        3
+        4
+        7
+        8
+        31
+        64
+        128
+        1024)
+    add_test(NAME concurrent_${depth} COMMAND hft_concurrent ${depth})
+endforeach()
+
 add_test(NAME differential_default COMMAND hft_differential)
 
 # Several seeds, because a differential test that only passes on one
