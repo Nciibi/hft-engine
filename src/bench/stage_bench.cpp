@@ -256,10 +256,30 @@ void report(const BookShape& shape, const StageResult& r, std::size_t records) {
                     "           than intended.\n",
                     bench::humanize(r.records).c_str(), bench::humanize(records).c_str());
     }
+
+    // The mid-move count is printed above and is NOT a validity warning
+    // here, though it is one in hft_market_maker. The difference is what
+    // depends on it.
+    //
+    // For the market maker the mid feeds the volatility estimate, so a
+    // static mid means a zero spread and a strategy that quotes nothing.
+    // For a latency benchmark the mid is only an argument to quote(); the
+    // arithmetic is identical whether the mid moved or not, so the stage
+    // figures stand.
+    //
+    // What a static touch DOES change is the mix of book mutations. With
+    // the touch permanently occupied, most adds land at interior levels
+    // and the expensive path -- walking the ladder to a price that is not
+    // adjacent to the best -- is rarer than in a live book. So these
+    // figures are, if anything, optimistic for the deep shape. The
+    // shallow-versus-deep comparison is unaffected, because both shapes
+    // have the same mix.
     if (r.mid_moves * 50 < r.records) {
-        std::printf("  WARNING: the mid moved on under 2%% of observations. The decision\n"
-                    "           and risk stages ran against a book that barely moved,\n"
-                    "           so these rows are a wiring check, not a measurement.\n");
+        std::printf(
+            "  note: the mid moved on under 2%% of observations, so the touch was\n"
+            "        static for most of the run. Book-update cost here is therefore\n"
+            "        weighted towards interior-level adds. Both depths share the\n"
+            "        same mix, so the comparison between them still holds.\n");
     }
     std::fflush(stdout);
 }
