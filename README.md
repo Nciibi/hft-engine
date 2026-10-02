@@ -976,13 +976,31 @@ making follows Avellaneda-Stoikov; inventory risk handling
 follows Guéant-Lehalle-Fernandez-Tapia.
 
 **On verification.** The offsets in `include/hft/itch/protocol.hpp` for
-`A`, `E`, `C`, `X`, `D`, `U` and `B` have been checked against the
-published field tables in Nasdaq's TotalView-ITCH 5.0 specification, and
-each one now carries a `static_assert` against its literal offset. `F`
-(Add Order with MPID Attribution), `S`, `R`, `T` and `Q` have **not**
-been verified, and this build does not decode them. There is no
-order-entry direction to verify, because TotalView-ITCH does not have
-one.
+`A`, `E`, `C`, `X`, `D`, `U`, `B`, `P` and `Q` have been checked against
+the published field tables in Nasdaq's TotalView-ITCH 5.0 specification,
+and each one now carries a `static_assert` against its literal offset.
+`F` (Add Order with MPID Attribution), `S` and `R` have **not** been
+verified, and this build does not decode them. There is no order-entry
+direction to verify, because TotalView-ITCH does not have one.
+
+Going to the specification has now found three errors that a green test
+suite could not:
+
+- **A generator frame four bytes too long.** Order Replace was written
+  with the same four phantom order-entry fields that broke Add Order,
+  appended to a different message. Skip-by-length hid it.
+- **A wrong tag.** The non-cross trade message was listed as `'T'`. It
+  is `'P'`; no version of TotalView-ITCH 5.0 defines `'T'`. Same species
+  of error as the `'B'` one, in the enum beside the tables that *had*
+  been checked.
+- **A decoder that rejected valid messages.** Validating offset 11 as an
+  order reference is right for `A`/`E`/`C`/`X`/`D`/`U` and wrong for the
+  rest: in `'P'` that field is an order reference the binary feeds
+  populate with **zero** by design, in `'B'` it is a match number, and in
+  `'Q'` it is an eight-byte share count the specification says may be
+  **zero** when interest is insufficient to cross. A real feed sends all
+  three. No generator round-trip would have found it, because this build
+  does not generate them — only hand-built frames did.
 
 Two cautions for anyone extending this. The offsets for `U` differ
 between protocol *versions* — ITCH 3.1 and 4.0 are both published and
