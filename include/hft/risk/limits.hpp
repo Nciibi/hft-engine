@@ -377,11 +377,27 @@ private:
     /// order that should be sent.
     [[nodiscard]] static std::int64_t checked_notional(Price price, Quantity qty) noexcept {
 #if defined(__SIZEOF_INT128__)
+        // `__int128` is a compiler extension, not ISO C++, and this
+        // project compiles with -Wpedantic -Werror. The relaxation is
+        // scoped to these four lines rather than applied to the
+        // translation unit: widening to 128 bits is the right way to
+        // detect a notional overflow without doing the arithmetic
+        // twice, and it is guarded by a capability check with a
+        // portable fallback below. Widening the pedantic setting
+        // project-wide to accommodate one extension is how a second
+        // extension gets added without anyone noticing.
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
         const unsigned __int128 product =
             static_cast<unsigned __int128>(static_cast<std::uint64_t>(price.raw())) *
             static_cast<unsigned __int128>(qty.raw());
         const unsigned __int128 limit =
             static_cast<unsigned __int128>(static_cast<std::uint64_t>(INT64_MAX));
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
         return product > limit ? -1 : static_cast<std::int64_t>(product);
 #else
         // Portable fallback: reject prices or sizes whose product
