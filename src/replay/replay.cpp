@@ -187,6 +187,8 @@ int main(int argc, char** argv) {
     std::uint64_t checksum = 0;
     std::size_t checksummed = 0;
 
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
     while (reader.next(frame, frame_size)) {
         // Per-message sequence tracking, from the packet the frame came
         // from. The reader reports the sequence of the message, not of
