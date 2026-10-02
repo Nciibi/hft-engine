@@ -53,35 +53,28 @@ using CoreGroup = std::vector<std::size_t>;
         return {};
     }
 
-    // Every record in this API's stream is a whole multiple of the base
-    // structure in size, so the stream is walked in record units. Doing
-    // it in bytes would need a byte-offset pointer arithmetic over a
-    // typed array, which silently scales by sizeof(element) and lands
-    // on the wrong record.
+    // `GetLogicalProcessorInformation` returns an array of
+    // SYSTEM_LOGICAL_PROCESSOR_INFORMATION, one entry per relationship,
+    // each the same size -- so the stream is indexed uniformly and there
+    // is no record-length arithmetic to get wrong.
+    //
+    // The MSVC SDK's version of this struct carries a `Size` member and
+    // the MinGW one does not, but `Size` is documented to equal
+    // sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION) in both, so stepping
+    // one entry at a time is correct on either toolchain. Only
+    // `ProcessorMask` is read, which both layouts agree on.
     const std::size_t count = static_cast<std::size_t>(bytes) /
                               sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
     std::vector<CoreGroup> groups;
+    groups.reserve(count);
 
-    std::size_t index = 0;
-    while (index < count) {
-        const SYSTEM_LOGICAL_PROCESSOR_INFORMATION& rec = records[index];
-        if (rec.Relationship == RelationProcessorCore) {
-            CoreGroup group = group_from_mask(rec.ProcessorMask);
-            if (!group.empty()) {
-                groups.push_back(std::move(group));
-            }
-            index += 1u;
-        } else {
-            // Cache, NUMA and group records are longer than the base
-            // structure and carry their own length; skipping by Size is
-            // how the stream is walked past them. Size is a BYTE, so
-            // nothing in this API can describe a record beyond 255 bytes
-            // -- it predates the Ex variants for exactly that reason.
-            const std::size_t advance_bytes = static_cast<std::size_t>(rec.Size);
-            if (advance_bytes < sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION)) {
-                break;
-            }
-            index += advance_bytes / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+    for (std::size_t index = 0; index < count; ++index) {
+        if (records[index].Relationship != RelationProcessorCore) {
+            continue;
+        }
+        CoreGroup group = group_from_mask(records[index].ProcessorMask);
+        if (!group.empty()) {
+            groups.push_back(std::move(group));
         }
     }
 
