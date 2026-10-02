@@ -318,7 +318,7 @@ void test_moldudp64_against_spec() {
 
     const std::uint8_t* second = blocks.next(size);
     check(second != nullptr, "the second block is present");
-    check_eq_int(static_cast<long long>(size), 25, "the second block is 25 bytes, matching a cancel");
+    check_eq_int(static_cast<long long>(size), 23, "the second block is 23 bytes, matching a cancel");
     check(second != nullptr && second[0] == 'X', "the second block is an Order Cancel");
 
     check(blocks.next(size) == nullptr, "no third block, because the count said two");
