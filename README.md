@@ -104,21 +104,25 @@ message is recoverable; a decoder that reads the wrong bytes is not.
 This is the one place the decoder declines to be complete on purpose,
 and the reason is recorded in `include/hft/itch/protocol.hpp`.
 
-Verified: **160 unit + 156 risk/OMS + 47 strategy + 149 concurrency = 512
-checks**. One of those unit checks is a hand-built, byte-exact Add Order
-frame decoded without the generator, because self-consistency testing
-is what let the price/size mix-up survive; see
-[The bug that mattered](#the-bug-that-mattered). Alongside that, a
-differential test comparing the fast book against an independent naive
-model over **400,000 operations with full state comparison after every
-one**, across five seeds. The OMS is additionally driven through
-**60,000 randomised operations** with invariant checks against an
-independent tally. The threaded pipeline is checked against the
-single-threaded one: same feed, same order, and the final book is
-fingerprinted with the same FNV-1a checksum the replay tool uses, so a
-dropped or reordered message fails a test rather than showing up as a
-speedup. Determinism is checked too: the same capture replayed at `-O0`,
-`-O2`, `-O3`, `-Os` and `-Oz` produces an identical book checksum.
+Verified: **160 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
+sharding = 563 checks**. One of those unit checks is a hand-built,
+byte-exact Add Order frame decoded without the generator, because
+self-consistency testing is what let the price/size mix-up survive; see
+[The bug that mattered](#the-bug-that-mattered). The routing that symbol
+sharding depends on is itself differential: a fast open-addressed
+reference index is driven over a 60,000-record multi-symbol capture
+against a `std::map` oracle, with both sets of books compared after
+*every* record. Alongside that, a differential test comparing the fast
+book against an independent naive model over **400,000 operations with
+full state comparison after every one**, across five seeds. The OMS is
+additionally driven through **60,000 randomised operations** with
+invariant checks against an independent tally. The threaded pipeline is
+checked against the single-threaded one: same feed, same order, and the
+final book is fingerprinted with the same FNV-1a checksum the replay tool
+uses, so a dropped or reordered message fails a test rather than showing
+up as a speedup. Determinism is checked too: the same capture replayed
+at `-O0`, `-O2`, `-O3`, `-Os` and `-Oz` produces an identical book
+checksum.
 
 None of that would have found a field offset. Only comparing against
 something outside this repository would have.
