@@ -300,6 +300,7 @@ void report_throughput(const char* label, const ThroughputResult& r) {
                 bench::humanize(static_cast<std::uint64_t>(rate)).c_str(), r.elapsed_ns / 1e6,
                 bench::u64(r.spins),
                 r.consistent ? "all messages transferred" : "MESSAGE LOSS -- RESULT INVALID");
+    std::fflush(stdout);
 }
 
 /// Ring and mutex results for one instantiated capacity, run back to
