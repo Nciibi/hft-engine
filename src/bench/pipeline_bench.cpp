@@ -180,22 +180,24 @@ struct RunResult {
 template <std::size_t K>
 [[nodiscard]] RunResult two_threaded(const std::vector<std::uint8_t>& data, std::size_t pool,
                                      std::size_t decoder_core, std::size_t book_core) {
-    SpscRing<Batch<K>, kRingCapacity> ring;
+    // The ring is heap-allocated. At K=128 a 1024-slot ring is 8MB of
+    // batch storage, which overflows a thread stack -- and a benchmark
+    // that dies with a stack overflow two thirds of the way through its
+    // own output is worse than no benchmark. Construction, including
+    // zeroing the slots, happens before the timer starts, so neither the
+    // allocation nor the zeroing is inside the measured region.
+    auto ring = std::make_unique<SpscRing<Batch<K>, kRingCapacity>>();
     OrderBook book(pool, pool);
     RunResult result;
     std::atomic<std::uint64_t> spins{0};
     std::atomic<bool> decoder_done{false};
 
-    // Pool sizing is derived from the feed, not hard-coded. An
-    // add-dominated capture keeps most of what it accepts, so sizing the
-    // pools smaller would saturate them part way through and turn this
-    // into a measurement of the rejection path.
     std::thread book_thread([&] {
         (void)hft::util::pin_current_thread(book_core);
         Batch<K> batch;
         for (;;) {
             bool progressed = false;
-            while (ring.try_pop(batch)) {
+            while (ring->try_pop(batch)) {
                 for (std::uint32_t i = 0; i < batch.count; ++i) {
                     const hft::lob::ApplyResult applied = hft::lob::apply(batch.items[i], book);
                     if (applied.applied) {
@@ -243,7 +245,7 @@ template <std::size_t K>
                 ++decoded;
                 batch.items[batch.count++] = r.message;
                 if (batch.count == K) {
-                    while (!ring.try_push(batch)) {
+                    while (!ring->try_push(batch)) {
                         spins.fetch_add(1, std::memory_order_relaxed);
                         std::this_thread::yield();
                     }
@@ -257,7 +259,7 @@ template <std::size_t K>
         // truncation of the feed, and it would show up only as a
         // checksum mismatch.
         if (batch.count > 0) {
-            while (!ring.try_push(batch)) {
+            while (!ring->try_push(batch)) {
                 spins.fetch_add(1, std::memory_order_relaxed);
                 std::this_thread::yield();
             }
