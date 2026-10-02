@@ -132,14 +132,14 @@ public:
         // synchronise with yet.
         const std::size_t head = head_->load(std::memory_order_relaxed);
 
-        if (head - cached_tail_ >= N) {
+        if (head - *cached_tail_ >= N) {
             // Refresh against the consumer. Acquire, because it pairs
             // with the consumer's release store on tail_: the producer
             // must not overwrite a slot until the consumer's reads of
             // that slot have completed, and this is the edge that
             // guarantees it.
-            cached_tail_ = tail_->load(std::memory_order_acquire);
-            if (head - cached_tail_ >= N) {
+            *cached_tail_ = tail_->load(std::memory_order_acquire);
+            if (head - *cached_tail_ >= N) {
                 return false;
             }
         }
