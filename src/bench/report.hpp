@@ -131,6 +131,7 @@ inline void print_environment(const char* tool) {
     std::printf("topology             %s\n", hft::util::describe_topology().c_str());
     std::printf("this thread          %s\n", hft::util::describe_affinity("main").c_str());
     std::printf("\n");
+    std::fflush(stdout);
 }
 
 /// Warning printed at the end of any run on a machine that is not the
