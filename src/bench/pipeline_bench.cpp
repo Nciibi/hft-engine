@@ -11,20 +11,24 @@
 // because a comparison spanning two runs on different conditions is
 // exactly the kind of number this repository exists to avoid.
 //
-// The prediction, stated before the numbers
-// ----------------------------------------
-// Per-message work in this engine is a few nanoseconds: decode is an
-// integer reassembly and the book update is a ladder walk. A cross-core
+// The prediction, and how it turned out
+// ------------------------------------
+// Per-message work in this engine is a few nanoseconds for decode and
+// rather more for the apply, which walks a price ladder. A cross-core
 // cache-line hand-off is tens to hundreds of nanoseconds. So at one
 // message per ring slot the two-thread pipeline SHOULD BE SLOWER THAN THE
 // SINGLE-THREADED LOOP, and if it is not, something in the measurement is
 // wrong rather than something in the hardware being kind.
 //
-// That is not a disappointing result, it is the reason real market-data
-// handlers batch. Which is what the rest of this tool measures: the same
-// pipeline at batch sizes 1, 8, 32 and 128. The argument is the curve --
-// where the hand-off stops dominating the work it is carrying -- and not
-// any single row of it.
+// The second half of the original prediction -- that batching would
+// recover the loss -- did NOT hold on the development host. Larger batch
+// sizes were consistently worse. The tool prints why, and the reason is
+// more interesting than the prediction was: moving the cheap half of the
+// work off-core does not move the bottleneck, because the two halves are
+// not equal. See the note at the end of this tool's output.
+//
+// Either way the useful output is the curve and the noise floor, not any
+// single row of it.
 //
 // Correctness argument
 // --------------------
