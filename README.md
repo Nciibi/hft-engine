@@ -28,7 +28,12 @@ decode-to-encode pipeline.
 | Avellaneda-Stoikov quoting, no transcendental in the loop | done |
 | Adverse selection: markout, effective/realised spread, toxicity | done |
 | Order Replace (`U`) decode | deliberately **not** done, see below |
-| SPSC ring buffer, multi-shard | not started |
+| SPSC lock-free ring buffer | done |
+| Cache-line isolation, cache-line padded indices | done |
+| Thread pinning and SMT topology discovery | done |
+| Mutex + `condition_variable` baseline benchmark | done |
+| Threaded pipeline equivalence check | done |
+| Multi-shard by symbol | not started |
 | MoldUDP64 packet framing and checksum | not started |
 
 **Order Replace is skipped on purpose.** Its field table was not
