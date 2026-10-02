@@ -946,11 +946,6 @@ void test_capture_handles_control_packets() {
 // that used the production writer could not catch a writer that is wrong
 // in the same way the reader is. These are the two operations, written
 // out.
-void put_be16(std::vector<std::uint8_t>& b, std::size_t at, std::uint16_t v) {
-    b[at] = static_cast<std::uint8_t>((v >> 8) & 0xFFu);
-    b[at + 1] = static_cast<std::uint8_t>(v & 0xFFu);
-}
-
 void put_be32(std::vector<std::uint8_t>& b, std::size_t at, std::uint32_t v) {
     for (int s = 24; s >= 0; s -= 8) {
         b[at++] = static_cast<std::uint8_t>((v >> s) & 0xFFu);
