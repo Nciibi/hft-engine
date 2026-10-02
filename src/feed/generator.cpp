@@ -29,6 +29,23 @@ void write_timestamp48(std::vector<std::uint8_t>& out, std::uint64_t nanos) noex
     write_be32(out, static_cast<std::uint32_t>(nanos & 0xFFFF'FFFFu));
 }
 
+/// The symbol every generated record carries.
+///
+/// Eight bytes, space padded, because that is the field width the Add
+/// Order message specifies and because a short symbol makes the padding
+/// rule untested -- a truncated symbol would decode as a different
+/// string without ever being wrong about the bytes.
+inline constexpr char kGeneratedSymbol[] = "SIMTEST ";
+
+/// Write an eight-byte space-padded alpha field.
+void write_stock_symbol(std::vector<std::uint8_t>& out, const char (&symbol)[9]) noexcept {
+    static_assert(sizeof(symbol) - 1 == hft::itch::off::kStockSymbolSize,
+                  "the symbol literal must fill the stock field exactly");
+    for (std::size_t i = 0; i < hft::itch::off::kStockSymbolSize; ++i) {
+        out.push_back(static_cast<std::uint8_t>(symbol[i]));
+    }
+}
+
 }  // namespace
 
 void append_frame(std::vector<std::uint8_t>& out, const std::uint8_t* body,
