@@ -164,12 +164,19 @@ private:
         return (c >= 'a' && c <= 'z') ? static_cast<char>(c - 'a' + 'A') : c;
     }
 
-    char bytes_[kSymbolSize] = {kPad, kPad, kPad, kPad, kPad, kPad, kPad, kPad};
-    std::uint8_t length_ = 0;
+/// A symbol as it appears on the wire, NUL terminated.
+///
+/// Nine bytes, not eight. The terminator is a separate member rather
+/// than a ninth element of `bytes_`, so the layout is
+/// `[8 name bytes][1 terminator]` and a reader can see at a glance that
+/// the buffer is safe to treat as a C string.
+char bytes_[kSymbolSize] = {kPad, kPad, kPad, kPad, kPad, kPad, kPad, kPad};
+char terminator_ = kTerminator;
+std::uint8_t length_ = 0;
 };
 
 static_assert(sizeof(Symbol) == kSymbolSize + 1,
-              "a Symbol is the wire field plus its length, and nothing else");
+              "a Symbol is the eight-byte wire field plus its terminator, and nothing else");
 
 /// Which shard owns a symbol. FNV-1a over the wire bytes.
 ///
