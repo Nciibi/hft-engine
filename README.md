@@ -232,7 +232,11 @@ distinction with the measured rate rather than a threshold.
 - `[N]` million differential operations against a naive reference model,
   full state comparison after every operation. Zero mismatches.
 - Deterministic replay: FNV-1a book state checksum over `[N]` messages.
-  Identical across runs, across optimisation levels, across machines.
+  Identical across runs and across six optimisation levels, verified by
+  `scripts/determinism.sh`. Across machines is asserted but only
+  demonstrated by running the same command on the benchmark host, so
+  treat that half as a protocol rather than a result until someone has
+  run it on both.
 - Threaded pipeline equivalence: the decoder-thread/book-thread split
   builds a byte-identical book to the single-threaded loop over the same
   feed, at every batch size. Asserted in CI, not merely measured.
