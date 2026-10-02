@@ -294,14 +294,22 @@ struct CaptureConfig {
     /// cannot be mistaken for a wire capture it is not.
     std::size_t messages_per_packet = 1;
 
-    /// Session identifier in the packet header. Exactly ten characters;
-    /// the field is ten bytes and the specification defines no padding
-    /// rule for a short name.
+    /// Session identifier in the packet header. Exactly ten characters.
+    ///
+    /// The field is ten bytes and the specification defines no padding
+    /// rule for a short name, so a caller that needs a different
+    /// session must supply exactly ten. `append_downstream_packet`
+    /// takes it as a `char[11]` reference, which makes a wrong length a
+    /// compile error rather than a ten-byte field with a short name in
+    /// it.
     const char* session = "SAMPLE0000";
 };
 
-static_assert(std::size(hft::feed::kCaptureSession) == 10, "a session identifier is exactly ten characters");
-inline constexpr char kCaptureSession[11] = "SAMPLE0000";
+/// The default session, as a fixed-width literal for the generator.
+inline constexpr char kDefaultSession[11] = "SAMPLE0000";
+
+static_assert(sizeof(kDefaultSession) - 1 == hft::itch::mold::kSessionSize,
+              "a MoldUDP64 session identifier is exactly ten bytes");
 
 /// Eight-character symbol name for index `i`, as it appears on the wire.
 ///
