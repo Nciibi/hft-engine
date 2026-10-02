@@ -230,7 +230,36 @@ struct CaptureConfig {
     /// skip-by-length path. Off by default, so a clean replay is the
     /// default and the skip path is opted into deliberately.
     bool inject_order_replace = false;
+
+    /// Number of distinct stock symbols to interleave.
+    ///
+    /// One is the original single-instrument behaviour and is the
+    /// default. More than one produces a capture where a single handler
+    /// must maintain several books at once, which is the only way to
+    /// exercise routing: every symbol gets its own price walk, its own
+    /// live-order set, and its own anchor price, and the records are
+    /// interleaved in one sequence.
+    ///
+    /// The anchors are spaced far enough apart that a routing bug shows
+    /// up as a book priced in another symbol's currency rather than as a
+    /// subtly wrong level.
+    std::size_t symbol_count = 1;
 };
+
+/// Eight-character symbol name for index `i`, as it appears on the wire.
+///
+/// Deterministic, and exactly the field width: `SYM` plus five digits.
+/// A short name would leave the space padding untested, and a name that
+/// overflowed eight bytes would silently truncate in a way that still
+/// decoded cleanly.
+[[nodiscard]] inline std::string symbol_name(std::size_t i) {
+    std::string s = "SYM00000";
+    for (int d = 7; d >= 3; --d) {
+        s[static_cast<std::size_t>(d)] = static_cast<char>('0' + static_cast<int>(i % 10));
+        i /= 10;
+    }
+    return s;
+}
 
 /// Per-record counts, so a caller can assert the generated mix rather
 /// than trusting it.
