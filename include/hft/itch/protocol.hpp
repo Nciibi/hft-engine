@@ -213,6 +213,6 @@ inline constexpr std::size_t kLengthPrefixSize = 2;
     return kLengthPrefixSize + body_size;
 }
 
-static_assert(frame_size(off::kAddOrderSize) == 34, "Add Order frame is 34 bytes");
+static_assert(frame_size(off::kAddOrderSize) == 38, "Add Order frame is 38 bytes");
 
 }  // namespace hft::itch
