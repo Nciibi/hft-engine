@@ -60,9 +60,9 @@ namespace {
 
 using hft::Nanos;
 using hft::Price;
+using hft::Side;
 using hft::concurrent::SpscRing;
 using hft::lob::OrderBook;
-using hft::lob::Side;
 
 /// Slot capacity: enough to ride out a scheduling hiccup on either side
 /// without letting the queue grow large enough to hide latency in a
