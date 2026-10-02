@@ -540,6 +540,289 @@ void test_generated_feed() {
                  "consumed the whole buffer exactly");
 }
 
+// ---- The capture format ------------------------------------------------
+//
+// These are round-trip and failure-mode tests for the packet capture
+// path: the generator WRITES MoldUDP64 packets and the reader READS
+// them. The point is that both halves agree, and -- more to the point --
+// that a reader cannot be fooled by a capture that stops mid-packet.
+//
+// The dangerous failure mode here is not a wrong number, it is a
+// capture that is one byte short and replays as a clean shorter stream.
+// Every consumer would report success. That is what `malformed()`
+// exists to catch, and it is tested here rather than assumed.
+
+void test_capture_round_trip() {
+    std::printf("capture round trip\n");
+    using namespace hft;
+
+    feed::CaptureConfig config;
+    config.record_count = 10'000;
+    config.max_live_orders = 64;
+    config.reversion = 4;
+    config.drift_raw = 400;
+    const std::vector<std::uint8_t> data = feed::generate_capture(config);
+
+    // Every packet must be well formed on its own terms, and the whole
+    // buffer must be consumed to the last byte. If the reader stops
+    // early, `ok` will not reach the record count.
+    feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
+
+    std::size_t ok = 0;
+    std::size_t other = 0;
+    std::uint64_t expected = config.first_sequence;
+    bool sequence_contiguous = true;
+    bool sizes_consistent = true;
+
+    while (reader.next(frame, frame_size)) {
+        if (reader.sequence() != expected) {
+            sequence_contiguous = false;
+        }
+        ++expected;
+
+        const auto r = itch::decode(frame, frame_size);
+        if (r.ok()) {
+            ++ok;
+        } else {
+            ++other;
+        }
+        // A frame handed back by the reader must be exactly as long as
+        // its own length prefix claims. If it were longer, the reader
+        // would be reporting a frame that runs into the next block.
+        if (frame_size >= itch::kLengthPrefixSize) {
+            const std::size_t declared =
+                (static_cast<std::size_t>(frame[0]) << 8) | static_cast<std::size_t>(frame[1]);
+            if (declared + itch::kLengthPrefixSize != frame_size) {
+                sizes_consistent = false;
+            }
+        } else {
+            sizes_consistent = false;
+        }
+    }
+
+    check_eq_int(static_cast<long long>(ok), 10000, "every captured frame decodes");
+    check_eq_int(static_cast<long long>(other), 0, "no captured frame is skipped");
+    check_true(sequence_contiguous, "per-message sequence numbers are contiguous from first_sequence");
+    check_true(sizes_consistent, "every frame is exactly its declared length");
+    check_true(!reader.malformed(), "an intact capture is not malformed");
+    check_true(reader.packets() == 10'000, "one message per packet by default");
+    check_eq_int(static_cast<long long>(reader.heartbeats()), 0, "no heartbeats generated");
+    check_eq_int(static_cast<long long>(reader.end_of_session()), 0, "no end-of-session generated");
+
+    // The session must survive the round trip: it is in every header,
+    // and it is how a handler tells one feed from another.
+    bool session_ok = true;
+    for (std::size_t p = 0; p < reader.packets(); ++p) {
+        const std::size_t base = p * (itch::mold::kHeaderSize + 38);
+        if (base + itch::mold::kSessionSize > data.size()) {
+            session_ok = false;
+            break;
+        }
+        if (std::memcmp(data.data() + base, config.session, itch::mold::kSessionSize) != 0) {
+            session_ok = false;
+            break;
+        }
+    }
+    check_true(session_ok, "session id is present in every packet header");
+}
+
+void test_capture_multi_message_packets() {
+    std::printf("capture multi-message packets\n");
+    using namespace hft;
+
+    feed::CaptureConfig config;
+    config.record_count = 1'000;
+    config.max_live_orders = 32;
+    const std::size_t per_packet = 7;  // deliberately not a power of two
+    config.messages_per_packet = per_packet;
+    const std::vector<std::uint8_t> data = feed::generate_capture(config);
+
+    feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
+    std::size_t frames = 0;
+    std::uint64_t expected = config.first_sequence;
+    bool contiguous = true;
+    while (reader.next(frame, frame_size)) {
+        if (reader.sequence() != expected) {
+            contiguous = false;
+        }
+        ++expected;
+        ++frames;
+    }
+
+    check_eq_int(static_cast<long long>(frames), 1000, "every message survives packing");
+    check_true(contiguous, "sequence numbers stay contiguous across packet boundaries");
+    check_true(!reader.malformed(), "packed capture is not malformed");
+    // 1000 messages at 7 per packet: 142 full packets and a tail of 6.
+    check_true(reader.packets() == 143, "packet count is ceil(records / per_packet)");
+
+    // The packing must not change what the pipeline sees. The same
+    // record count and seed through the record writer and the packet
+    // writer must produce the same frames, otherwise a benchmark that
+    // moved between the two would be measuring two different things.
+    feed::CaptureConfig unpacked = config;
+    unpacked.messages_per_packet = 1;
+    const std::vector<std::uint8_t> other = feed::generate_capture(unpacked);
+    feed::CaptureReader r1(data.data(), data.size());
+    feed::CaptureReader r2(other.data(), other.size());
+    const std::uint8_t* f1 = nullptr;
+    const std::uint8_t* f2 = nullptr;
+    std::size_t n1 = 0;
+    std::size_t n2 = 0;
+    bool identical = true;
+    while (r1.next(f1, n1)) {
+        if (!r2.next(f2, n2) || n1 != n2 || std::memcmp(f1, f2, n1) != 0) {
+            identical = false;
+            break;
+        }
+    }
+    if (r2.next(f2, n2)) {
+        identical = false;
+    }
+    check_true(identical, "packing changes framing but not the frames");
+}
+
+void test_capture_rejects_truncation() {
+    std::printf("capture rejects truncation\n");
+    using namespace hft;
+
+    feed::CaptureConfig config;
+    config.record_count = 64;
+    config.max_live_orders = 16;
+    config.messages_per_packet = 4;
+    const std::vector<std::uint8_t> data = feed::generate_capture(config);
+
+    // Cut the capture at every byte offset across the first few packets
+    // and require that any cut which lands inside a packet or a block is
+    // reported. A cut that lands exactly on a packet boundary is a
+    // legitimate shorter capture and must NOT be flagged.
+    std::size_t reported = 0;
+    std::size_t silent = 0;
+    for (std::size_t cut = 1; cut < data.size() && cut < 400; ++cut) {
+        feed::CaptureReader reader(data.data(), cut);
+        const std::uint8_t* frame = nullptr;
+        std::size_t frame_size = 0;
+        while (reader.next(frame, frame_size)) {
+        }
+        // Determine whether `cut` was a clean packet boundary: walk the
+        // intact capture to that offset and see if a header starts there.
+        bool on_boundary = false;
+        {
+            feed::CaptureReader walker(data.data(), data.size());
+            std::size_t at = 0;
+            while (at < cut) {
+                if (at + itch::mold::kHeaderSize > data.size()) {
+                    break;
+                }
+                if (at == cut) {
+                    on_boundary = true;
+                    break;
+                }
+                feed::CaptureReader one(data.data() + at, data.size() - at);
+                std::size_t consumed = 0;
+                const std::uint8_t* f = nullptr;
+                std::size_t n = 0;
+                while (one.next(f, n)) {
+                    consumed += n;
+                }
+                if (consumed == 0) {
+                    break;
+                }
+                at += itch::mold::kHeaderSize + consumed;
+            }
+        }
+        if (reader.malformed()) {
+            ++reported;
+        } else if (!on_boundary) {
+            ++silent;
+        }
+    }
+    check_true(reported > 0, "some truncations are detected");
+    check_eq_int(static_cast<long long>(silent), 0,
+                 "no truncation inside a packet is silently accepted");
+
+    // A capture ending exactly on a packet boundary is valid. Cutting to
+    // a real header offset must not be flagged, or the flag would be
+    // useless -- a consumer would have to ignore it.
+    feed::CaptureReader whole(data.data(), data.size());
+    const std::uint8_t* f = nullptr;
+    std::size_t n = 0;
+    while (whole.next(f, n)) {
+    }
+    const std::size_t packet_span = itch::mold::kHeaderSize + 4 * (itch::mold::kMessageBlockSize + 38);
+    if (packet_span < data.size()) {
+        feed::CaptureReader partial(data.data(), packet_span);
+        const std::uint8_t* f2 = nullptr;
+        std::size_t n2 = 0;
+        while (partial.next(f2, n2)) {
+        }
+        check_true(!partial.malformed(), "a capture ending on a packet boundary is valid");
+        check_eq_int(static_cast<long long>(partial.packets()), 1,
+                     "a single whole packet is one packet");
+    }
+
+    // Empty and zero-length buffers must not read as malformed.
+    feed::CaptureReader empty(nullptr, 0);
+    const std::uint8_t* f3 = nullptr;
+    std::size_t n3 = 0;
+    check_true(!empty.next(f3, n3), "an empty capture yields no frames");
+    check_true(!empty.malformed(), "an empty capture is not malformed");
+
+    // A header that is too short to hold a sequence number is a
+    // truncated packet, not an empty one.
+    const std::uint8_t short_header[8] = {0};
+    feed::CaptureReader stub(short_header, sizeof short_header);
+    const std::uint8_t* f4 = nullptr;
+    std::size_t n4 = 0;
+    check_true(!stub.next(f4, n4), "a stub header yields no frames");
+    check_true(stub.malformed(), "a stub header is malformed");
+}
+
+void test_capture_handles_control_packets() {
+    std::printf("capture handles control packets\n");
+    using namespace hft;
+
+    // A real session contains heartbeats, and a graceful end. Both carry
+    // no messages, and a reader that returned them as frames would hand
+    // a handler a "frame" with an empty body.
+    std::vector<std::uint8_t> data;
+    feed::GeneratorConfig gen;
+    gen.message_count = 3;
+    const std::vector<std::uint8_t> frames = feed::generate_add_orders(gen);
+    feed::append_downstream_packet(data, frames, 7);
+    feed::append_downstream_packet(data, frames, 10);
+
+    // A heartbeat between the two packets, carrying the sequence number
+    // the NEXT packet will use, which is what keeps the gap detector
+    // from firing on the far side of an idle period.
+    std::vector<std::uint8_t> heartbeat;
+    feed::append_downstream_packet(heartbeat, {}, 13);
+    data.insert(data.begin() + feed::kCaptureHeaderSize + 3 * (itch::mold::kMessageBlockSize + 38),
+                heartbeat.begin(), heartbeat.end());
+
+    feed::CaptureReader reader(data.data(), data.size());
+    const std::uint8_t* frame = nullptr;
+    std::size_t frame_size = 0;
+    std::size_t frames = 0;
+    std::uint64_t expected = 7;
+    bool contiguous = true;
+    while (reader.next(frame, frame_size)) {
+        if (reader.sequence() != expected) {
+            contiguous = false;
+        }
+        ++expected;
+        ++frames;
+    }
+
+    check_eq_int(static_cast<long long>(frames), 6, "two packets of three frames each");
+    check_true(contiguous, "a heartbeat in the middle does not disturb sequence numbers");
+    check_eq_int(static_cast<long long>(reader.heartbeats()), 1, "the heartbeat is counted");
+    check_true(!reader.malformed(), "a heartbeat is not a malformed packet");
+}
+
 // ---- The other decoded message types --------------------------------
 
 void test_decode_mutations() {
@@ -848,6 +1131,10 @@ int main() {
     test_sequence();
     test_apply_path();
     test_generated_feed();
+    test_capture_round_trip();
+    test_capture_multi_message_packets();
+    test_capture_rejects_truncation();
+    test_capture_handles_control_packets();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
