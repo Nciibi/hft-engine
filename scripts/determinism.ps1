@@ -111,27 +111,29 @@ foreach ($level in $levels) {
     # must match: a run that read fewer messages could agree on a
     # checksum while having done less work.
     #
-    # Every extraction is cast to string explicitly. Select-String
-    # returns MatchInfo objects, and letting one reach an -f format or a
-    # numeric comparison produces a type error that has nothing to do
-    # with determinism.
+    # Every extraction is cast to string explicitly and wrapped in @().
+    # Select-String and Where-Object return a bare object when there is
+    # exactly one match, and indexing a bare string yields its first
+    # CHARACTER rather than its only line -- so `$line[0]` silently
+    # becomes "B" for "BOOK CHECKSUM ..." and the regex below matches
+    # nothing. The @() is not defensive style, it is the fix.
     $output = @($output | ForEach-Object { [string]$_ })
 
-    $checksumLine = $output | Where-Object { $_ -match 'BOOK CHECKSUM\s+([0-9a-fA-F]+)' }
-    if (-not $checksumLine) {
+    $checksumLines = @($output | Where-Object { $_ -match 'BOOK CHECKSUM\s+([0-9a-fA-F]+)' })
+    if ($checksumLines.Count -eq 0) {
         Write-Host ($output -join "`n")
         Write-Fail "no BOOK CHECKSUM line at -$level"
     }
-    $hash = ([regex]::Match($checksumLine[0], 'BOOK CHECKSUM\s+([0-9a-fA-F]+)')).Groups[1].Value.ToLower()
+    $hash = ([regex]::Match($checksumLines[0], 'BOOK CHECKSUM\s+([0-9a-fA-F]+)')).Groups[1].Value.ToLower()
 
-    $recordsLine = $output | Where-Object { $_ -match 'records\s+(\d+)' }
-    $count = if ($recordsLine) {
-        [string]([regex]::Match($recordsLine[0], 'records\s+(\d+)')).Groups[1].Value
+    $recordsLines = @($output | Where-Object { $_ -match '^\s*records\s+(\d+)\s*$' })
+    $count = if ($recordsLines.Count -gt 0) {
+        [string]([regex]::Match($recordsLines[0], 'records\s+(\d+)')).Groups[1].Value
     } else { '?' }
 
-    $gapsLine = $output | Where-Object { $_ -match 'sequence gaps\s+(\d+)' }
-    $gapCount = if ($gapsLine) {
-        [string]([regex]::Match($gapsLine[0], 'sequence gaps\s+(\d+)')).Groups[1].Value
+    $gapsLines = @($output | Where-Object { $_ -match 'sequence gaps\s+(\d+)' })
+    $gapCount = if ($gapsLines.Count -gt 0) {
+        [string]([regex]::Match($gapsLines[0], 'sequence gaps\s+(\d+)')).Groups[1].Value
     } else { '?' }
 
     $results[$level] = @{ checksum = $hash; records = $count; gaps = $gapCount }
