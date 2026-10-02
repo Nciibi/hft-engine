@@ -1,5 +1,7 @@
 #include "feed/generator.hpp"
 
+#include <algorithm>
+
 #include "hft/itch/moldudp64.hpp"
 #include "hft/itch/protocol.hpp"
 
@@ -389,7 +391,8 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
     // declaring one here would shadow it and every record would be
     // priced against symbol 0's walk.
     hft::OrderId next_id = config.first_order_id;
-    PacketWriter packets(out, config.session, config.messages_per_packet,
+    PacketWriter packets(out, config.session != nullptr ? config.session : kDefaultSession,
+                      config.messages_per_packet,
                       static_cast<std::uint64_t>(config.first_sequence));
     std::uint64_t clock = 0;
     std::uint64_t match_number = 0;
