@@ -103,6 +103,10 @@ target_link_libraries(hft_risk_oms PRIVATE hft_core)
 add_executable(hft_differential tests/differential.cpp)
 target_link_libraries(hft_differential PRIVATE hft_core)
 
+# Concurrency: the SPSC ring buffer. Header-only, so no extra sources.
+add_executable(hft_concurrent tests/test_concurrent.cpp)
+target_link_libraries(hft_concurrent PRIVATE hft_core)
+
 # ---- CTest ----------------------------------------------------------
 enable_testing()
 
