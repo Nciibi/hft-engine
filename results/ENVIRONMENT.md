@@ -115,12 +115,14 @@ Intended target: AWS `c7i.metal` or `c7gn.metal`.
 ## How to produce a publishable run
 
 ```bash
-./scripts/bench.sh 5000000
+./scripts/bench.sh 5000000          # environment, build, differential test, results
+./build/hft_ring_bench              # ring vs mutex baseline
+./build/hft_pipeline_bench          # 1 thread vs 2, batch sweep, checksum-matched
 ```
 
 The script prints the environment before the results, runs the
-differential test before the benchmark, and fails loudly if the
-book's pools saturate mid-run. On a real host:
+differential test before the benchmark, and fails loudly if the book's
+pools saturate mid-run. On a real host:
 
 ```bash
 sudo systemctl set-property cpuidle.governor=performance
@@ -132,7 +134,29 @@ sudo sh -c 'echo 1 > /sys/devices/system/cpu/cpu5/online'
 taskset -c 4 ./build/hft_bench 5000000
 ```
 
+The concurrency tools place their own threads and report the placement
+they achieved, so they need no `taskset`; do run them under
+`isolcpus` and `nohz_full` if the host has them configured.
+
 Then paste the script's own `=== environment ===` block into the table
 above and fill the `README.md` placeholders. Do not hand-edit a number
 into the README without the matching environment record; that is the
 one failure mode this file exists to prevent.
+
+### Building this repository
+
+Requires CMake, a C++20 compiler and `git`. Zero external dependencies.
+
+With the w64devkit toolchain used for development:
+
+```bash
+export PATH="/d/w64devkit/bin:$PATH"
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build
+```
+
+GCC 16.2, clang 18 and MSVC all build the tree clean under the project's
+`-Werror` policy. That is deliberate: a latency project that only
+compiles warning-free under one compiler is a project whose warnings
+have simply not been read yet.
