@@ -210,17 +210,31 @@ struct StageResult {
     //
     // Sized at ONE order per level, not three. Measured over 400,000
     // records at 10 levels per side: a cap of 10 produced 8,234 mid
-    // moves, a cap of 30 produced 17. Three times the cap was three
-    // orders of slack at the touch, which is three orders too many --
-    // the touch simply does not empty. This was the single largest
-    // reason the decision stage was measuring a static market.
+    // moves, a cap of 30 produced 17. Three orders of slack at the
+    // touch is three orders too many -- the touch simply does not
+    // empty. The deep shape showed the same thing harder: the mid-move
+    // count was identical at 1,000 and at 40,000 live orders, because a
+    // thick touch is a sticky touch.
     capture.max_live_orders = shape.levels_per_side;
-    // Weak reversion lets the walk travel before being pulled back, so
-    // the mid covers more ground per record and the touch is revisited
-    // from a different side more often. Measured: reversion 4 gave 17
-    // mid moves at this shape, reversion 64 gave 8,234.
-    capture.drift_raw = 400;
-    capture.reversion = 64;
+    // Reversion weak, and drift scaled to the ladder rather than fixed.
+    //
+    // Both of these were measured, and both were wrong before. A fixed
+    // drift of 400 raw is four ticks: against a 10-level ladder that is
+    // fine, but against a 1,000-level ladder it is nothing, and the best
+    // bid became a stable extreme-value statistic over a band 200 times
+    // wider than the walk ever travelled. The mid moved 23 times in
+    // 2,000,000 records and no cap setting changed it.
+    //
+    // So drift is now half the ladder's own width, and reversion is
+    // weak enough that the walk actually travels. Measured at 1,000
+    // levels over 150,000 records: reversion 64 gave 5 mid moves,
+    // reversion 500 gave 50, reversion 1000 gave 220, with the book
+    // uncrossed throughout. At 10 levels the same setting gives 3,370,
+    // so one policy serves both depths and the shallow/deep comparison
+    // stays a comparison of depth rather than of price process.
+    capture.drift_raw =
+        static_cast<std::int64_t>(shape.levels_per_side) * capture.tick_raw / 2;
+    capture.reversion = 1000;
     return hft::feed::generate_capture(capture, stats);
 }
 
