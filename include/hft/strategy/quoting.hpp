@@ -363,7 +363,7 @@ public:
         // Median absolute deviation, via nth_element on a scratch copy.
         scratch_.clear();
         for (const std::int64_t d : returns_) {
-            scratch_.push_back(d < 0 ? -d : d);
+            scratch_.push_back(static_cast<double>(d < 0 ? -d : d));
         }
         const std::size_t n = scratch_.size();
         std::nth_element(scratch_.begin(), scratch_.begin() + static_cast<std::ptrdiff_t>(n / 2),
