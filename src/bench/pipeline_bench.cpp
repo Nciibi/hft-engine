@@ -376,7 +376,8 @@ int main(int argc, char** argv) {
     std::printf("\n");
 
     bench::section("TWO THREADS THROUGH THE RING, BY BATCH SIZE");
-    std::printf("  %-22s %12s         %9s      %5s\n", "", "rate", "elapsed", "speedup");
+    std::printf("  %-22s %12s         %9s      %5s  %12s\n", "", "rate", "elapsed", "speedup",
+                "ring memory");
     std::printf("  (K = decoded messages carried per ring slot; a hand-off costs\n"
                 "   one cache-line transfer, so larger K amortises it -- at the\n"
                 "   price of a larger copy. The crossing point is the result.)\n\n");
