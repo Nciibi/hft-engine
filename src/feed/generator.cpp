@@ -278,10 +278,20 @@ void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original,
                           hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
     using namespace hft::itch;
     // Body: tag(1) + locate(2) + track(2) + ts(6) + original(8)
-    //     + new(8) + shares(4) + price(4) + type(1) + tif(1)
-    //     + display(1) + participant(1) = 39
-    constexpr std::uint16_t kReplaceBodySize = 39;
-    write_be16(out, kReplaceBodySize);
+    //     + new(8) + shares(4) + price(4) = 35, per TotalView-ITCH 5.0
+    // section 4.4.5. Derived from the verified field table rather than
+    // written out, so the generator cannot drift from the decoder.
+    //
+    // This function used to append four more bytes -- order_type '2',
+    // time_in_force '0', display '1', participant 'N' -- for a 39-byte
+    // body and a 41-byte frame. Those four fields do not exist in an
+    // Order Replace message; they are order-entry fields, and they are
+    // the same four that made the Add Order decoder wrong for the whole
+    // life of this project. The decoder had been skipping these frames
+    // by length, which hid it: nothing ever read those bytes, so the
+    // wrong size was invisible until the layout was finally verified
+    // against the specification rather than assumed.
+    write_be16(out, static_cast<std::uint16_t>(off::kOrderReplaceSize));
     out.push_back(static_cast<std::uint8_t>(MessageType::order_replace));
     write_be16(out, locate);
     write_be16(out, tracking);
@@ -290,10 +300,6 @@ void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original,
     write_be64(out, next);
     write_be32(out, static_cast<std::uint32_t>(shares.raw()));
     write_be32(out, static_cast<std::uint32_t>(price.raw()));
-    out.push_back('2');
-    out.push_back('0');
-    out.push_back('1');
-    out.push_back('N');
 }
 
 namespace {
