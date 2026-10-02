@@ -104,6 +104,9 @@ struct ApplyResult {
                 // book" and may be ignored by a book builder. They are
                 // decoded so a time-and-sales or volume consumer can see
                 // them; nothing here touches the ladder.
+                static_assert(std::is_same_v<T, itch::Trade> ||
+                                  std::is_same_v<T, itch::CrossTrade>,
+                              "apply() must handle every decoded ITCH type explicitly");
                 return ApplyResult{BookStatus::ok, true};
             }
         },
