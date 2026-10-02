@@ -210,6 +210,14 @@ void on_book(const lob::OrderBook& book, Nanos now) noexcept {
     /// strategy whose feed is wrong, and this is how you find out.
     [[nodiscard]] std::uint64_t two_sided_observations() const noexcept { return two_sided_; }
     [[nodiscard]] std::uint64_t one_sided_observations() const noexcept { return one_sided_; }
+
+    /// Observations on which the mid differed from the previous one.
+    ///
+    /// Read this before reading anything else this class reports. If it
+    /// is near zero, the strategy was handed a book that did not move,
+    /// the volatility estimate is zero, and the quoted spread is
+    /// degenerate -- none of which is a finding about market making.
+    [[nodiscard]] std::uint64_t mid_moves() const noexcept { return mid_moves_; }
     [[nodiscard]] std::uint64_t fills() const noexcept { return fills_; }
     /// Fill-path diagnostics. If `checks` is large and `fills` is
     /// small, the quote is resting but the condition is not being met,
