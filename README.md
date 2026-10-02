@@ -299,13 +299,17 @@ skips past a failed correctness run should not be able to.
 ## Architecture
 
 ```
-  capture.itch   [seq:4][len:2][ITCH body]
+  capture.itch   MoldUDP64 packets: [hdr:20][block][block]...
+      |          hdr = [session:10][seq:8][count:2]
+      |          block = [len:2][ITCH body]
+      v
+  [ Capture reader ]  packets -> frames, truncation flagged
       |
       v
   [ ITCH decoder ]  zero-copy, big-endian, 48-bit timestamps
       |             A / E / C / X / D; others skipped by length
       v
-  [ SOUP sequence ] gap and duplicate detection, 32-bit wrap safe
+  [ SOUP sequence ] gap and duplicate detection, 64-bit
       |
       v
   [ Apply layer ]   single dispatch: message -> book mutation
