@@ -976,11 +976,22 @@ making follows Avellaneda-Stoikov; inventory risk handling
 follows Guéant-Lehalle-Fernandez-Tapia.
 
 **On verification.** The offsets in `include/hft/itch/protocol.hpp` for
-`A`, `E`, `C`, `X` and `D` have been checked against the published
-field tables, and each one now carries a `static_assert` against its
-literal offset. `U` (Order Replace), `F` (Add Order with MPID
-Attribution), `S`, `R`, `T`, `Q` and the order-entry direction have
-**not** been verified, and this build does not decode them.
+`A`, `E`, `C`, `X`, `D`, `U` and `B` have been checked against the
+published field tables in Nasdaq's TotalView-ITCH 5.0 specification, and
+each one now carries a `static_assert` against its literal offset. `F`
+(Add Order with MPID Attribution), `S`, `R`, `T` and `Q` have **not**
+been verified, and this build does not decode them. There is no
+order-entry direction to verify, because TotalView-ITCH does not have
+one.
+
+Two cautions for anyone extending this. The offsets for `U` differ
+between protocol *versions* — ITCH 3.1 and 4.0 are both published and
+both disagree — so a table lifted from either is wrong in a way that
+looks right. And a body length must be **derived** from the last
+field's offset, never written as an independent constant: the generator
+and the decoder sharing a wrong constant is how a four-byte error
+survives a green test suite, which is precisely how both the Add Order
+and the Order Replace bugs survived here.
 
 That asymmetry is deliberate. The inbound order-level messages are what
 an order book needs to exist at all, so they were worth checking against
