@@ -144,13 +144,12 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             if (!side_from_byte(body[off::add_order_side], ao.side)) {
                 return status_of(DecodeStatus::malformed, body_length);
             }
+            ao.size = Quantity::from_raw(read_be32(body + off::add_order_size));
+            for (std::size_t i = 0; i < off::kStockSymbolSize; ++i) {
+                ao.stock[i] = static_cast<char>(body[off::add_order_stock + i]);
+            }
             ao.price =
                 Price::from_raw(static_cast<std::int64_t>(read_be32(body + off::add_order_price)));
-            ao.size = Quantity::from_raw(read_be32(body + off::add_order_size));
-            ao.order_type = body[off::add_order_type];
-            ao.time_in_force = body[off::add_order_tif];
-            ao.display = body[off::add_order_display];
-            ao.participant = body[off::add_order_participant];
             r.status = DecodeStatus::ok;
             r.message.body = ao;
             return r;
