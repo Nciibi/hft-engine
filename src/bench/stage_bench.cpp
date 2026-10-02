@@ -130,23 +130,14 @@ struct StageResult {
     const std::uint8_t* frame = nullptr;
     std::size_t frame_size = 0;
 
-    while (offset < data.size()) {
-        if (data.size() - offset < hft::feed::kCaptureSequenceSize + itch::kLengthPrefixSize) {
-            break;
-        }
-        const std::size_t frame_at = offset + hft::feed::kCaptureSequenceSize;
-
+    while (reader.next(frame, frame_size)) {
         const std::uint64_t t0 = hft::util::Timer::now();
-        const itch::DecodeResult decoded = itch::decode(data.data() + frame_at, data.size() - frame_at);
+        const itch::DecodeResult decoded = itch::decode(frame, frame_size);
         const std::size_t stride = itch::frame_stride(decoded);
         const std::uint64_t t1 = hft::util::Timer::now();
 
-        if (stride == 0) {
-            break;
-        }
         ++r.records;
         if (!decoded.ok()) {
-            offset = frame_at + stride;
             continue;
         }
 
