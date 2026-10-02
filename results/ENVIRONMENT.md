@@ -67,9 +67,17 @@ identical runs is several percent. The finding is that the decode/apply
 split does not pay at this granularity; see the concurrency section of
 `README.md`.
 
-### Latency reference run (superseded, add-only feed)
+### Superseded: figures taken before the Add Order decoder fix
 
-From the previous toolchain, retained only for continuity:
+**Do not use any of these.** They were produced from a feed whose Add
+Order messages were misdecoded — the decoder read the share count as the
+price — so the book held share counts where prices belonged. Every
+latency and throughput number below describes a book with a different
+structure from the one this engine now builds, and the prices in it were
+not prices.
+
+They are retained only so the change is legible. If a number appears
+below and not in the sections above it, that is why.
 
 ```
 decode       p50    1 ns    p99    2 ns    p999    5 ns
@@ -78,7 +86,14 @@ total        p50    2 ns    p99    7 ns    p999   89 ns
 throughput   4.81 M msg/s
 ```
 
-Caveats that apply to every figure above:
+The ~89 ns p999 in particular belonged to a 3,200-level ladder keyed on
+integers in `[1, 500]`. A real ladder is keyed on prices around
+1,000,000 raw units, which changes the level distribution, the cache
+behaviour of the index, and the tail. The re-measurement has not been
+run yet, which is why the latency table in `README.md` is still
+unfilled rather than carrying an updated dev-machine number.
+
+### Caveats that apply to every figure in this file
 
 - **Consumer silicon.** A 2017-era budget hex-core. These are not
   representative of a bare-metal server with isolated cores.
