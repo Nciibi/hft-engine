@@ -67,7 +67,7 @@ public:
     ///   3. feed volatility;
     ///   4. decide and place quotes;
     ///   5. test the previous quote against the new mid for a fill.
-    void on_book(const lob::OrderBook& book, Nanos now) noexcept {
+void on_book(const lob::OrderBook& book, Nanos now) noexcept {
         ++observations_;
 
         const auto best_bid = book.best_bid();
@@ -84,6 +84,22 @@ public:
 
         const Price mid = Price::from_raw((best_bid->raw() + best_ask->raw()) / 2);
         last_mid_ = mid;
+
+        // How often the mid actually moves, reported rather than
+        // assumed.
+        //
+        // A mid that does not move is not a market, and every number
+        // downstream of one is meaningless rather than merely wrong:
+        // zero volatility means the A-S risk term is zero, which means
+        // the spread collapses below a tick, which means the strategy
+        // quotes nothing. That failure was previously invisible because
+        // the book appeared to move constantly -- for the wrong reason.
+        // See the feed generator's note on `max_live_orders`.
+        if (have_mid_ && mid != last_observed_mid_) {
+            ++mid_moves_;
+        }
+        last_observed_mid_ = mid;
+        have_mid_ = true;
 
         // (1) Resolve outstanding markouts against the CURRENT mid,
         // before this observation's own fill is added.
