@@ -113,7 +113,7 @@ static_assert(std::is_trivially_destructible_v<Batch<128>>,
         hash = hft::replay::fnv1a_u64(hash, static_cast<std::uint64_t>(levels.size()));
         for (const hft::lob::LevelSnapshot& level : levels) {
             hash = hft::replay::fnv1a_u64(hash, static_cast<std::uint64_t>(level.price.raw()));
-            hash = hft::replay::fnv1a_u64(hash, level.aggregate.raw());
+            hash = hft::replay::fnv1a_u64(hash, level.aggregate_size.raw());
             hash = hft::replay::fnv1a_u64(hash, level.order_count);
         }
     }
