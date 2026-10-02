@@ -139,6 +139,9 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
     write_be32(out, static_cast<std::uint32_t>(price.raw()));
 }
 
+/// Candidates examined per mutation when biasing towards stale orders.
+inline constexpr int kStaleTournament = 4;
+
 /// Draw a level offset: how many ticks away from the mid an order rests.
 /// Uniform across the ladder. This was front-loaded toward the touch
 /// first, on the reasoning that real books concentrate size near the
