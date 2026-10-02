@@ -64,7 +64,7 @@ void append_frame_with_length(std::vector<std::uint8_t>& out, const std::uint8_t
 void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
                       hft::Price price, hft::Quantity size, hft::OrderId id,
                       hft::Nanos timestamp, hft::StockLocate locate,
-                      hft::TrackingNumber tracking) noexcept {
+                      hft::TrackingNumber tracking, const char* symbol) noexcept {
     using namespace hft::itch;
 
     // The length prefix counts the tag, so it is 36, not 35.
@@ -81,7 +81,7 @@ void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
     // to write, which is the whole of the Add Order bug: it agreed with
     // the decoder and disagreed with the specification.
     write_be32(out, static_cast<std::uint32_t>(size.raw()));
-    write_stock_symbol(out, kGeneratedSymbol);
+    write_stock_symbol(out, symbol);
     write_be32(out, static_cast<std::uint32_t>(price.raw()));
 }
 
