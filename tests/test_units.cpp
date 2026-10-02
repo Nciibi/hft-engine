@@ -1211,13 +1211,24 @@ void test_decode_mutations() {
         std::vector<std::uint8_t> buf;
         feed::append_order_replace(buf, kId, kId + 1, Quantity::from_raw(10),
                                    Price::from_raw(100'000), 0);
-        check_eq_int(static_cast<long long>(buf.size()), 41, "replace frame is 41 bytes");
-        const auto r = itch::decode(buf.data(), buf.size());
-        check(r.status == itch::DecodeStatus::unknown_type,
-              "order replace is skipped, not guessed at");
-        check(r.skippable(), "order replace is skippable");
-        check_eq_int(static_cast<long long>(itch::frame_stride(r)), 41,
-                   "replace skip stride is the full frame");
+check_eq_int(static_cast<long long>(buf.size()), 37,
+                 "replace frame is 37 bytes (35 body plus length prefix)");
+    const auto r = itch::decode(buf.data(), buf.size());
+    // It used to be asserted that this frame is SKIPPED as an unknown
+    // type, which was true while the layout was unverified and false as
+    // soon as it was verified against section 4.4.5. The generator used
+    // to write four phantom order-entry bytes here and the skip hid it.
+    check(r.ok(), "order replace is now decoded, not skipped");
+    if (r.ok()) {
+        const auto* u = std::get_if<itch::OrderReplace>(&r.message.body);
+        check(u != nullptr, "the generated replace decodes to OrderReplace");
+        if (u != nullptr) {
+            check(u->original_id == kId, "the generated replace carries the original reference");
+            check(u->new_id == kId + 1, "and the new reference");
+        }
+    }
+    check_eq_int(static_cast<long long>(itch::frame_stride(r)), 37,
+                 "replace frame stride is the full frame");
     }
 
     // A known tag whose declared length disagrees with its own layout
