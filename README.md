@@ -301,6 +301,8 @@ comparison share the error.
 verified, and an unverified offset on a live feed produces a decoder that
 confidently misreads it. A skipped message is recoverable; wrong bytes
 are not.
+
+**Determinism is a feature.** Same capture, same book, same checksum, at
 any optimisation level on any host. This is checked, not claimed: the
 suite builds the replay tool at `-O0`, `-O2`, `-O3` and `-Os` and
 compares. Without that property no benchmark is reproducible and no bug
