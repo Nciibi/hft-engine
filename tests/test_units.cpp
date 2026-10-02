@@ -1171,7 +1171,7 @@ void test_trade_layouts_are_spec() {
         tb[5 + i] = static_cast<std::uint8_t>(0xA0 + i);  // timestamp
     }
     put_be64(tb, itch::off::trade_id, 0);  // zero on the binary feeds
-    tb[itch::off::trade_side] = 'B';
+    tb[itch::off::trade_side] = static_cast<std::uint8_t>('B');
     put_be32(tb, itch::off::trade_shares, 250);
     const char sym[8] = {'T', 'E', 'S', 'T', 'N', 'M', 'T', ' '};
     for (int i = 0; i < 8; ++i) {
@@ -1234,7 +1234,7 @@ void test_trade_layouts_are_spec() {
     }
     put_be32(qb, itch::off::cross_price, 999'900);
     put_be64(qb, itch::off::cross_match, 0xF0F0'F0F0'F0F0'F0F0ULL);
-    qb[itch::off::cross_type] = 'C';  // closing cross
+    qb[itch::off::cross_type] = static_cast<std::uint8_t>('C');  // closing cross
 
     std::vector<std::uint8_t> qf;
     hft::feed::append_frame(qf, qb.data(), qb.size());
