@@ -451,7 +451,7 @@ std::optional<OrderSnapshot> OrderBook::find(OrderId id) const noexcept {
         return std::nullopt;
     }
     const OrderNode& o = orders_[h];
-    return OrderSnapshot{o.id, o.price, o.size, o.state, side_of(o)};
+    return OrderSnapshot{o.id, o.price, o.size, o.state, o.side};
 }
 
 std::optional<Quantity> OrderBook::size_at(Side side, Price price) const noexcept {
