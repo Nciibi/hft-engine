@@ -470,6 +470,10 @@ systems fail:
 | Replace chain / lost order  | Detected and rejected                 |
 | Order ID collision          | Detected and rejected                 |
 | Risk limit breach           | Order rejected, never reaches the wire|
+| Negative or stale slot id   | Rejected before indexing              |
+| Ring full / empty           | `false`, never an overwrite or a drop |
+| Ring payload not trivially copyable | Refused at compile time        |
+| Two threads on one ring     | Refused by construction: SPSC only    |
 | Clock skew                  | Documented as out of scope; see below |
 
 ## This maps to interview questions
