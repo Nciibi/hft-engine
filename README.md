@@ -32,7 +32,7 @@ The published field table for ITCH 5.0 Add Order ('A') is:
 | **Price** | **32** | **4** |
 
 This build read `price` at 20, `size` at 24, and carried four bytes at
-28â€“31 that do not exist in an Add Order message â€” `order_type`,
+28“31 that do not exist in an Add Order message — `order_type`,
 `time_in_force`, `display` and `participant`, which are Order Entry
 fields. Total 32 bytes rather than 36. The layout looks like Order
 Executed copied over and shifted by one field.
@@ -65,7 +65,7 @@ Three things are now true that were not:
 3. **The strategy numbers were all downstream of this.** The market
    maker's "volatility" was the share-count noise in a fake price. With
    real prices the book stopped appearing to move, which exposed that
-   the feed was never actually producing a market â€” see
+   the feed was never actually producing a market — see
    [the market maker's feed](#the-market-makers-feed-is-the-second-half-of-this).
 
 ## What is implemented
@@ -141,10 +141,10 @@ both tables; `hft_bench` produces the add-only ingest figures.
 The ladder is a sorted linked list, so inserting a price that is not
 adjacent to the best walks from the head of the ladder. **Book-update
 cost is proportional to ladder depth**, which is why there are two tables
-rather than one â€” a single figure across both would be a figure about
+rather than one — a single figure across both would be a figure about
 nothing.
 
-**Shallow book â€” 10 price levels a side**
+**Shallow book — 10 price levels a side**
 
 | Stage            | p50          | p99          | p999         |
 |------------------|--------------|--------------|--------------|
@@ -153,9 +153,9 @@ nothing.
 | Decision         | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
 | Risk check       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
 | End to end       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
-| Encode           | not measured â€” see below        |            |              |
+| Encode           | not measured — see below        |            |              |
 
-**Deep book â€” 1000 price levels a side**
+**Deep book — 1000 price levels a side**
 
 | Stage            | p50          | p99          | p999         |
 |------------------|--------------|--------------|--------------|
@@ -164,12 +164,12 @@ nothing.
 | Decision         | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
 | Risk check       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
 | End to end       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
-| Encode           | not measured â€” see below        |            |              |
+| Encode           | not measured — see below        |            |              |
 
 **Encode is missing on purpose.** The outbound message is ITCH Order
 Entry ('B'), and this repository does not implement it because its field
 table could not be verified against the published specification. That is
-not a scheduling problem â€” inventing an outbound layout is precisely the
+not a scheduling problem — inventing an outbound layout is precisely the
 mistake documented in [The bug that mattered](#the-bug-that-mattered),
 and it survived every test because the generator was guessing the same
 way. A second guessed table would be a second way to be confidently
@@ -232,8 +232,8 @@ batch size, within the measured noise floor.
 | Dispatcher + 5 workers           | `[MEASURED]` | `[MEASURED]` |
 
 The difference between those two tables is the whole argument for symbol
-sharding. Splitting decode from apply leaves the expensive half â€” the
-ladder walk and the slab edit â€” running serially on one core, and adds a
+sharding. Splitting decode from apply leaves the expensive half — the
+ladder walk and the slab edit — running serially on one core, and adds a
 hand-off to pay for. Sharding by symbol gives every thread its own book
 to apply into, so the expensive work is parallel *and* balanced. Every
 sharded row is checked to have produced books byte-identical to the
@@ -246,7 +246,7 @@ the number to quote for a design like this, not the worker count.
 
 **An earlier version of this tool reported the opposite conclusion, and
 the correction is the more useful half.** It measured the split at
-0.91xâ€“0.81x and attributed the loss to load imbalance. The
+0.91x“0.81x and attributed the loss to load imbalance. The
 load-imbalance story was a rationalisation: the consumer drained the
 ring, found it empty, and then checked the producer's stop flag, and the
 producer could push more messages and set that flag in between. The
@@ -254,7 +254,7 @@ consumer exited with messages still queued, so the run did less work and
 timed as slower. With the drain fixed, the split is break-even.
 
 Two lessons worth more than the numbers. A benchmark reporting a
-*slowdown* deserves the same suspicion as one reporting a speedup â€” and
+*slowdown* deserves the same suspicion as one reporting a speedup — and
 the checksum column is what caught this, because books that differ from
 the baseline are reported as INVALID rather than as a result. And a
 plausible mechanism is not a verified one.
@@ -356,7 +356,7 @@ contain types this build does not implement. Crashing is not an option.
 other.** Every offset in `protocol.hpp` has a `static_assert` against its
 literal value from the published field table. The relationship asserts
 (`size == last offset + width`) only prove the table is internally
-consistent, which is not the same as being right â€” and that distinction
+consistent, which is not the same as being right — and that distinction
 is the entire reason the Add Order bug survived 512 green checks.
 Internally-consistent-but-wrong is a real and underappreciated failure
 mode: it defeats differential testing, because both sides of the
@@ -393,7 +393,7 @@ slot and no auxiliary flag. The cost is one extra counter.
 a slot and an acquire load observing it is exactly the edge that makes
 the slot's writes visible before the index that publishes it. A
 `seq_cst` fence would order those two atomics against every *other*
-atomic in the program, which this queue has no business doing â€” it is not
+atomic in the program, which this queue has no business doing — it is not
 synchronising anything outside itself. On x86-64 the acquire/release pair
 compiles to plain loads and stores with no fence instruction at all, which
 is the whole reason to use it here rather than the stronger option.
@@ -401,7 +401,7 @@ is the whole reason to use it here rather than the stronger option.
 **Four cache lines for the indices, and the count is deliberate.** The
 producer writes `head` and reads `tail`; the consumer does the reverse. If
 those shared a line, every push would invalidate the line the consumer is
-reading â€” pure coherence traffic achieving nothing. The two producer-
+reading — pure coherence traffic achieving nothing. The two producer-
 private cache indices are padded separately for the same reason: they are
 written on opposite threads, and the refresh happens on the full/empty
 path, which in a saturated pipeline is *every* operation. Four lines of
@@ -411,8 +411,8 @@ coherence tax of 50-100ns per message.
 **The topology is discovered, never assumed.** Picking "core 0" and
 "core 1" for the two threads is a guess that is wrong on a large fraction
 of machines. On the development host here, siblings are laid out as
-`(0,1), (2,3), (4,5)...`, so a `logical + 6` heuristic â€” correct for the
-first-half/second-half layout â€” would put both threads on the same core
+`(0,1), (2,3), (4,5)...`, so a `logical + 6` heuristic — correct for the
+first-half/second-half layout — would put both threads on the same core
 and halve the result while looking entirely plausible. The benchmark asks
 the OS and prints the placement it actually achieved.
 
@@ -424,28 +424,28 @@ directions as two named channel types rather than passing one object
 twice, specifically so the mistake cannot be made quietly again.
 
 **Routing an order is the hard part of sharding, not the books.** ITCH
-carries a stock symbol in Add Order and in nothing else â€” Execute, Cancel
+carries a stock symbol in Add Order and in nothing else — Execute, Cancel
 and Delete name only the order reference. So a multi-symbol handler
 cannot decide which book a mutation belongs to by reading the message;
 it has to remember. Three options, and the obvious one is rejected:
 
-- *Search every shard* â€” O(shards) per mutation, and worse exactly where
+- *Search every shard* — O(shards) per mutation, and worse exactly where
   sharding was supposed to help.
-- *Encode the shard in the reference number* â€” the venue lets the client
+- *Encode the shard in the reference number* — the venue lets the client
   choose it, so this is O(1) with no shared state, and many venues'
   documentation suggests it. Not used here: it puts a correctness
   requirement into a number that arrives from outside. If the reference
-  does not carry the shard â€” a venue-assigned reference, a second client
-  on the same feed â€” routing is silently wrong, and the symptom is a
+  does not carry the shard — a venue-assigned reference, a second client
+  on the same feed — routing is silently wrong, and the symptom is a
   mutation applied to a book that never saw the order. That is not a
   crash. It is inventory created out of nothing.
-- *Keep the index* â€” a table from reference to book, written by the Add
+- *Keep the index* — a table from reference to book, written by the Add
   that created it.
 
 The third is what `include/hft/lob/shards.hpp` does. It needs no
 cooperation from the venue and it degrades to "the order is unknown"
 rather than "the order is on the wrong book". Because ITCH references
-are unique for the trading day, the table is insert-only â€” no deletions,
+are unique for the trading day, the table is insert-only — no deletions,
 no tombstones, and none of the clustering problems open addressing
 acquires under long runs of removals.
 
@@ -455,7 +455,7 @@ threads writing one index bucket. Instead the dispatcher owns *all*
 routing state, so the sequence is: the dispatcher decodes, learns the
 symbol on an Add, records the owner, and pushes to that worker's ring.
 A mutation for that symbol cannot arrive before its Add, so the
-dispatcher always knows where to send it â€” one hash and one probe, no
+dispatcher always knows where to send it — one hash and one probe, no
 search and no shared mutable state. The workers never touch the index at
 all. The trick is not making the index concurrent; it is arranging for
 there to be exactly one thread that writes it.
@@ -476,7 +476,7 @@ fat-fingered order is reported as a fat finger rather than being
 silently rate-limited into a different and less actionable reason.
 
 **The OMS state machine is a table, not scattered `if`s.** It is
-exhaustively tested against an independently written 8Ã—8 matrix, so a
+exhaustively tested against an independently written 8×8 matrix, so a
 single wrong edge cannot hide. `pending_cancel` is deliberately not
 terminal: a fill can arrive while a cancel is outstanding, and treating
 that as a completed cancel silently drops the residual order and leaks
@@ -536,8 +536,8 @@ per-tick returns were exactly zero, so the median-absolute-deviation
 volatility estimate was zero, so the Avellaneda-Stoikov risk term was
 zero, so the spread collapsed below the one tick that can be placed.
 
-This was already documented as a known failure mode â€” "a price that does
-not move is not a market, and a strategy cannot be studied on one" â€” and
+This was already documented as a known failure mode — "a price that does
+not move is not a market, and a strategy cannot be studied on one" — and
 it had been fixed once before by bounding the live-order count. The
 decoder bug then re-created it, because a book whose "prices" were random
 share counts *did* appear to move. The old measurement was measuring the
@@ -546,7 +546,7 @@ misdecoded field.
 The fix is the same lever applied again: 6 live orders over 4 levels a
 side, and reversion of 4 instead of 64, which lets the walk travel. The
 mid now moves on 4.3% of observations, sigma lands near 43 raw units per
-tick, and the quoted half-spread is about 2.8 ticks â€” set by the risk
+tick, and the quoted half-spread is about 2.8 ticks — set by the risk
 term rather than pinned down by the tick grid, which is the regime where
 the model is actually doing something.
 
@@ -616,7 +616,7 @@ Phase 4 added six more, and two of them are worth reading twice:
   **independently**, so bids and asks were drawn from the same wide
   band and overlapped. The best ask sat **$15 below the best bid**. A
   crossed book cannot occur in a real market, and every measurement
-  taken from one â€” mid, volatility, markout, PnL â€” is meaningless
+  taken from one — mid, volatility, markout, PnL — is meaningless
   rather than merely wrong. It was invisible until the resting quote
   was printed next to the touch.
 - The fix for that had its own bug: a single `have` flag was guarding
@@ -628,7 +628,7 @@ Phase 4 added six more, and two of them are worth reading twice:
   not move is not a market, and a strategy cannot be studied on one.
 - Avellaneda-Stoikov was implemented with a *fractional* sigma. The
   model is dimensionally incoherent that way, the inventory term
-  collapses to zero, and the spread became a third of a tick â€” so the
+  collapses to zero, and the spread became a third of a tick — so the
   strategy quoted nothing at all, silently.
 - The markout was recorded against the mid **after** the move that
   filled it, which prices every fill as better than the mid and
@@ -649,12 +649,12 @@ than a failure:
   single-producer queue. It did not deadlock and it did not crash: it
   reported a clean, confident, roughly sixty-fold speedup that was
   measuring two threads racing on the same index. The fix is two queues,
-  one per direction. The lesson generalises â€” a concurrency bug does not
+  one per direction. The lesson generalises — a concurrency bug does not
   have to manifest as a hang, and the most dangerous ones are the ones
   that produce a good-looking number.
 - **A drain loop that exited on a flag it had read too early.** The
   consumer drained the ring, found it empty, and *then* checked the
-  producer's stop flag â€” and the producer could push more messages and
+  producer's stop flag — and the producer could push more messages and
   set that flag in between. The consumer left with messages still
   queued, losing roughly a sixth of the stream. The interesting part is
   what it did next: the benchmark reported a 20% **slowdown**, and its own
@@ -664,7 +664,7 @@ than a failure:
   fit, and it was caught only because the benchmark compares books
   against a baseline and marks a mismatch INVALID instead of reporting
   it as a result. The same defect had already been found and fixed once,
-  in the concurrency test's drain helper â€” so it now exists once, in one
+  in the concurrency test's drain helper — so it now exists once, in one
   place, with a comment explaining both failure modes.
 - **A packed routing value returned unpacked.** The sharded dispatcher
   stored `(worker, local_index)` folded into one 32-bit word and then
@@ -677,7 +677,7 @@ than a failure:
   string *length*, so a `std::unordered_map<std::string, ...>` keyed on
   it read past the object on every lookup, missed every time, and
   concluded that all sixty-four symbols in a multi-symbol feed were
-  distinct â€” so every worker claimed every book. One character, one
+  distinct — so every worker claimed every book. One character, one
   access violation, and now a regression test that reads the terminator
   directly.
 - **The consumer drained once and exited**, before the producer had pushed
@@ -687,14 +687,14 @@ than a failure:
   needed one more drain pass after the stop flag: the pass that found the
   ring empty may have run before the final push landed, and skipping the
   retry silently drops the tail of the stream.
-- **A ring of 1024 slots Ã— 128-message batches is 8MB**, and it was a
+- **A ring of 1024 slots × 128-message batches is 8MB**, and it was a
   stack local. The tool died with a stack overflow two thirds of the way
   through its own output, having already printed four rows of a table
   that were therefore never seen.
 - **The OMS could `retire()` a negative slot.** Every public entry point
   takes `int slot`, and `retire` took `std::size_t`, so a bad slot became
   a huge unsigned index and a write out of bounds. It was unreachable
-  only because `lookup` happened to reject the bad value first â€” a
+  only because `lookup` happened to reject the bad value first — a
   property of the call order, not of the callee.
 - **`__int128` under `-Wpedantic`.** The overflow-safe notional multiply
   is the right way to do it and `__int128` is not ISO C++, so the
@@ -738,7 +738,7 @@ built to answer are:
 
 1. **Design a low-latency market data handler.** Decoder, sequence
    tracking, the SPSC hand-off between decode and apply, and the
-   benchmark harness â€” including the measurement that says splitting
+   benchmark harness — including the measurement that says splitting
    those two stages does not pay at this granularity.
 2. **Design an OMS that stays correct under high message rates.** The
    apply layer, the order state machine, and pre-trade risk, with the
@@ -801,7 +801,7 @@ layouts, the big-endian field encoding, and the partial-cancel rules.
 Section 1.3.1 is the Add Order field table that
 [the bug above](#the-bug-that-mattered) was measured against. Market
 making follows Avellaneda-Stoikov; inventory risk handling
-follows GuÃ©ant-Lehalle-Fernandez-Tapia.
+follows Guéant-Lehalle-Fernandez-Tapia.
 
 **On verification.** The offsets in `include/hft/itch/protocol.hpp` for
 `A`, `E`, `C`, `X` and `D` have been checked against the published
