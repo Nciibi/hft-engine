@@ -393,8 +393,8 @@ void test_moldudp64_against_spec() {
 
     // ---- Round trip through the generator --------------------------
     std::vector<std::uint8_t> generated;
-    feed::append_downstream_packet(generated, "SAMPLE0000", 0x0000'0100'0000'2A2BULL, packet + 22, 36,
-                                  1);
+    feed::append_downstream_packet(generated, "SAMPLE0000", 0x0000'0100'0000'2A2BULL,
+                                  packet + 22, 36, 1);
     check_eq_int(static_cast<long long>(generated.size()),
                  static_cast<long long>(mold::kHeaderSize + mold::kMessageBlockSize + 36),
                  "a one-message packet is header + length prefix + body");
@@ -406,8 +406,11 @@ void test_moldudp64_against_spec() {
     mold::MessageBlocks gb(generated.data() + mold::kFirstBlockOffset,
                            generated.size() - mold::kFirstBlockOffset, gh.count);
     const std::uint8_t* gb_first = gb.next(size);
-    check(size == 36 && gb_first != nullptr && gb_first[0] == 'A',
-          "and yields the same single Add Order block");
+    check(size == 38 && gb_first != nullptr, "and yields the same single Add Order frame");
+    if (gb_first != nullptr) {
+        check(itch::decode(gb_first, size).ok(),
+              "which decodes as an ITCH frame straight out of the generator");
+    }
 
     // No checksum. The packet is exactly header + block, with nothing
     // appended, because the specification defines no such field.
