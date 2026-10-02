@@ -216,9 +216,9 @@ static_assert(off::kBrokenTradeSize == 19, "ITCH Broken Trade body is 19 bytes (
 static_assert(off::broken_trade_match == 11, "Broken Trade match number sits at offset 11");
 static_assert(off::kOrderReplaceSize == off::order_replace_price + 4,
               "the Order Replace body ends after the price");
-static_assert(off::frame_size(off::kOrderReplaceSize) == 37,
+static_assert(frame_size(off::kOrderReplaceSize) == 37,
               "Order Replace frame is 35 body bytes plus a 2-byte length prefix");
-static_assert(off::frame_size(off::kBrokenTradeSize) == 21,
+static_assert(frame_size(off::kBrokenTradeSize) == 21,
               "Broken Trade frame is 19 body bytes plus a 2-byte length prefix");
 
 // Add Order, spec section 1.3.1, field by field.
