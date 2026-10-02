@@ -110,18 +110,29 @@ foreach ($level in $levels) {
     # The checksum line, and the message count it was taken over. Both
     # must match: a run that read fewer messages could agree on a
     # checksum while having done less work.
-    $checksum = ($output | Select-String -Pattern 'BOOK CHECKSUM\s+([0-9a-fA-F]+)')
-    if (-not $checksum) {
+    #
+    # Every extraction is cast to string explicitly. Select-String
+    # returns MatchInfo objects, and letting one reach an -f format or a
+    # numeric comparison produces a type error that has nothing to do
+    # with determinism.
+    $output = @($output | ForEach-Object { [string]$_ })
+
+    $checksumLine = $output | Where-Object { $_ -match 'BOOK CHECKSUM\s+([0-9a-fA-F]+)' }
+    if (-not $checksumLine) {
         Write-Host ($output -join "`n")
         Write-Fail "no BOOK CHECKSUM line at -$level"
     }
-    $hash = ($checksum.Matches[0].Groups[1].Value).ToLower()
+    $hash = ([regex]::Match($checksumLine[0], 'BOOK CHECKSUM\s+([0-9a-fA-F]+)')).Groups[1].Value.ToLower()
 
-    $records = ($output | Select-String -Pattern 'records\s+(\d+)')
-    $count = if ($records) { $records.Matches[0].Groups[1].Value } else { '?' }
+    $recordsLine = $output | Where-Object { $_ -match 'records\s+(\d+)' }
+    $count = if ($recordsLine) {
+        [string]([regex]::Match($recordsLine[0], 'records\s+(\d+)')).Groups[1].Value
+    } else { '?' }
 
-    $gaps = ($output | Select-String -Pattern 'sequence gaps\s+(\d+)')
-    $gapCount = if ($gaps) { $gaps.Matches[0].Groups[1].Value } else { '?' }
+    $gapsLine = $output | Where-Object { $_ -match 'sequence gaps\s+(\d+)' }
+    $gapCount = if ($gapsLine) {
+        [string]([regex]::Match($gapsLine[0], 'sequence gaps\s+(\d+)')).Groups[1].Value
+    } else { '?' }
 
     $results[$level] = @{ checksum = $hash; records = $count; gaps = $gapCount }
     Write-Host ("  -{0,-3} checksum {1}  over {2} records, {3} gaps" -f $level, $hash, $count, $gapCount)
