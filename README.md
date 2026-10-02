@@ -431,6 +431,20 @@ hand-off is two queues, one per direction. The benchmark models the two
 directions as two named channel types rather than passing one object
 twice, specifically so the mistake cannot be made quietly again.
 
+**A MoldUDP64 Message Block is an ITCH frame, so the framing does not
+translate anything.** A block is `[2-byte length][body]` and an ITCH
+frame is `[2-byte length][body]`; `MessageBlocks::next()` returns the
+block *including* its prefix so it can be handed straight to `decode()`
+with no adjustment at either layer. The block length field excludes its
+own two bytes, so a block occupies `length + 2` — a detail worth stating
+because getting it backwards produces a packet that parses one block
+short and then reads the next packet's header as message data.
+
+Verified against the Nasdaq MoldUDP64 specification with a hand-built
+packet in `tests/test_units.cpp`, including two facts this repository had
+previously stated wrongly: the Sequence Number field is **eight** bytes
+and MoldUDP64 has **no checksum**. See "What this is not".
+
 **Routing an order is the hard part of sharding, not the books.** ITCH
 carries a stock symbol in Add Order and in nothing else — Execute, Cancel
 and Delete name only the order reference. So a multi-symbol handler
