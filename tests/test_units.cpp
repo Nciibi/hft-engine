@@ -987,13 +987,13 @@ void test_order_replace_layout_is_spec() {
     body[8] = 0x04;
     body[9] = 0x05;
     body[10] = 0x06;             // Timestamp 0x010203040506
-    itch::write_be64(body.data() + itch::off::order_replace_original_id, 0x1111'2222'3333'4444ULL);
-    itch::write_be64(body.data() + itch::off::order_replace_new_id, 0xAAAA'BBBB'CCCC'DDDDULL);
-    itch::write_be32(body.data() + itch::off::order_replace_shares, 300);
-    itch::write_be32(body.data() + itch::off::order_replace_price, 1'000'250);
+    put_be64(body, itch::off::order_replace_original_id, 0x1111'2222'3333'4444ULL);
+    put_be64(body, itch::off::order_replace_new_id, 0xAAAA'BBBB'CCCC'DDDDULL);
+    put_be32(body, itch::off::order_replace_shares, 300);
+    put_be32(body, itch::off::order_replace_price, 1'000'250);
 
     std::vector<std::uint8_t> frame;
-    itch::append_frame(frame, body.data(), body.size());
+    hft::feed::append_frame(frame, body.data(), body.size());
     check_eq_int(static_cast<long long>(itch::off::kOrderReplaceSize), 35,
                  "Order Replace body is 35 bytes (spec 4.4.5)");
     check_eq_int(static_cast<long long>(frame.size()), 37,
@@ -1019,7 +1019,7 @@ void test_order_replace_layout_is_spec() {
     // partially. Order Replace is 35 bytes and 34 is a different
     // message entirely; accepting it would shift every field.
     std::vector<std::uint8_t> short_frame;
-    itch::append_frame(short_frame, body.data(), body.size() - 1);
+    hft::feed::append_frame(short_frame, body.data(), body.size() - 1);
     const auto rs = itch::decode(short_frame.data(), short_frame.size());
     check(!rs.ok(), "a 34-byte Order Replace frame is not accepted");
 
@@ -1028,7 +1028,7 @@ void test_order_replace_layout_is_spec() {
     // backwards is invisible in a checksum that only sums the book and
     // obvious in a queue-depth or fill-sequence comparison.
     hft::lob::OrderBook book(1u << 12, 1u << 12);
-    BookStatus status{};
+    hft::lob::BookStatus status{};
     // Two resting orders at 100_000, then a replace onto the same price.
     book.add(Side::bid, Price::from_raw(100'000), Quantity::from_raw(10), 1'000'001, status);
     book.add(Side::bid, Price::from_raw(100'000), Quantity::from_raw(20), 1'000'002, status);
@@ -1046,7 +1046,7 @@ void test_order_replace_layout_is_spec() {
 
     // New time priority means the replacement is last in the queue at
     // that price: order 2 precedes it.
-    const std::vector<OrderSnapshot> resting = book.orders(Side::bid);
+    const std::vector<hft::lob::OrderSnapshot> resting = book.orders(Side::bid);
     check(resting.size() == 2, "the price level holds two orders after the replace");
     if (resting.size() == 2) {
         check(resting[0].id == 1'000'002,
@@ -1087,13 +1087,13 @@ void test_broken_trade_layout_is_spec() {
     body[8] = 0x44;
     body[9] = 0x55;
     body[10] = 0x66;
-    itch::write_be64(body.data() + itch::off::broken_trade_match, 0xDEAD'BEEF'0000'0001ULL);
+    put_be64(body, itch::off::broken_trade_match, 0xDEADBEEF00000001ULL);
 
     check_eq_int(static_cast<long long>(itch::off::kBrokenTradeSize), 19,
                  "Broken Trade body is 19 bytes (spec 4.5.3)");
 
     std::vector<std::uint8_t> frame;
-    itch::append_frame(frame, body.data(), body.size());
+    hft::feed::append_frame(frame, body.data(), body.size());
     check_eq_int(static_cast<long long>(frame.size()), 21,
                  "Broken Trade frame is 21 bytes including the length prefix");
 
@@ -1106,15 +1106,15 @@ void test_broken_trade_layout_is_spec() {
             check_eq_int(static_cast<long long>(b->stock_locate), 42, "stock locate");
             check_eq_int(static_cast<long long>(b->tracking), 0xBEEF, "tracking number");
             check(b->match == 0xDEAD'BEEF'0000'0001ULL, "match number");
-            check_eq_int(static_cast<long long>(b->match), 0xDEADBEEF00000001ULL,
-                         "match number is read as a full 64-bit big-endian value");
+            check(b->match == 0xDEADBEEF00000001ULL,
+                  "match number is read as a full 64-bit big-endian value");
         }
     }
 
     // The book is untouched: the specification says a book builder "may
     // ignore these messages as they have no impact on the current book".
     hft::lob::OrderBook book(1u << 10, 1u << 10);
-    BookStatus status{};
+    hft::lob::BookStatus status{};
     book.add(Side::bid, Price::from_raw(50'000), Quantity::from_raw(10), 5'000'001, status);
     const std::uint64_t before = book.aggregate_at(Side::bid).raw();
 
