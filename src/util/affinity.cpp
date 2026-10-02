@@ -72,15 +72,16 @@ using CoreGroup = std::vector<std::size_t>;
             }
             index += 1u;
         } else {
-            // Cache, NUMA and group records carry their own length and
-            // are longer than the base structure; skipping by Size is
-            // how the stream is walked past them.
-            const std::size_t advance =
-                static_cast<std::size_t>(rec.Size) / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
-            if (advance == 0) {
+            // Cache, NUMA and group records are longer than the base
+            // structure and carry their own length; skipping by Size is
+            // how the stream is walked past them. Size is a BYTE, so
+            // nothing in this API can describe a record beyond 255 bytes
+            // -- it predates the Ex variants for exactly that reason.
+            const std::size_t advance_bytes = static_cast<std::size_t>(rec.Size);
+            if (advance_bytes < sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION)) {
                 break;
             }
-            index += advance;
+            index += advance_bytes / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
         }
     }
 
