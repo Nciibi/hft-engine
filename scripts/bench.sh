@@ -54,7 +54,23 @@ echo "=== correctness ==="
 # Numbers first, then a note that they mean nothing unverified. The
 # order matters: a reader should not be able to skip past the caveat.
 "${ROOT}/build/hft_differential" || { echo "differential test FAILED"; exit 1; }
+# The threaded pipeline must build the same book as the single-threaded
+# one. A pipeline that drops or reorders a message looks exactly like a
+# speedup in every other column, so this is checked, not assumed.
+ctest --test-dir "${ROOT}/build" --output-on-failure \
+      -R 'concurrent|pipeline_threaded_equivalence|ring_transfer_integrity|determinism' \
+  || { echo "concurrency tests FAILED"; exit 1; }
 echo
 
 echo "=== latency and throughput ==="
 "${ROOT}/build/hft_bench" "${MESSAGES}"
+echo
+
+echo "=== concurrency: ring vs mutex baseline ==="
+# These two place their own threads and report the placement they
+# actually achieved, so no taskset is needed here.
+"${ROOT}/build/hft_ring_bench" "${MESSAGES}"
+echo
+
+echo "=== concurrency: one thread versus two ==="
+"${ROOT}/build/hft_pipeline_bench" "${MESSAGES}"
