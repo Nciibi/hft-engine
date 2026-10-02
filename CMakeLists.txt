@@ -87,6 +87,11 @@ target_link_libraries(hft_bench PRIVATE hft_core)
 add_executable(hft_market_maker src/bench/market_maker.cpp)
 target_link_libraries(hft_market_maker PRIVATE hft_core)
 
+# SPSC ring against a mutex + condition_variable baseline, on two pinned
+# physical cores.
+add_executable(hft_ring_bench src/bench/ring_bench.cpp)
+target_link_libraries(hft_ring_bench PRIVATE hft_core)
+
 # Replay: deterministic reconstruction of a book from a capture, with a
 # state checksum and SOUP sequence validation.
 add_executable(hft_replay src/replay/replay.cpp)
