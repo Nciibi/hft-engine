@@ -280,20 +280,21 @@ template <std::size_t K>
     return result;
 }
 
-void report(const char* label, const RunResult& r, const RunResult& baseline, bool is_baseline) {
+void report(const char* label, const RunResult& r, const RunResult& baseline, bool is_baseline,
+            std::size_t ring_bytes = 0) {
     const bool matches = r.checksum == baseline.checksum && r.records == baseline.records &&
                          r.applied == baseline.applied;
-    const double ratio = is_baseline || rate_of(baseline) <= 0.0
-                             ? 1.0
-                             : rate_of(r) / rate_of(baseline);
+    const double ratio =
+        is_baseline || rate_of(baseline) <= 0.0 ? 1.0 : rate_of(r) / rate_of(baseline);
 
     std::printf("  %-22s %12s msg/s  %9.3f ms  %5.2fx  %s\n", label,
                 bench::humanize(static_cast<std::uint64_t>(rate_of(r))).c_str(),
                 r.elapsed_ns / 1e6, ratio,
                 is_baseline ? "(baseline)" : (matches ? "checksum match" : "CHECKSUM MISMATCH"));
-    std::printf("  %-22s records %s  applied %s  yields %s  book %u/%u levels\n", "",
-                bench::humanize(r.records).c_str(), bench::humanize(r.applied).c_str(),
-                bench::humanize(r.backpressure_spins).c_str(), r.bid_levels, r.ask_levels);
+    std::printf("  %-22s ring %s   records %s  applied %s  yields %s  book %u/%u levels\n", "",
+                bench::humanize(ring_bytes).c_str(), bench::humanize(r.records).c_str(),
+                bench::humanize(r.applied).c_str(), bench::humanize(r.backpressure_spins).c_str(),
+                r.bid_levels, r.ask_levels);
     std::fflush(stdout);
 }
 
