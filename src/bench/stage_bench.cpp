@@ -1,4 +1,4 @@
-// Per-stage latency, at two book depths.
+﻿// Per-stage latency, at two book depths.
 //
 // What this measures
 // ------------------
@@ -210,8 +210,6 @@ struct StageResult {
     r.elapsed_ns = static_cast<double>(timer.elapsed_ns());
     r.bid_levels = book.level_count(Side::bid);
     r.ask_levels = book.level_count(Side::ask);
-    (void)horizon;
-    (void)shape;
     return r;
 }
 
@@ -310,9 +308,9 @@ int main(int argc, char** argv) {
 
         // One throwaway run first, so the measured one is not paying for
         // page faults in the feed or in the pools.
-        (void)run(feed, pool, shape, 1'000'000);
+        (void)run(feed, pool);
 
-        const StageResult r = run(feed, pool, shape, 1'000'000);
+        const StageResult r = run(feed, pool);
         report(shape, r, records);
     }
 
