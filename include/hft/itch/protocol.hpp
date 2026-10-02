@@ -70,15 +70,41 @@ inline constexpr std::size_t kSharesSize = 4;
 inline constexpr std::size_t kPriceSize = 4;
 
 // ---- Add Order, tag 'A' ----
+//
+// VERIFIED against the Nasdaq TotalView-ITCH 5.0 specification, section
+// 1.3.1 "Add Order - No MPID Attribution Message". The field table is:
+//
+//   0  1  Message Type          'A'
+//   1  2  Stock Locate
+//   3  2  Tracking Number
+//   5  6  Timestamp             48-bit ns since midnight
+//  11  8  Order Reference Number
+//  19  1  Buy/Sell Indicator    'B' or 'S'
+//  20  4  Shares
+//  24  8  Stock                 alpha, space padded
+//  32  4  Price
+//  ---> total 36 bytes
+//
+// An earlier revision of this file had Shares mislabelled as `price`,
+// the stock symbol mislabelled as `size`, four bytes of nothing at
+// 28-31, and a total of 32. Those four trailing bytes were Order Entry
+// fields (`order_type`, `time_in_force`, `display`, `participant`) that
+// do not exist in an Add Order message; the layout appears to have been
+// copied from Order Executed, which does have that shape. The net effect
+// was that the decoder read the share count as the price and four bytes
+// of the symbol as the size.
+//
+// It was invisible for a long time because the feed generator wrote the
+// same wrong layout the decoder read, so the two agreed with each other
+// and disagreed with the specification. Every other message type in
+// this file ('E', 'C', 'X', 'D') was always correct.
 inline constexpr std::size_t add_order_id = 11;       ///< 8
 inline constexpr std::size_t add_order_side = 19;     ///< 1, 'B' or 'S'
-inline constexpr std::size_t add_order_price = 20;    ///< 4
-inline constexpr std::size_t add_order_size = 24;     ///< 4
-inline constexpr std::size_t add_order_type = 28;     ///< 1
-inline constexpr std::size_t add_order_tif = 29;      ///< 1
-inline constexpr std::size_t add_order_display = 30;  ///< 1
-inline constexpr std::size_t add_order_participant = 31;  ///< 1
-inline constexpr std::size_t kAddOrderSize = 32;
+inline constexpr std::size_t add_order_size = 20;     ///< 4, shares
+inline constexpr std::size_t add_order_stock = 24;    ///< 8, alpha, space padded
+inline constexpr std::size_t kStockSymbolSize = 8;
+inline constexpr std::size_t add_order_price = 32;    ///< 4
+inline constexpr std::size_t kAddOrderSize = add_order_price + kPriceSize;
 
 // ---- Order Executed, tag 'E' ----
 inline constexpr std::size_t order_executed_id = 11;    ///< 8
