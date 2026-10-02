@@ -914,13 +914,8 @@ int main(int argc, char** argv) {
         "memory column is printed for exactly that reason -- at K=128 the ring\n"
         "alone is larger than this CPU's L3.\n"
         "\n"
-        "The conclusion that follows is NOT 'batching does not work'. It is that\n"
-        "batching a pipeline whose halves are unequal cannot work, and that the\n"
-        "design this actually argues for is different: shard BY SYMBOL, so each\n"
-        "thread owns a book and does a full decode-and-apply for its own\n"
-        "instruments, and the two threads have genuinely equal work. That is the\n"
-        "multi-shard design this repository does not yet have, and the reason it\n"
-        "is named as missing is now a measured reason rather than a guess.\n"
+        "So the fix is not batching. It is making the halves EQUAL by sharding\n"
+        "BY SYMBOL, which is the next section.\n"
         "\n"
         "Read every ratio above against the noise floor section. On a shared\n"
         "development machine the drift between two identical runs is several\n"
@@ -929,6 +924,110 @@ int main(int argc, char** argv) {
         "The single-thread baseline is measured in this same process, on the same\n"
         "feed, with the same pools and the same warmup. It is NOT the figure from\n"
         "hft_bench, which measures a different thing over a different feed.\n");
+
+    // ---- Symbol sharding --------------------------------------------
+    // The experiment the section above argues for, now run.
+    bench::section("SYMBOL SHARDING: does equal work make threading pay?");
+    {
+        constexpr std::size_t kSymbols = 64;
+        constexpr std::size_t kPerBookOrders = 2'000;
+
+        hft::feed::CaptureConfig multi;
+        multi.record_count = records;
+        multi.symbol_count = kSymbols;
+        multi.price_levels = 16;
+        multi.max_live_orders = 400;
+        multi.drift_raw = 400;
+        multi.reversion = 4;
+
+        hft::feed::CaptureStats multi_stats{};
+        const std::vector<std::uint8_t> multi_data =
+            hft::feed::generate_capture(multi, &multi_stats);
+
+        std::printf("  symbols            %s\n", bench::humanize(kSymbols).c_str());
+        std::printf("  records            %s\n", bench::humanize(multi_stats.records).c_str());
+        std::printf("  per-book pool      %s orders\n",
+                    bench::humanize(kPerBookOrders).c_str());
+        std::printf("  dispatcher         core 0, workers on the remaining physical cores\n\n");
+
+        // Warm both paths before measuring either.
+        (void)fused_sharded(multi_data, kPerBookOrders, 256, kSymbols);
+        (void)threaded_sharded(multi_data, kPerBookOrders, 256, kSymbols, 1,
+                                hft::util::physical_core_count());
+
+        const ShardedResult base =
+            fused_sharded(multi_data, kPerBookOrders, 256, kSymbols);
+        const double base_rate =
+            base.elapsed_ns > 0.0 ? static_cast<double>(base.records) * 1e9 / base.elapsed_ns : 0.0;
+        std::printf("  %-26s %12s msg/s  %5.2fx  %s\n", "1 thread, fused",
+                    bench::humanize(static_cast<std::uint64_t>(base_rate)).c_str(), 1.0,
+                    "(baseline)");
+        std::printf("  %-26s books %s, applied %s, max ladder %u levels\n", "",
+                    bench::humanize(base.books).c_str(),
+                    bench::humanize(base.applied).c_str(), base.max_levels);
+
+        const std::size_t cores = hft::util::physical_core_count();
+        bool any_mismatch = false;
+
+        for (const std::size_t workers : {std::size_t{2}, std::size_t{3}, std::size_t{5}}) {
+            if (workers > cores - 1) {
+                std::printf("  %-26s skipped: only %zu physical cores, and core 0 belongs to "
+                            "the dispatcher\n",
+                            "workers requested", workers);
+                continue;
+            }
+            const ShardedResult r =
+                threaded_sharded(multi_data, kPerBookOrders, 256, kSymbols, workers, cores);
+            const double rate = r.elapsed_ns > 0.0
+                                    ? static_cast<double>(base.records) * 1e9 / r.elapsed_ns
+                                    : 0.0;
+            const bool match = r.checksum == base.checksum && r.applied == base.applied;
+            if (!match) {
+                any_mismatch = true;
+            }
+            std::printf("  %-26s %12s msg/s  %5.2fx  %s\n",
+                        (std::to_string(workers) + " workers + dispatcher").c_str(),
+                        bench::humanize(static_cast<std::uint64_t>(rate)).c_str(),
+                        base_rate > 0.0 ? rate / base_rate : 0.0,
+                        match ? "books identical" : "BOOKS DIFFER -- RESULT INVALID");
+            std::printf("  %-26s books %s, applied %s, yields %s, unroutable %s\n", "",
+                        bench::humanize(r.books).c_str(), bench::humanize(r.applied).c_str(),
+                        bench::humanize(r.backpressure_spins).c_str(),
+                        bench::humanize(r.unroutable).c_str());
+        }
+        std::fflush(stdout);
+
+        if (any_mismatch) {
+            std::printf(
+                "\n  A sharded run built different books from the same feed. The\n"
+                "  speedups above are meaningless: a pipeline that drops or\n"
+                "  misroutes a message is not faster, it is wrong.\n");
+        }
+
+        bench::note(
+            "WHAT THIS MEANS, AND WHAT IT DOES NOT.\n"
+            "\n"
+            "The dispatcher decodes every message and routes it, so it is a serial\n"
+            "floor: no amount of worker parallelism goes faster than the dispatcher\n"
+            "can feed the workers. If the ratios below rise and then flatten, that\n"
+            "is the floor and it is the number to quote.\n"
+            "\n"
+            "The books are compared, not just the throughput. A misrouted mutation\n"
+            "would show up as a speedup here, because dropping work looks exactly\n"
+            "like doing it faster, so the per-book fingerprint is checked against\n"
+            "the single-threaded result on every row.\n"
+            "\n"
+            "Routing costs one hash and one probe per message, on the dispatcher.\n"
+            "The alternative -- encoding the shard in the order reference number --\n"
+            "would cost nothing at all, and is not used here because it puts a\n"
+            "correctness requirement into a number that arrives from outside. See\n"
+            "the header of include/hft/lob/shards.hpp for the full argument.\n"
+            "\n"
+            "This is symbol sharding, not multi-shard sequencing. There is no\n"
+            "cross-shard sequencer, no partition rebalancing when the symbol set\n"
+            "changes, and no recovery when a shard falls behind. Those are the\n"
+            "hard parts of running this in production and none of them are here.\n");
+    }
 
     bench::print_publication_notice();
     return 0;
