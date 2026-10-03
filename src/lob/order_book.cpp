@@ -172,7 +172,16 @@ void OrderBook::ladder_set(Side side, std::uint32_t slot, Handle h) noexcept {
         return;
     }
     slots[slot] = h + 1;
-    bits[slot >> 6] |= (1ULL << (slot & 63u));
+    const std::uint32_t word = slot >> 6;
+    bits[word] |= (1ULL << (slot & 63u));
+    // Raise the hint if this word is better than anything seen so far.
+    if (side == Side::bid) {
+        if (word > bid_hint_) {
+            bid_hint_ = word;
+        }
+    } else if (word < ask_hint_) {
+        ask_hint_ = word;
+    }
 }
 
 void OrderBook::ladder_clear(Side side, std::uint32_t slot) noexcept {
@@ -182,7 +191,21 @@ void OrderBook::ladder_clear(Side side, std::uint32_t slot) noexcept {
         return;
     }
     slots[slot] = kSlotEmpty;
-    bits[slot >> 6] &= ~(1ULL << (slot & 63u));
+    const std::uint32_t word = slot >> 6;
+    bits[word] &= ~(1ULL << (slot & 63u));
+
+    // The hint only has to move when the word it points at has just become
+    // empty. Anything else leaves it pointing at a word that still holds an
+    // occupied slot, which is the whole invariant.
+    if (side == Side::bid) {
+        if (word == bid_hint_ && bits[word] == 0) {
+            bid_hint_ = static_cast<std::uint32_t>(bits.size());
+        }
+    } else {
+        if (word == ask_hint_ && bits[word] == 0) {
+            ask_hint_ = ask_hint_ - 1;
+        }
+    }
 }
 
 std::uint32_t OrderBook::ladder_best_slot(Side side) const noexcept {
@@ -191,20 +214,33 @@ std::uint32_t OrderBook::ladder_best_slot(Side side) const noexcept {
         return util::kNoHandle;
     }
     if (side == Side::ask) {
-        // Best ask is the lowest occupied slot: scan words upward, take the
-        // first non-empty one.
-        for (std::size_t w = 0; w < bits.size(); ++w) {
+        // Best ask is the lowest occupied slot. Start at the hint rather
+        // than word zero -- the hint is the lowest word that CAN be
+        // occupied, so it is never past the answer.
+        std::uint32_t w = ask_hint_;
+        while (true) {
             if (bits[w] != 0) {
-                return static_cast<std::uint32_t>(w * 64u + lowest_bit(bits[w]));
+                return w * 64u + lowest_bit(bits[w]);
             }
+            if (w == 0) {
+                break;
+            }
+            --w;
         }
         return util::kNoHandle;
     }
-    // Best bid is the highest occupied slot: scan words downward.
-    for (std::size_t w = bits.size(); w-- > 0;) {
+    // Best bid is the highest occupied slot. Clamp the hint into range on
+    // first use, when it is still the initial 0 or bits.size().
+    std::uint32_t w = (bid_hint_ >= bits.size()) ? static_cast<std::uint32_t>(bits.size() - 1)
+                                                 : bid_hint_;
+    while (true) {
         if (bits[w] != 0) {
-            return static_cast<std::uint32_t>(w * 64u + highest_bit(bits[w]));
+            return w * 64u + highest_bit(bits[w]);
         }
+        if (w == 0) {
+            break;
+        }
+        --w;
     }
     return util::kNoHandle;
 }
