@@ -127,12 +127,12 @@ if (-not (Test-Path -LiteralPath $exe)) {
     exit 1
 }
 
-Write-Host "A/B: $Label   ($Runs runs x $Messages messages, $BuildDir)"
+Write-Host "A/B: $Label   ($Runs runs x $Messages messages, $Mode mode, $BuildDir)"
 Write-Host '---------------------------------------------------------------'
 
 $samples = @()
 for ($i = 0; $i -lt $Runs; $i++) {
-    $out = & $exe $Messages 2>&1
+    $out = & $exe $Messages $Mode 2>&1
     $line = $out | Select-String -Pattern 'throughput\s+(\d+)' | Select-Object -First 1
     if ($null -eq $line) {
         Write-Host "run $i produced no throughput line" -ForegroundColor Red
