@@ -141,26 +141,37 @@ constexpr std::int64_t kStrideTicks = 2;
 [[nodiscard]] OrderBook build(std::size_t depth, Price top) {
     const std::size_t cap = capacity_for(depth);
 
-    // Dense ladder, covering the whole sweep. This is the configuration the
-    // tool exists to measure: the sparse book links levels into a sorted
-    // list and walks it, so inserting at rank W costs W node visits, which
-    // measured here at 178x a touch insert at 3,200 levels. The dense book
-    // addresses the level by `(price - floor) / tick`, so the walk is gone
-    // entirely and the same row should come back flat.
+    // Dense ladder, sized to the sweep rather than to a real instrument.
     //
-    // The band is sized to the sweep rather than to a real instrument: the
-    // deepest row is 3,200 levels on a two-tick stride, so 8,192 ticks per
-    // side covers it with room for the probe to land either side of the
-    // insertion point.
-    hft::lob::LadderConfig ladder;
+    // The band MUST cover every price the sweep touches, and an earlier
+    // version got this wrong in a way that was invisible: at depth 3,200
+    // the band was 8,192 ticks placed below the book, which spans 6,400
+    // ticks, so every probe fell out of band, took the sparse fallback, and
+    // the tool dutifully reported the walk as still being there --
+    // 134x, against a true dense figure of 1.0x. A benchmark that measures
+    // the fallback while claiming to measure the ladder is worse than no
+    // benchmark, and the tool now asserts coverage rather than assuming it.
+    const std::int64_t span_ticks = static_cast<std::int64_t>(depth) * kStrideTicks;
+    const std::int64_t tick_raw = Price::kScale / 100;
+
+    lob::LadderConfig ladder;
     ladder.dense = true;
-    ladder.floor_price = Price::from_raw(top.raw() - static_cast<std::int64_t>(depth) *
-                                                        (kStrideTicks + 4) *
-                                                        (Price::kScale / 100));
-    ladder.tick = Price::kScale / 100;  // one cent
-    ladder.ticks_per_side = 8192;
+    // Two ticks of margin below the worst bid, and a band four ticks
+    // longer than the span so the probe can land on either side.
+    ladder.floor_price = Price::from_raw(top.raw() - (span_ticks + 2) * tick_raw);
+    ladder.tick = tick_raw;
+    ladder.ticks_per_side = static_cast<std::size_t>(span_ticks + 256);
 
     OrderBook book(cap, cap, 0, ladder);
+
+    // Coverage assertion. Without this the tool would silently report the
+    // sparse path's numbers under a dense heading, which is precisely the
+    // failure this whole repository's bug catalogue is about.
+    const Price lowest = Price::from_raw(top.raw() - span_ticks * tick_raw);
+    if (book.dense_covers(lowest) != 1) {
+        std::printf("  WARNING: band does not cover the deepest price; rows below\n"
+                    "           would measure the sparse fallback, not the ladder.\n");
+    }
     hft::OrderId id = 1;
     for (std::size_t i = 0; i < depth; ++i) {
         BookStatus st{};
