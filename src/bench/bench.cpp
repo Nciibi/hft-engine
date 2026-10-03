@@ -36,6 +36,8 @@
 namespace {
 
 using bench::Stopwatch;
+using hft::Price;
+using hft::Side;
 using hft::util::LatencyHistogram;
 using hft::util::Timer;
 
