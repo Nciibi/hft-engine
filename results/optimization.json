@@ -8,5 +8,15 @@
                                   "messages":  800000,
                                   "buildDir":  "build",
                                   "note":  "2026-10-03 BASELINE RECORDED"
-                              }
+                              },
+    "interleaved-single-cache-line":  {
+                                          "median":  3151575,
+                                          "noisePct":  3.6991028295376123,
+                                          "min":  2922797,
+                                          "max":  3235652,
+                                          "runs":  11,
+                                          "messages":  800000,
+                                          "buildDir":  "build",
+                                          "note":  "2026-10-03 NO MEASURABLE CHANGE"
+                                      }
 }
