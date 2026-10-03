@@ -86,6 +86,139 @@ void OrderBook::release_level(Handle h) noexcept {
     level_free_.push_back(h);
 }
 
+// ---- Dense ladder ----------------------------------------------------
+//
+// Six small functions that together replace the price hash map and the
+// O(depth) ladder walk, for the in-band case. They are deliberately
+// separate from the sparse path rather than woven into it: the sparse path
+// stays exactly as it was, so a book configured for a sparse instrument
+// behaves identically to before, and the dense path is something a
+// reviewer can read in one sitting.
+
+namespace {
+
+/// Index of the lowest set bit. Undefined for zero, which is why every
+/// caller below checks the word first.
+[[nodiscard]] inline std::uint32_t lowest_bit(std::uint64_t v) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+    return static_cast<std::uint32_t>(__builtin_ctzll(v));
+#else
+    unsigned long index = 0;
+    _BitScanForward64(&index, v);
+    return static_cast<std::uint32_t>(index);
+#endif
+}
+
+/// Index of the highest set bit. Undefined for zero.
+[[nodiscard]] inline std::uint32_t highest_bit(std::uint64_t v) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+    return 63u - static_cast<std::uint32_t>(__builtin_clzll(v));
+#else
+    unsigned long index = 0;
+    _BitScanReverse64(&index, v);
+    return static_cast<std::uint32_t>(index);
+#endif
+}
+
+}  // namespace
+
+std::uint32_t OrderBook::ladder_slot(Price price) const noexcept {
+    if (!ladder_.dense || ladder_.tick <= 0) {
+        return util::kNoHandle;
+    }
+    const std::int64_t offset = price.raw() - ladder_.floor_price.raw();
+    // Negative offsets would divide toward zero and alias onto slot 0,
+    // which is the single most dangerous bug this structure can have: a
+    // price below the floor would silently overwrite the level at the
+    // bottom of the band. Reject before dividing, not after.
+    if (offset < 0) {
+        return util::kNoHandle;
+    }
+    if (offset % ladder_.tick != 0) {
+        // A level that is not on a tick boundary is not addressable in a
+        // grid. It falls back to the hash index rather than being rounded.
+        return util::kNoHandle;
+    }
+    const std::int64_t slot = offset / ladder_.tick;
+    if (slot < 0 || static_cast<std::size_t>(slot) >= ladder_.ticks_per_side) {
+        return util::kNoHandle;
+    }
+    return static_cast<std::uint32_t>(slot);
+}
+
+Handle OrderBook::ladder_get(Side side, std::uint32_t slot) const noexcept {
+    const std::vector<std::uint32_t>& slots =
+        (side == Side::bid) ? bid_slots_ : ask_slots_;
+    if (slot >= slots.size()) {
+        return kInvalidHandle;
+    }
+    const std::uint32_t stored = slots[slot];
+    return stored == kSlotEmpty ? kInvalidHandle : static_cast<Handle>(stored - 1);
+}
+
+void OrderBook::ladder_set(Side side, std::uint32_t slot, Handle h) noexcept {
+    std::vector<std::uint32_t>& slots = (side == Side::bid) ? bid_slots_ : ask_slots_;
+    std::vector<std::uint64_t>& bits = (side == Side::bid) ? bid_bits_ : ask_bits_;
+    if (slot >= slots.size()) {
+        return;
+    }
+    slots[slot] = h + 1;
+    bits[slot >> 6] |= (1ULL << (slot & 63u));
+}
+
+void OrderBook::ladder_clear(Side side, std::uint32_t slot) noexcept {
+    std::vector<std::uint32_t>& slots = (side == Side::bid) ? bid_slots_ : ask_slots_;
+    std::vector<std::uint64_t>& bits = (side == Side::bid) ? bid_bits_ : ask_bits_;
+    if (slot >= slots.size()) {
+        return;
+    }
+    slots[slot] = kSlotEmpty;
+    bits[slot >> 6] &= ~(1ULL << (slot & 63u));
+}
+
+std::uint32_t OrderBook::ladder_best_slot(Side side) const noexcept {
+    const std::vector<std::uint64_t>& bits = (side == Side::bid) ? bid_bits_ : ask_bits_;
+    if (bits.empty()) {
+        return util::kNoHandle;
+    }
+    if (side == Side::ask) {
+        // Best ask is the lowest occupied slot: scan words upward, take the
+        // first non-empty one.
+        for (std::size_t w = 0; w < bits.size(); ++w) {
+            if (bits[w] != 0) {
+                return static_cast<std::uint32_t>(w * 64u + lowest_bit(bits[w]));
+            }
+        }
+        return util::kNoHandle;
+    }
+    // Best bid is the highest occupied slot: scan words downward.
+    for (std::size_t w = bits.size(); w-- > 0;) {
+        if (bits[w] != 0) {
+            return static_cast<std::uint32_t>(w * 64u + highest_bit(bits[w]));
+        }
+    }
+    return util::kNoHandle;
+}
+
+std::vector<std::uint32_t> OrderBook::ladder_occupied(Side side) const noexcept {
+    std::vector<std::uint32_t> out;
+    const std::vector<std::uint64_t>& bits = (side == Side::bid) ? bid_bits_ : ask_bits_;
+    for (std::size_t w = 0; w < bits.size(); ++w) {
+        std::uint64_t word = bits[w];
+        while (word != 0) {
+            const std::uint32_t b = lowest_bit(word);
+            out.push_back(static_cast<std::uint32_t>(w * 64u + b));
+            word &= word - 1;
+        }
+    }
+    // Bits within a word come out ascending; bids read best-first, so
+    // reverse them. Asks are already ascending.
+    if (side == Side::bid) {
+        std::reverse(out.begin(), out.end());
+    }
+    return out;
+}
+
 // ---- Level ladder ---------------------------------------------------
 
 void OrderBook::link_level(Handle h) noexcept {
