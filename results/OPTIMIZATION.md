@@ -138,8 +138,9 @@ consistent with everything else measured here: this workload resists
 improvements that make existing accesses cheaper and rewards only ones that
 remove them.
 
-Every attempt below failed to move throughput, which is itself the most
-useful result in this file. `hft_bench decode` answers why.
+## Where the time actually goes
+
+`hft_bench decode` splits the per-message cost:
 
 ```
 hft_bench 800000 decode        26,104,293 msg/s     38 ns/message
