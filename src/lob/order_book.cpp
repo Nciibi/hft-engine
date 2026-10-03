@@ -425,6 +425,20 @@ void OrderBook::detach_order(Handle h) noexcept {
 // ---- Lookups --------------------------------------------------------
 
 Handle OrderBook::find_level(Side side, Price price) const noexcept {
+    // Dense path first: an array index and a load, with no hashing and no
+    // probe. This is the call the whole structure exists to make cheap.
+    if (const std::uint32_t slot = ladder_slot(price); slot != util::kNoHandle) {
+        const Handle h = ladder_get(side, slot);
+        if (h != kInvalidHandle) {
+            return h;
+        }
+        // An empty in-band slot is authoritative: there is no level at
+        // this price, so do NOT fall through to the hash index. Falling
+        // through would be harmless for correctness only because `add`
+        // inserts into both, and relying on that invariant to keep the two
+        // structures consistent is how they stop being consistent.
+        return kInvalidHandle;
+    }
     const auto& idx = level_index_for(bid_level_index_, ask_level_index_, side);
     const std::uint32_t slot = idx.find(price);
     return slot == util::kNoHandle ? kInvalidHandle : idx.value_at(slot);
