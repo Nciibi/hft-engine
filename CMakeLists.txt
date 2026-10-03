@@ -171,6 +171,25 @@ foreach(seed
     add_test(NAME differential_${seed} COMMAND hft_differential ${seed} 50000)
 endforeach()
 
+# The same differential against the DENSE price ladder.
+#
+# The dense ladder is a different implementation of level lookup and of
+# price ordering -- an array index and an occupancy bitmap where the sparse
+# book has a hash map and a linked list -- so the sparse suite says nothing
+# about it. This is the only thing that does: 250,000 operations against
+# an independent naive model with full state comparison after every one,
+# across five seeds.
+foreach(seed
+        0xA5A51234DEAD0001
+        0x0000000000000001
+        0xFFFFFFFFFFFFFFFF
+        0x0123456789ABCDEF
+        0xDEADBEEFCAFEBABE)
+    add_test(NAME differential_dense_${seed}
+             COMMAND hft_differential ${seed} 50000 dense)
+endforeach()
+add_test(NAME differential_dense_default COMMAND hft_differential dense)
+
 # Determinism: the same capture replayed twice must produce the same
 # book checksum. This is the one test that would catch a change
 # introducing iteration-order dependence, pointer-value dependence, or
