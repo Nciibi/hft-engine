@@ -176,7 +176,7 @@ void OrderBook::ladder_set(Side side, std::uint32_t slot, Handle h) noexcept {
     bits[word] |= (1ULL << (slot & 63u));
     // Raise the hint if this word is better than anything seen so far.
     if (side == Side::bid) {
-        if (word > bid_hint_) {
+        if (bid_hint_ == kNoWordHint || word > bid_hint_) {
             bid_hint_ = word;
         }
     } else if (ask_hint_ == kNoWordHint || word < ask_hint_) {
