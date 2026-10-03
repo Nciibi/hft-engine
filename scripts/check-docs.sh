@@ -17,6 +17,7 @@ FILES=(
     docs/DESIGN.md
     docs/RESULTS.md
     results/ENVIRONMENT.md
+    results/OPTIMIZATION.md
 )
 
 broken=0
