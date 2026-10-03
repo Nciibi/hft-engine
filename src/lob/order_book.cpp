@@ -348,11 +348,12 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
 
     link_order(h, level);
 
-    if (!order_index_.insert(id, h)) {
-        // Unreachable single-threaded: contains() was checked above and
-        // nothing between here and there removes entries. Handled
-        // anyway, and fully, because leaving the book and the index
-        // disagreeing is the failure mode worth being pedantic about.
+    if (!order_index_.place_reserved(reserved_slot, id, h)) {
+        // The slot was reserved above and nothing between here and there
+        // inserts into the order index, so this cannot fire
+        // single-threaded. Handled anyway, and fully, because leaving the
+        // book and the index disagreeing is the failure mode worth being
+        // pedantic about.
         unlink_order(h);
         release_order(h);
         if (created_level) {
