@@ -408,8 +408,14 @@ void OrderBook::detach_order(Handle h) noexcept {
     // unreachable while orders still pointed at it.
     const Handle level = o.level;
     if (level != kInvalidHandle && levels_[level].order_count == 0) {
-        level_index_for(bid_level_index_, ask_level_index_, side).erase(price);
-        unlink_level(level);
+        // One division here, on the detach path. The add path threads its
+        // slot through instead of recomputing; this path has no slot to
+        // thread, and a cancel is not the hot loop the benchmark drives.
+        const std::uint32_t slot = ladder_slot(price);
+        if (slot == util::kNoHandle) {
+            level_index_for(bid_level_index_, ask_level_index_, side).erase(price);
+        }
+        unlink_level(level, slot);
         release_level(level);
         if (side == Side::bid) {
             assert(bid_levels_ > 0 && "bid level count underflow");
