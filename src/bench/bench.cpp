@@ -41,6 +41,12 @@ using hft::Side;
 using hft::util::LatencyHistogram;
 using hft::util::Timer;
 
+// Anti-dead-store sink for the decode-only loop. Volatile so it cannot be
+// reasoned away, printed so it cannot be removed as unused -- both halves
+// are load-bearing, and a sink that satisfies neither makes the measurement
+// an empty loop.
+volatile std::uint64_t g_sink = 0;
+
 void print_histogram(const char* label, const LatencyHistogram& h) {
     std::printf("  %-22s p50 %7.0f  p99 %7.0f  p999 %7.0f  max %7.0f  n %llu\n", label,
                 static_cast<double>(h.percentile(0.50)),
