@@ -241,19 +241,30 @@ if ($CompareBuildDir -ne '') {
     Write-Host ('  sign test              {0} of {1} pairs favour B;  p = {2:N5} under a null of no difference' -f
         $wins, $deltas.Count, $signP)
 
-    # The verdict requires BOTH: an effect larger than the measured spread,
-    # AND direction agreement strong enough that chance is an unlikely
-    # explanation. Either alone is a weaker claim than the data supports.
+    # The verdict separates two questions that are genuinely different:
+    # WHICH build is faster, and BY HOW MUCH.
+    #
+    # On a host whose run-to-run spread is 6-8%, the direction can be
+    # established far more confidently than the magnitude: 14 of 15 pairs
+    # favouring one build gives p = 0.0005, while the same data leaves the
+    # median delta sitting just inside the spread. Collapsing both into one
+    # verdict would either retire real improvements or overstate their
+    # size, so they are reported separately.
+    #
+    # Significance, not unanimity, is the sign criterion. An earlier
+    # version demanded every pair agree, which silently discarded a
+    # 14/15 result as inconclusive on a technicality rather than on the
+    # evidence.
     $bySize = [math]::Abs($ds.median) -ge $thresh
-    $bySign = ($wins -eq $deltas.Count -or $losses -eq $deltas.Count) -and $signP -lt 0.05
+    $bySign = $signP -lt 0.05
 
     if ($bySize -and $bySign -and $ds.median -gt 0) {
         $verdict = 'IMPROVEMENT'
     } elseif ($bySize -and $bySign) {
         $verdict = 'REGRESSION'
     } elseif ($bySign) {
-        $verdict = $(if ($ds.median -gt 0) { 'IMPROVEMENT (direction unanimous, magnitude inside noise)' }
-        else { 'REGRESSION (direction unanimous, magnitude inside noise)' })
+        $verdict = $(if ($ds.median -gt 0) { 'IMPROVEMENT -- direction significant, size inside noise' }
+        else { 'REGRESSION -- direction significant, size inside noise' })
     } else {
         $verdict = 'NO MEASURABLE CHANGE'
     }
