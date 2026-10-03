@@ -62,10 +62,22 @@ std::string humanize(std::uint64_t v) {
 
 int main(int argc, char** argv) {
     std::size_t message_count = 1'000'000;
-    if (argc > 1) {
-        message_count = std::strtoull(argv[1], nullptr, 10);
-        if (message_count == 0) {
-            message_count = 1'000'000;
+    // Throughput mode: no per-message clock reads. See the two-loop note
+    // at the measured pass below for why this is the default for anything
+    // judging engine speed.
+    bool throughput_only = false;
+
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "throughput") {
+            throughput_only = true;
+        } else if (arg == "latency") {
+            throughput_only = false;
+        } else {
+            message_count = std::strtoull(argv[i], nullptr, 10);
+            if (message_count == 0) {
+                message_count = 1'000'000;
+            }
         }
     }
 
@@ -74,16 +86,24 @@ int main(int argc, char** argv) {
     std::printf("messages            %s\n", humanize(message_count).c_str());
 
     // ---- Clock overhead, measured first and reported first ---------
-    {
+    if (!throughput_only) {
         constexpr int kClockSamples = 100'000;
         LatencyHistogram clock_hist(1, 100'000);
         for (int i = 0; i < kClockSamples; ++i) {
             const std::uint64_t a = Timer::now();
             const std::uint64_t b = Timer::now();
-            clock_hist.record(b - a);
+            clock_hist.record(Timer::ticks_to_ns(b - a));
         }
         print_histogram("clock read", clock_hist);
         std::printf("\n  Every per-stage figure below includes one clock pair.\n\n");
+    } else {
+        std::printf(
+            "\n"
+            "  THROUGHPUT MODE: no per-message clock reads.\n"
+            "  The instrumented loop takes three QPC reads per message, and\n"
+            "  a QPC pair costs ~100ns on this host, so the instrumented\n"
+            "  throughput figure is substantially a measurement of the clock.\n"
+            "  This mode reads the clock twice for the entire run.\n\n");
     }
 
     // ---- Generate and warm the feed outside the timed region -------
