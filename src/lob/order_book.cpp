@@ -179,7 +179,7 @@ void OrderBook::ladder_set(Side side, std::uint32_t slot, Handle h) noexcept {
         if (word > bid_hint_) {
             bid_hint_ = word;
         }
-    } else if (word < ask_hint_) {
+    } else if (ask_hint_ == kNoWordHint || word < ask_hint_) {
         ask_hint_ = word;
     }
 }
@@ -197,13 +197,19 @@ void OrderBook::ladder_clear(Side side, std::uint32_t slot) noexcept {
     // The hint only has to move when the word it points at has just become
     // empty. Anything else leaves it pointing at a word that still holds an
     // occupied slot, which is the whole invariant.
+    //
+    // An explicit sentinel rather than an initial 0: word zero is a legal
+    // index, so "nothing occupied yet" cannot also be encoded as 0 without
+    // the two meanings colliding. That collision produced a hint of
+    // UINT32_MAX after the first level at the bottom of the band was
+    // removed, and an out-of-bounds bitmap read on the next best_ask.
     if (side == Side::bid) {
         if (word == bid_hint_ && bits[word] == 0) {
-            bid_hint_ = static_cast<std::uint32_t>(bits.size());
+            bid_hint_ = kNoWordHint;
         }
     } else {
         if (word == ask_hint_ && bits[word] == 0) {
-            ask_hint_ = ask_hint_ - 1;
+            ask_hint_ = kNoWordHint;
         }
     }
 }
@@ -214,33 +220,28 @@ std::uint32_t OrderBook::ladder_best_slot(Side side) const noexcept {
         return util::kNoHandle;
     }
     if (side == Side::ask) {
-        // Best ask is the lowest occupied slot. Start at the hint rather
-        // than word zero -- the hint is the lowest word that CAN be
-        // occupied, so it is never past the answer.
-        std::uint32_t w = ask_hint_;
-        while (true) {
+        const std::uint32_t hint = ask_hint_;
+        if (hint == kNoWordHint) {
+            return util::kNoHandle;
+        }
+        // The hint is the lowest word that CAN be occupied, so it normally
+        // answers immediately. The upward walk is a fallback for a stale
+        // hint and is bounded by the bitmap, not by the band.
+        for (std::uint32_t w = hint; w < bits.size(); ++w) {
             if (bits[w] != 0) {
                 return w * 64u + lowest_bit(bits[w]);
             }
-            if (w == 0) {
-                break;
-            }
-            --w;
         }
         return util::kNoHandle;
     }
-    // Best bid is the highest occupied slot. Clamp the hint into range on
-    // first use, when it is still the initial 0 or bits.size().
-    std::uint32_t w = (bid_hint_ >= bits.size()) ? static_cast<std::uint32_t>(bits.size() - 1)
-                                                 : bid_hint_;
-    while (true) {
+    const std::uint32_t hint = bid_hint_;
+    if (hint == kNoWordHint) {
+        return util::kNoHandle;
+    }
+    for (std::uint32_t w = hint + 1; w-- > 0;) {
         if (bits[w] != 0) {
             return w * 64u + highest_bit(bits[w]);
         }
-        if (w == 0) {
-            break;
-        }
-        --w;
     }
     return util::kNoHandle;
 }
