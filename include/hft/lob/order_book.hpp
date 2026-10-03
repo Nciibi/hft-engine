@@ -385,7 +385,12 @@ private:
     /// side, holding `handle + 1`, plus one occupancy word per 64 slots.
     std::vector<std::uint32_t> bid_slots_;
     std::vector<std::uint32_t> ask_slots_;
-    std::vector<std::uint32_t> bid_bits_;
+    // 64-bit, not 32. A narrower word would silently truncate the shift
+    // `1ULL << (slot & 63)` and set the wrong bit for every slot whose bit
+    // index exceeds 31 -- which is half of them, and would surface as a
+    // best_bid pointing at the wrong price. `-Wconversion` catches this at
+    // compile time, which is the only reason it was caught at all.
+    std::vector<std::uint64_t> bid_bits_;
     std::vector<std::uint64_t> ask_bits_;
     LadderConfig ladder_{};
 
