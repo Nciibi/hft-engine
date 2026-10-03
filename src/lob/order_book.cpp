@@ -492,9 +492,25 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     Handle level = find_level(side, price);
     bool created_level = false;
 
+    // Where this price lives: the dense slot if it is addressable there,
+    // the hash index otherwise. Exactly one of the two is used, and every
+    // create and destroy below routes through the same choice, which is
+    // what keeps the two structures from drifting apart.
+    const std::uint32_t slot = ladder_slot(price);
+    const bool in_ladder = slot != util::kNoHandle;
+
     if (level == kInvalidHandle) {
         level = acquire_level(side, price);
-        if (level == kInvalidHandle || !index.insert(price, level)) {
+        bool placed = false;
+        if (level != kInvalidHandle) {
+            if (in_ladder) {
+                // `link_level` writes the slot and the bit. Nothing else.
+                placed = true;
+            } else {
+                placed = index.insert(price, level);
+            }
+        }
+        if (!placed) {
             if (level != kInvalidHandle) {
                 release_level(level);
             }
@@ -514,7 +530,9 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     if (h == kInvalidHandle) {
         if (created_level) {
             // Unwind the level we speculatively created.
-            index.erase(price);
+            if (!in_ladder) {
+                index.erase(price);
+            }
             unlink_level(level);
             release_level(level);
             if (side == Side::bid) {
