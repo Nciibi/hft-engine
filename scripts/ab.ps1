@@ -86,8 +86,9 @@ function Get-Stats([double[]]$values) {
     if ($noisePct -lt 3.0) { $noisePct = 3.0 }
     # Trimmed spread: raw range with the single best and worst run removed.
     # The gap between this and the raw range is the size of the outliers,
-    # which is the honest way to show that a machine has them.
-    $trim = if ($n -ge 5) { ($s[1] - $s[$n - 2]) } else { ($s[$n - 1] - $s[0]) }
+    # which is the honest way to show that a machine has them. Sorted
+    # ascending, so the high end is s[n-2] and the low end is s[1].
+    $trim = if ($n -ge 5) { ($s[$n - 2] - $s[1]) } else { ($s[$n - 1] - $s[0]) }
     return [pscustomobject]@{
         median      = [double]$median
         mad         = [double]$mad
