@@ -105,7 +105,24 @@ struct StageResult {
 [[nodiscard]] StageResult run(const std::vector<std::uint8_t>& data, std::size_t pool) {
     StageResult r;
 
-    lob::OrderBook book(pool, pool);
+    // Dense price ladder, selected by argv[2]. The sparse book links
+    // levels into a sorted list and walks it to position a new price; the
+    // dense book addresses it by (price - floor) / tick and keeps an
+    // occupancy bitmap for best-bid/ask. Same differential-tested
+    // behaviour, different mechanism -- which is what makes this an A/B
+    // rather than a rewrite.
+    hft::lob::LadderConfig ladder;
+    const bool dense = (argc > 2 && std::string(argv[2]) == "dense");
+    ladder.dense = dense;
+    // The generator walks around $100 with drift; a band from $10 to $400
+    // covers every shape this tool produces with enormous margin.
+    ladder.floor_price = Price::from_int(10);
+    ladder.tick = 100;  // one cent, the generator's tick_raw
+    ladder.ticks_per_side = 1u << 16;
+    lob::OrderBook book(pool, pool, 0, ladder);
+    if (dense) {
+        std::printf("ladder           DENSE (direct-indexed price grid)\n");
+    }
 
     strategy::QuoteParams qp;
     qp.gamma = 2.5e-3;
