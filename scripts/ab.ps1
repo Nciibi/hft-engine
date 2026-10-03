@@ -110,7 +110,7 @@ if (-not (Test-Path -LiteralPath $exe)) {
 Write-Host "A/B: $Label   ($Runs runs x $Messages messages, $BuildDir)"
 Write-Host '---------------------------------------------------------------'
 
-$runs = @()
+$samples = @()
 for ($i = 0; $i -lt $Runs; $i++) {
     $out = & $exe $Messages 2>&1
     $line = $out | Select-String -Pattern 'throughput\s+(\d+)' | Select-Object -First 1
@@ -120,7 +120,7 @@ for ($i = 0; $i -lt $Runs; $i++) {
         exit 1
     }
     $v = [double]$line.Matches[0].Groups[1].Value
-    $runs += $v
+    $samples += $v
     Write-Host ('  run {0,2}  {1,10:N0} msg/s' -f ($i + 1), $v)
     $errors = ($out | Select-String -Pattern 'WARNING|rejected\s+[1-9]|truncat').Count
     if ($errors -gt 0) {
@@ -128,7 +128,7 @@ for ($i = 0; $i -lt $Runs; $i++) {
     }
 }
 
-$st = Get-Stats $runs
+$st = Get-Stats $samples
 Write-Host ''
 Write-Host ('  median  {0,10:N0} msg/s' -f $st.median)
 Write-Host ('  range   {0,10:N0} .. {1:N0}  ({2:N2}% raw spread)' -f $st.min, $st.max,
