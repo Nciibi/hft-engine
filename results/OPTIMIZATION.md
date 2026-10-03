@@ -144,7 +144,10 @@ branch and still leaves the histogram updates in the loop body.
 | Remove per-message instrumentation | **+25.8%** | yes |
 | `-march=native` | **+4.4%**, 13/15 pairs, p = 0.0037 | as an option |
 | Interleave `FlatMap` entry, 3 arrays → 1 cache line | +0.5% / −1.2% | **no** |
+| Single-probe `add` (drop `contains`+`insert`) | +1.1 pp, p = 0.30 | **no** |
+| Lookahead prefetch of the next add | +2.8 pp, p = 0.15 | **no** |
 | Shrink `OrderNode` 56 → 48 bytes | +0.8 pp, p = 0.30 | yes, as dead-state removal |
+| Size the level index to a realistic book | not measurable — see below | no |
 | LTO | unavailable | n/a |
 | PGO (GCC and clang) | unavailable | n/a |
 | FlatMap load factor 0.5 → 0.75 | no-op by construction | n/a |
