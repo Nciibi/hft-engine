@@ -154,7 +154,7 @@ constexpr std::int64_t kStrideTicks = 2;
     const std::int64_t span_ticks = static_cast<std::int64_t>(depth) * kStrideTicks;
     const std::int64_t tick_raw = Price::kScale / 100;
 
-    lob::LadderConfig ladder;
+    hft::lob::LadderConfig ladder;
     ladder.dense = true;
     // Two ticks of margin below the worst bid, and a band four ticks
     // longer than the span so the probe can land on either side.
