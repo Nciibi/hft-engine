@@ -213,7 +213,9 @@ public:
     /// the correct and loud failure, rather than a quarter-gigabyte of
     /// sparse table that makes every lookup slow forever.
     OrderBook(std::size_t order_capacity, std::size_t level_capacity,
-              std::size_t index_capacity = 0);
+              std::size_t index_capacity = 0, LadderConfig ladder = LadderConfig{});
+
+    ~OrderBook() = default;
 
     // ---- Mutations ----------------------------------------------------
 
