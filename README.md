@@ -20,7 +20,39 @@ documents below, which are where the actual argument lives.
 | [`docs/BUGS.md`](docs/BUGS.md) | Every defect found in this repository, grouped by **how it was found** — and why the two categories that found the worst bugs are the ones a test suite structurally cannot provide. |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Each design decision with the reasoning that made it deliberate, including the two places a documented justification turned out to be false. |
 | [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
+| [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md) | The optimisation log, **including the two changes that were measured, failed, and reverted**. |
 | [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why **no latency table is published yet**. |
+
+## Three findings worth the reader's time
+
+**1. The benchmarks were measuring their own instrumentation — 26% of it.**
+`hft_bench` bracketed every stage with three `QueryPerformanceCounter`
+reads per message. A QPC read costs ~27 ns on this host, so ~81 ns of every
+reported message was the clock reading the clock. Removing it moved
+identical work from 2.53M to 3.18M msg/s. The reported "344 ns per
+message" was roughly a quarter clock. This is why the first optimisation
+attempt failed — see 3.
+
+**2. The order book could wedge permanently, and every test missed it.**
+`FlatMap::insert` reused a tombstone only when it *also* found an empty
+slot in the same probe run. The book erases from its indexes on every
+removal, so both tables fill with tombstones as it churns — and once every
+slot is occupied-or-tombstone, **every future add returns
+`capacity_exhausted`, forever**, while the book looks nearly empty. A book
+that traded a few hundred million shares would stop accepting orders.
+Every test missed it because every test sizes capacity far *above* its
+operation count, so cumulative churn never reached capacity.
+
+**3. The obvious optimisation was wrong, and measuring it said so.** The
+hash map stored its entry in three parallel vectors, so one probe touched
+three cache lines. Interleaving them into one 16-byte entry — four per
+line — is unambiguously better *layout*, and it measured **−1.2%**: nothing.
+The three loads are independent addresses, so the CPU issues them in
+parallel, and three concurrent misses expose roughly the same latency as
+one. What was actually bounding the engine was the *count of dependent DRAM
+accesses*, not line count or footprint. Reverted. Full account, and the
+three things that would plausibly move it next, in
+[`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
 
 ## The bug that mattered
 
