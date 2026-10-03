@@ -185,6 +185,77 @@ public:
         return true;
     }
 
+    /// Find `key`, or report the slot where it should be inserted.
+    ///
+    /// One walk that answers both questions, which is the entire point:
+    /// the order book needs "is this reference already live?" before it
+    /// mutates anything, and then "claim a slot for it" a few dozen
+    /// instructions later. Asking twice cost two probes of a table that
+    /// does not fit in cache, with the whole of the level lookup and pool
+    /// acquisition in between -- long enough for the line to be evicted,
+    /// so the second probe was a fresh miss rather than an L1 hit.
+    ///
+    /// On the development host that measured as roughly a tenth of total
+    /// add cost. It is the difference the optimisation log keeps coming
+    /// back to: *removing* a dependent memory access pays, making the ones
+    /// that remain cheaper does not.
+    ///
+    /// `found` distinguishes the two outcomes. When true, `slot` is where
+    /// the key already lives. When false, `slot` is where an insert should
+    /// go, or kNoHandle if the table has no room -- note that a table of
+    /// nothing but tombstones is *not* full, and this is the same walk
+    /// that made `insert` correct in the first place.
+    ///
+    /// The reservation is only valid until the next mutating call on this
+    /// map. Callers that mutate something else in between are safe here
+    /// because the order book is single-threaded and nothing else touches
+    /// `order_index_` during an `add`, but that is a property of the
+    /// caller, not of this function, and a concurrent caller would need a
+    /// real reservation or a lock.
+    [[nodiscard]] std::uint32_t find_or_reserve(const K& key, bool& found) noexcept {
+        found = false;
+        if (capacity_ == 0) {
+            return kNoHandle;
+        }
+        std::uint32_t first_free = kNoHandle;
+        std::uint32_t i = index_for(key);
+        for (std::uint32_t probes = 0; probes < capacity_; ++probes) {
+            const std::uint32_t slot = (i + probes) & mask_;
+            const Entry& e = entries_[slot];
+            if (e.state == Slot::occupied) {
+                if (e.key == key) {
+                    found = true;
+                    return slot;
+                }
+                continue;
+            }
+            if (e.state == Slot::tombstone) {
+                if (first_free == kNoHandle) {
+                    first_free = slot;
+                }
+                continue;
+            }
+            // Slot::empty terminates the run. The insertion point is the
+            // first tombstone seen, if any, otherwise this slot.
+            return (first_free != kNoHandle) ? first_free : slot;
+        }
+        // Ran off the end of the table. A remembered tombstone is still
+        // usable -- see the note on `insert` -- so it is offered here too.
+        return first_free;
+    }
+
+    /// Claim a slot previously returned by `find_or_reserve` with
+    /// `found == false`.
+    ///
+    /// The write half of the pair, kept separate so the read walk stays
+    /// free of side effects and the two cannot be confused.
+    bool place_reserved(std::uint32_t slot, const K& key, const V& value) noexcept {
+        if (slot == kNoHandle || slot >= capacity_) {
+            return false;
+        }
+        return place(key, value, slot);
+    }
+
     /// Remove a key. Returns false if absent.
     bool erase(const K& key) noexcept {
         const std::uint32_t slot = find(key);
