@@ -77,6 +77,8 @@ int main(int argc, char** argv) {
             throughput_only = true;
         } else if (arg == "latency") {
             throughput_only = false;
+        } else if (arg == "decode") {
+            decode_only = true;
         } else {
             message_count = std::strtoull(argv[i], nullptr, 10);
             if (message_count == 0) {
