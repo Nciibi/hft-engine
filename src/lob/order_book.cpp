@@ -1,5 +1,6 @@
 #include "hft/lob/order_book.hpp"
 
+#include <algorithm>
 #include <cassert>
 
 namespace hft::lob {
