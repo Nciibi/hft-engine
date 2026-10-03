@@ -41,14 +41,21 @@
 # Throughput is computed through a correct conversion and converges, so it
 # is the one performance figure that can be trusted on the development
 # machine. Absolute latency waits for the benchmark host.
-
+#
+# `throughput` mode, not the default, and that is the important part: the
+# instrumented loop takes three QPC reads per message at ~27ns each, which
+# measured as 26% of the reported throughput. Judging an optimisation
+# against a number that is a quarter clock reads means every result is
+# diluted by the same constant -- and it would hide a real win as easily as
+# it would inflate a real loss.
 param(
     [Parameter(Mandatory = $true)][string]$Label,
     [string]$BuildDir = 'build',
     [int]$Messages = 800000,
-    [int]$Runs = 9,
+    [int]$Runs = 11,
     [switch]$Save,
     [switch]$List,
+    [string]$Mode = 'throughput',
     [string]$Store = ''
 )
 
