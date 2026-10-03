@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
     // duplicate, and the benchmark would silently be timing rejection
     // instead of insertion.
     {
-        hft::lob::OrderBook warm(pool, pool, expected_levels);
+        hft::lob::OrderBook warm(pool, pool, kLevelIndexSlots);
         const std::uint8_t* p = feed.data();
         std::size_t remaining = feed.size();
         std::size_t applied = 0;
