@@ -346,8 +346,14 @@ void report(const BookShape& shape, const StageResult& r, std::size_t records) {
 
 int main(int argc, char** argv) {
     std::size_t records = 2'000'000;
-    if (argc > 1) {
-        records = std::strtoull(argv[1], nullptr, 10);
+    bool dense = false;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "dense") {
+            dense = true;
+        } else {
+            records = std::strtoull(argv[i], nullptr, 10);
+        }
     }
     if (records == 0) {
         records = 1;
