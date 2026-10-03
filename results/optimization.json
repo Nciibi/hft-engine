@@ -18,5 +18,15 @@
                                           "messages":  800000,
                                           "buildDir":  "build",
                                           "note":  "2026-10-03 NO MEASURABLE CHANGE"
-                                      }
+                                      },
+    "march-native":  {
+                         "median":  3312348,
+                         "noisePct":  3.1657905509928304,
+                         "min":  3081124,
+                         "max":  3399090,
+                         "runs":  11,
+                         "messages":  800000,
+                         "buildDir":  "build-native",
+                         "note":  "2026-10-03 IMPROVEMENT"
+                     }
 }
