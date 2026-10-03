@@ -305,6 +305,10 @@ private:
     // on `LadderConfig` for why that is not optional.
     static constexpr std::size_t kSlotEmpty = 0;
 
+    /// Sentinel for "no occupied word known". Distinct from 0, because
+    /// word zero is a legal index.
+    static constexpr std::uint32_t kNoWordHint = 0xFFFF'FFFFu;
+
     [[nodiscard]] bool ladder_enabled() const noexcept { return ladder_.dense; }
 
     /// Ladder slot for `price`, or `kNoHandle` if it is out of band or
