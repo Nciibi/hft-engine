@@ -140,7 +140,27 @@ constexpr std::int64_t kStrideTicks = 2;
 
 [[nodiscard]] OrderBook build(std::size_t depth, Price top) {
     const std::size_t cap = capacity_for(depth);
-    OrderBook book(cap, cap);
+
+    // Dense ladder, covering the whole sweep. This is the configuration the
+    // tool exists to measure: the sparse book links levels into a sorted
+    // list and walks it, so inserting at rank W costs W node visits, which
+    // measured here at 178x a touch insert at 3,200 levels. The dense book
+    // addresses the level by `(price - floor) / tick`, so the walk is gone
+    // entirely and the same row should come back flat.
+    //
+    // The band is sized to the sweep rather than to a real instrument: the
+    // deepest row is 3,200 levels on a two-tick stride, so 8,192 ticks per
+    // side covers it with room for the probe to land either side of the
+    // insertion point.
+    lob::LadderConfig ladder;
+    ladder.dense = true;
+    ladder.floor_price = Price::from_raw(top.raw() - static_cast<std::int64_t>(depth) *
+                                                        (kStrideTicks + 4) *
+                                                        (Price::kScale / 100));
+    ladder.tick = Price::kScale / 100;  // one cent
+    ladder.ticks_per_side = 8192;
+
+    OrderBook book(cap, cap, 0, ladder);
     hft::OrderId id = 1;
     for (std::size_t i = 0; i < depth; ++i) {
         BookStatus st{};
