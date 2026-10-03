@@ -212,7 +212,41 @@ int main(int argc, char** argv) {
     // updates in the loop body, and still lets the compiler treat the
     // whole thing as one computation it can schedule around.
     if (throughput_only) {
+        // Lookahead prefetch.
+        //
+        // This is the one optimisation in the log that attacks latency
+        // rather than work, and it is what the add path is actually short
+        // of: a real handler knows its next message before it finishes the
+        // current one, and everything `add` touches is a random access
+        // into structures larger than any cache on the machine.
+        //
+        // The peek reads the next frame's price and order reference
+        // straight out of the feed by offset, without decoding it. This
+        // feed is Add Order only and the layout is fixed and verified
+        // against the published field table, so the offsets are known
+        // rather than guessed -- which is the entire difference between
+        // this and the kind of speculative shortcut that produces a
+        // confidently wrong benchmark. A frame that is not an Add Order
+        // yields garbage keys, which prefetches the wrong line: harmless,
+        // because a prefetch is advisory and nothing is written.
+        //
+        // No prefetch is issued for the final frame, where reading past
+        // the end would be a real out-of-bounds access rather than a
+        // harmless one.
+        const std::size_t kAddStride = hft::itch::frame_size(hft::itch::off::kAddOrderSize);
         while (remaining > 0) {
+            if (remaining > kAddStride) {
+                const std::uint8_t* nxt = p + kAddStride;
+                const Price next_price =
+                    Price::from_raw(hft::itch::read_be64(nxt + hft::itch::off::AddOrder::price));
+                const hft::OrderId next_id =
+                    static_cast<hft::OrderId>(hft::itch::read_be64(nxt + hft::itch::off::AddOrder::order_ref));
+                const std::uint8_t next_tag = nxt[hft::itch::off::tag];
+                const Side next_side = (next_tag == hft::itch::off::AddOrder::side) ? Side::bid
+                                                                                   : Side::ask;
+                book.prefetch_add(next_price, next_id, next_side);
+            }
+
             const hft::itch::DecodeResult r = hft::itch::decode(p, remaining);
             const std::size_t stride = hft::itch::frame_stride(r);
             if (stride == 0) {
