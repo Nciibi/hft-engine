@@ -130,10 +130,10 @@ for ($i = 0; $i -lt $Runs; $i++) {
 
 $st = Get-Stats $runs
 Write-Host ''
-Write-Host ('  median  {0,10:N0} msg/s' -f $st['median'])
-Write-Host ('  range   {0,10:N0} .. {1:N0}  ({2:N2}% raw spread)' -f $st['min'], $st['max'],
-    (100.0 * ($st['max'] - $st['min']) / $st['min']))
-Write-Host ('  noise   {0,10:N2}%  (2 x MAD; a delta smaller than this is not a result)' -f $st['noisePct'])
+Write-Host ('  median  {0,10:N0} msg/s' -f $st.median)
+Write-Host ('  range   {0,10:N0} .. {1:N0}  ({2:N2}% raw spread)' -f $st.min, $st.max,
+    (100.0 * ($st.max - $st.min) / $st.min))
+Write-Host ('  noise   {0,10:N2}%  (2 x MAD; a delta smaller than this is not a result)' -f $st.noisePct)
 
 $store = @{}
 if (Test-Path -LiteralPath $Store) {
@@ -152,8 +152,8 @@ $store.PSObject.Properties | ForEach-Object {
 $verdict = 'BASELINE RECORDED'
 if ($null -ne $baseline -and $baselineName -ne $Label) {
     $baseMedian = [double]$baseline.median
-    $deltaPct = 100.0 * ($st['median'] - $baseMedian) / $baseMedian
-    $threshold = [math]::Max($st['noisePct'], [double]$baseline.noisePct)
+    $deltaPct = 100.0 * ($st.median - $baseMedian) / $baseMedian
+    $threshold = [math]::Max($st.noisePct, [double]$baseline.noisePct)
     Write-Host ''
     Write-Host ('  baseline           {0}  {1:N0} msg/s' -f $baselineName, $baseMedian)
     Write-Host ('  delta              {0:+0.00;-0.00;0.00}%' -f $deltaPct)
@@ -172,10 +172,10 @@ if ($null -ne $baseline -and $baselineName -ne $Label) {
 
 if ($Save) {
     $store | Add-Member -NotePropertyName $Label -NotePropertyValue ([pscustomobject]@{
-            median   = $st['median']
-            noisePct = $st['noisePct']
-            min      = $st['min']
-            max      = $st['max']
+            median   = $st.median
+            noisePct = $st.noisePct
+            min      = $st.min
+            max      = $st.max
             runs     = $Runs
             messages = $Messages
             buildDir = $BuildDir
