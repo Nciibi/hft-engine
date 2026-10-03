@@ -236,15 +236,17 @@ int main(int argc, char** argv) {
         const std::size_t kAddStride = hft::itch::frame_size(hft::itch::off::kAddOrderSize);
         while (remaining > 0) {
             if (remaining > kAddStride) {
-                const std::uint8_t* nxt = p + kAddStride;
-                const Price next_price =
-                    Price::from_raw(hft::itch::read_be64(nxt + hft::itch::off::AddOrder::price));
-                const hft::OrderId next_id =
-                    static_cast<hft::OrderId>(hft::itch::read_be64(nxt + hft::itch::off::AddOrder::order_ref));
-                const std::uint8_t next_tag = nxt[hft::itch::off::tag];
-                const Side next_side = (next_tag == hft::itch::off::AddOrder::side) ? Side::bid
-                                                                                   : Side::ask;
-                book.prefetch_add(next_price, next_id, next_side);
+                // Offsets are relative to the message BODY, so they are
+                // taken past the 2-byte length prefix -- which is exactly
+                // the adjustment the decode path makes, and the reason a
+                // capture block can be handed to the decoder unadjusted.
+                const std::uint8_t* nxt = p + kAddStride + hft::itch::kLengthPrefixSize;
+                const Price next_price = Price::from_raw(static_cast<std::int64_t>(
+                    hft::itch::read_be32(nxt + hft::itch::off::add_order_price)));
+                const hft::OrderId next_id = hft::itch::read_be64(nxt + hft::itch::off::add_order_id);
+                const std::uint8_t next_side = nxt[hft::itch::off::add_order_side];
+                const Side side_hint = (next_side == 'B') ? Side::bid : Side::ask;
+                book.prefetch_add(next_price, next_id, side_hint);
             }
 
             const hft::itch::DecodeResult r = hft::itch::decode(p, remaining);
