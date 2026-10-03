@@ -279,6 +279,7 @@ branch and still leaves the histogram updates in the loop body.
 | Interleave `FlatMap` entry, 3 arrays → 1 cache line | +0.5% / −1.2% | **no** |
 | Single-probe `add` (drop `contains`+`insert`) | +1.1 pp, p = 0.30 | **no** |
 | Lookahead prefetch of the next add | +2.8 pp, p = 0.15 | **no** |
+| **Dense price ladder + occupancy bitmap** | **177.63x → 0.93x** worst case; **−2.5%** average | yes, opt-in |
 | Shrink `OrderNode` 56 → 48 bytes | +0.8 pp, p = 0.30 | yes, as dead-state removal |
 | Size the level index to a realistic book | not measurable — see below | no |
 | LTO | unavailable | n/a |
