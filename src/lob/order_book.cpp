@@ -658,13 +658,54 @@ BookStatus OrderBook::remove(OrderId id, Quantity* discarded) noexcept {
 // ---- Queries --------------------------------------------------------
 
 std::optional<Price> OrderBook::best_bid() const noexcept {
-    return bid_head_ == kInvalidHandle ? std::nullopt
-                                       : std::optional<Price>{levels_[bid_head_].price};
+    std::optional<Price> best;
+
+    // Sparse list first. In dense-only operation this is empty and the
+    // cost is one comparison against kInvalidHandle.
+    if (bid_head_ != kInvalidHandle) {
+        best = levels_[bid_head_].price;
+    }
+
+    // Dense path: the best bid is the highest occupied slot, one bit scan
+    // regardless of book depth. This is what makes deleting the last order
+    // at the inside limit cheap -- without it the dense ladder would trade
+    // an O(depth) insert for an O(depth) delete-at-the-touch, which is the
+    // documented failure of the pure-array variant.
+    if (ladder_.dense) {
+        const std::uint32_t slot = ladder_best_slot(Side::bid);
+        if (slot != util::kNoHandle) {
+            const Handle h = ladder_get(Side::bid, slot);
+            if (h != kInvalidHandle) {
+                const Price p = levels_[h].price;
+                if (!best.has_value() || p > *best) {
+                    best = p;
+                }
+            }
+        }
+    }
+    return best;
 }
 
 std::optional<Price> OrderBook::best_ask() const noexcept {
-    return ask_head_ == kInvalidHandle ? std::nullopt
-                                       : std::optional<Price>{levels_[ask_head_].price};
+    std::optional<Price> best;
+
+    if (ask_head_ != kInvalidHandle) {
+        best = levels_[ask_head_].price;
+    }
+
+    if (ladder_.dense) {
+        const std::uint32_t slot = ladder_best_slot(Side::ask);
+        if (slot != util::kNoHandle) {
+            const Handle h = ladder_get(Side::ask, slot);
+            if (h != kInvalidHandle) {
+                const Price p = levels_[h].price;
+                if (!best.has_value() || p < *best) {
+                    best = p;
+                }
+            }
+        }
+    }
+    return best;
 }
 
 std::optional<OrderSnapshot> OrderBook::find(OrderId id) const noexcept {
