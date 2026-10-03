@@ -69,7 +69,6 @@ struct OrderNode {
     OrderId id = kInvalidOrderId;
     Price price{};
     Quantity size{};           ///< Remaining
-    Quantity original_size{};  ///< As added
     Side side = Side::bid;
     OrderState state = OrderState::new_order;
     /// Owning price level. Cached so that unlinking an order does not
@@ -78,6 +77,12 @@ struct OrderNode {
     Handle prev = kInvalidHandle;  ///< Within the price level
     Handle next = kInvalidHandle;
     bool allocated = false;
+    // `original_size` used to live here and was written on every add and
+    // read by nothing: the book tracks the as-added quantity only where a
+    // cancel needs to distinguish a partial from a full reduction, and it
+    // does that from `size` and the level aggregate. Eight bytes per order
+    // in the one structure that every single add writes, purely as dead
+    // weight, so it is gone. sizeof(OrderNode) is now 48 rather than 56.
 };
 
 struct LevelNode {
