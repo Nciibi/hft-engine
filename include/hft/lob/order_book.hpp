@@ -412,8 +412,8 @@ private:
     /// `ladder_clear` only rescans downward when the cleared slot was in
     /// the hinted word, which for a liquid book finds the next occupied
     /// word immediately.
-    std::uint32_t bid_hint_ = 0;
-    std::uint32_t ask_hint_ = 0;
+    std::uint32_t bid_hint_ = kNoWordHint;
+    std::uint32_t ask_hint_ = kNoWordHint;
 
     /// Ladder heads, used only by the sparse path. Bids descend from best
     /// to worst, asks ascend. The dense path does not maintain these --
