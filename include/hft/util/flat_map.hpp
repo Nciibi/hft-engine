@@ -71,6 +71,20 @@ enum class Slot : std::uint8_t {
 template <class K, class V, class Hash = std::hash<K>>
 class FlatMap final {
 public:
+    /// One probe slot: state, key and value together.
+    ///
+    /// Public because the cache-line guarantee below is part of this type's
+    /// contract and has to be assertable from outside it. Field order is
+    /// deliberate -- widest first -- so the padding lands at the end and
+    /// `sizeof(Entry)` is 16 for the (uint64, uint32) instantiation the
+    /// order book uses. Reordering these fields to put `state` first would
+    /// make it 24 and undo the layout.
+    struct Entry {
+        K key{};
+        V value{};
+        Slot state = Slot::empty;
+    };
+
     FlatMap() = default;
 
     /// `max_entries` is a hard ceiling. Capacity is rounded up to the
