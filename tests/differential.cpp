@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
     }
 
     std::printf("differential test passed\n");
-    std::printf("  seed          0x%llx\n", static_cast<unsigned long long>(seed));
+    std::printf("  ladder       %s\n", dense ? "DENSE (direct-indexed price grid)" : "sparse (hash + linked list)");
     std::printf("  operations    %zu\n", ops);
     std::printf("  adds          %zu\n", adds);
     std::printf("  executes      %zu\n", executes);
