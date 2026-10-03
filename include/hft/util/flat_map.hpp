@@ -262,18 +262,6 @@ public:
     }
 
 private:
-    /// One probe slot: state, key and value together.
-    ///
-    /// Field order is deliberate -- widest first -- so the padding lands
-    /// at the end and `sizeof(Entry)` is 16 for the (uint64, uint32)
-    /// instantiation the order book uses. Reordering these fields to put
-    /// `state` first would make it 24 and undo the layout.
-    struct Entry {
-        K key{};
-        V value{};
-        Slot state = Slot::empty;
-    };
-
     /// Write a key into a slot known to be empty or a tombstone, keeping
     /// the tombstone count honest.
     ///
