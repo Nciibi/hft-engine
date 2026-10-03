@@ -209,7 +209,7 @@ std::uint32_t OrderBook::ladder_best_slot(Side side) const noexcept {
     return util::kNoHandle;
 }
 
-std::vector<std::uint32_t> OrderBook::ladder_occupied(Side side) const noexcept {
+std::vector<std::uint32_t> OrderBook::ladder_occupied(Side side) const {
     std::vector<std::uint32_t> out;
     const std::vector<std::uint64_t>& bits = (side == Side::bid) ? bid_bits_ : ask_bits_;
     for (std::size_t w = 0; w < bits.size(); ++w) {
