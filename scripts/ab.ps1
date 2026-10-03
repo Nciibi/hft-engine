@@ -53,9 +53,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$RepoRoot = Split-Path -Parent (Split-Path -Parent (Resolve-Path -LiteralPath $PSCommandPath).Path)
+
+# Paths are resolved against the repo root explicitly. `Push-Location`
+# changes PowerShell's location but NOT the .NET current directory, and
+# [System.IO.File] resolves relative paths against that instead -- the
+# same trap scripts/check-docs.ps1 documents.
 Push-Location $RepoRoot
-try { } finally { }
 
 if ([string]::IsNullOrEmpty($Store)) {
     $Store = Join-Path $RepoRoot 'results/optimization.json'
