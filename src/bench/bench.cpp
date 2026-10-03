@@ -301,6 +301,7 @@ int main(int argc, char** argv) {
         p += stride;
         remaining -= stride;
     }
+    }  // else: instrumented loop
 
     const std::uint64_t elapsed_ns = total_timer.elapsed_ns();
 
