@@ -274,6 +274,13 @@ Handle OrderBook::find_order(OrderId id) const noexcept {
 
 // ---- Mutations ------------------------------------------------------
 
+void OrderBook::prefetch_add(Price price, OrderId id, Side side) noexcept {
+    if (id != kInvalidOrderId) {
+        order_index_.prefetch(id);
+    }
+    level_index_for(bid_level_index_, ask_level_index_, side).prefetch(price);
+}
+
 Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
                       BookStatus& status) noexcept {
     // One walk answers both "is this reference already live?" and "where
