@@ -230,13 +230,13 @@ std::vector<std::uint32_t> OrderBook::ladder_occupied(Side side) const {
 
 // ---- Level ladder ---------------------------------------------------
 
-void OrderBook::link_level(Handle h) noexcept {
+void OrderBook::link_level(Handle h, std::uint32_t slot) noexcept {
     LevelNode& lv = levels_[h];
 
     // Dense path: the slot index IS the ordering, so linking is a single
     // store plus one bit. No walk, and nothing to rebalance -- which is
     // the entire reason this structure replaces the linked list.
-    if (const std::uint32_t slot = ladder_slot(lv.price); slot != util::kNoHandle) {
+    if (slot != util::kNoHandle) {
         ladder_set(lv.side, slot, h);
         return;
     }
@@ -278,13 +278,12 @@ void OrderBook::link_level(Handle h) noexcept {
     }
 }
 
-void OrderBook::unlink_level(Handle h) noexcept {
+void OrderBook::unlink_level(Handle h, std::uint32_t slot) noexcept {
     LevelNode& lv = levels_[h];
 
     // Dense path: clear the slot and its occupancy bit. Nothing else to
     // touch -- the ordering was the array, not a list.
-    if (const std::uint32_t slot = ladder_slot(lv.price); slot != util::kNoHandle &&
-                                       ladder_get(lv.side, slot) == h) {
+    if (slot != util::kNoHandle && ladder_get(lv.side, slot) == h) {
         ladder_clear(lv.side, slot);
         return;
     }
