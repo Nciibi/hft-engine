@@ -152,7 +152,7 @@ constexpr std::int64_t kStrideTicks = 2;
     // deepest row is 3,200 levels on a two-tick stride, so 8,192 ticks per
     // side covers it with room for the probe to land either side of the
     // insertion point.
-    lob::LadderConfig ladder;
+    hft::lob::LadderConfig ladder;
     ladder.dense = true;
     ladder.floor_price = Price::from_raw(top.raw() - static_cast<std::int64_t>(depth) *
                                                         (kStrideTicks + 4) *
