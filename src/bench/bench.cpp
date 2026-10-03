@@ -128,24 +128,7 @@ int main(int argc, char** argv) {
                 humanize(feed.size() / hft::itch::frame_size(hft::itch::off::kAddOrderSize))
                     .c_str());
 
-    // The price index is sized to a realistic book, NOT to the order count.
-    //
-    // Sizing it to `pool` gave two 26 MiB tables -- 52 MiB -- to hold the
-    // levels this feed actually keeps, which measures out at ~512 per
-    // side. The probe address is `hash(price)` masked to the table
-    // capacity, so a 2M-slot table puts every `find_level` in a DRAM miss
-    // into a table that is 99.98% empty. The empty-ness does not help: the
-    // miss is on the address, not on the contents.
-    //
-    // 8192 slots per side is 16x the observed level count, which is slack
-    // enough that a feed whose walk wanders further does not saturate, and
-    // small enough that the whole index is ~100 KB and lives in L2. The
-    // level *pool* stays at `pool` because it must tolerate every order
-    // arriving at its own price; only the index gets a realistic bound,
-    // and a book that outgrows it gets a clean `capacity_exhausted` rather
-    // than a quarter-gigabyte of sparse table.
-    constexpr std::size_t kLevelIndexSlots = 8192;
-    hft::lob::OrderBook book(pool, pool, kLevelIndexSlots);
+    hft::lob::OrderBook book(pool, pool);
 
     // ---- Warmup: fault in the pages, prime the pools -----------------
     // Uses a throwaway book. Reusing the measured book would re-add the
