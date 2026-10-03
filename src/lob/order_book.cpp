@@ -489,15 +489,26 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     }
 
     auto& index = level_index_for(bid_level_index_, ask_level_index_, side);
-    Handle level = find_level(side, price);
-    bool created_level = false;
 
-    // Where this price lives: the dense slot if it is addressable there,
-    // the hash index otherwise. Exactly one of the two is used, and every
-    // create and destroy below routes through the same choice, which is
-    // what keeps the two structures from drifting apart.
+    // One division, once. The slot is needed by the lookup, by the insert
+    // and by the destroy, and computing it three times cost more than the
+    // hash probe it replaced -- see the note on `link_level`.
     const std::uint32_t slot = ladder_slot(price);
     const bool in_ladder = slot != util::kNoHandle;
+
+    Handle level;
+    if (in_ladder) {
+        // An empty in-band slot is authoritative: there is no level at
+        // this price, so do NOT fall through to the hash index. Falling
+        // through would work only because `add` writes to both, and
+        // relying on that to keep them consistent is how they stop being
+        // consistent.
+        level = ladder_get(side, slot);
+    } else {
+        const std::uint32_t found = index.find(price);
+        level = found == util::kNoHandle ? kInvalidHandle : index.value_at(found);
+    }
+    bool created_level = false;
 
     if (level == kInvalidHandle) {
         level = acquire_level(side, price);
@@ -517,7 +528,7 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
             status = BookStatus::capacity_exhausted;
             return kInvalidHandle;
         }
-        link_level(level);
+        link_level(level, slot);
         if (side == Side::bid) {
             bid_levels_ += 1;
         } else {
@@ -533,7 +544,7 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
             if (!in_ladder) {
                 index.erase(price);
             }
-            unlink_level(level);
+            unlink_level(level, slot);
             release_level(level);
             if (side == Side::bid) {
                 bid_levels_ -= 1;
