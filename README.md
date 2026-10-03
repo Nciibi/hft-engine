@@ -47,12 +47,16 @@ operation count, so cumulative churn never reached capacity.
 hash map stored its entry in three parallel vectors, so one probe touched
 three cache lines. Interleaving them into one 16-byte entry — four per
 line — is unambiguously better *layout*, and it measured **−1.2%**: nothing.
-The three loads are independent addresses, so the CPU issues them in
-parallel, and three concurrent misses expose roughly the same latency as
-one. What was actually bounding the engine was the *count of dependent DRAM
-accesses*, not line count or footprint. Reverted. Full account, and the
-three things that would plausibly move it next, in
-[`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
+Three further attempts (collapsing a double probe, lookahead prefetching,
+shrinking the order node) all landed inside the noise too.
+
+Measuring *where* the time goes is what explained all four:
+`hft_bench decode` puts the decoder at **38 ns/message and the order book
+at ~270 ns**. The book performs four random accesses per add into 26–38 MiB
+structures, and that **count** — not latency exposure, layout, or
+footprint — is the constraint. Every failed attempt was in the category of
+making existing accesses cheaper; the fix is reducing how many there are.
+Full account in [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
 
 ## The bug that mattered
 
