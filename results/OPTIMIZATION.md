@@ -5,6 +5,49 @@ Every entry here was measured on the development host with
 A log containing only successful optimisations is a log of confirmations,
 not of engineering, and the failures are where the information is.
 
+## The instrument was wrong before the engine was
+
+The most consequential thing found in this session was not about the engine
+at all, and it invalidated part of the analysis above.
+
+`hft_bench` sizes its order and level pools from the message count and
+**never removes an order**, so its book grows without bound. Cost per
+message therefore never converges — it keeps falling as the run gets
+longer, because an increasing share of the runtime is steady-state work
+rather than pool page-faulting:
+
+| messages | working set | ns/message |
+|---|---|---|
+| 50,000 | 6 MiB | 1614.7 |
+| 200,000 | 23 MiB | 763.0 |
+| 800,000 | 93 MiB | 333.4 |
+| 3,200,000 | 372 MiB | 156.1 |
+| 6,400,000 | ~950 MiB | ~91 |
+
+Decode-only, measured over the same sizes, is **flat at 38.5 ns/message**
+with no fixed component at all. So the entire fixed cost is the book's
+pools being faulted in and grown, and at 800,000 messages roughly 70% of
+the runtime is that.
+
+Every A/B in this file was run at 800,000 messages. Which means every one
+of them compared two builds in a regime where the signal was diluted by a
+constant ~70% overhead — and a real 10% improvement in the per-message cost
+would have appeared as ~3%.
+
+`hft_stage_bench` does not have this problem: it caps live orders at the
+level count, so its book is bounded and its throughput is flat across a 16x
+size range — 2.99M, 2.86M and 2.87M msg/s at 400k, 1.6M and 6.4M messages.
+**That is an instrument. `hft_bench` is not**, and it should not be used to
+judge engine speed.
+
+The prefetch experiment was re-run on the correct instrument and stayed
+refuted (−0.92 pp, 5 of 13 pairs, p = 0.29), which is the useful
+confirmation: the refutations survive an instrument this noisy, even
+though one earlier run at 3.2M messages had briefly shown p = 0.046 and a
+*confirmation* run at the same size had shown −1.10 pp, p = 0.50. Two runs
+of the same comparison disagreeing in sign is what a 5% effect inside a 6%
+noise band looks like.
+
 ## Where the time actually goes
 
 Every attempt below failed to move throughput, which is itself the most
