@@ -131,9 +131,9 @@ struct StageResult {
     std::size_t frame_size = 0;
 
     while (reader.next(frame, frame_size)) {
-        const std::uint64_t t0 = hft::util::Timer::now();
+        const std::uint64_t t0 = bench::Stopwatch::now_ns();
         const itch::DecodeResult decoded = itch::decode(frame, frame_size);
-        const std::uint64_t t1 = hft::util::Timer::now();
+        const std::uint64_t t1 = bench::Stopwatch::now_ns();
 
         ++r.records;
         if (!decoded.ok()) {
@@ -143,7 +143,7 @@ struct StageResult {
         r.decode.record(t1 - t0);
 
         const lob::ApplyResult result = lob::apply(decoded.message, book);
-        const std::uint64_t t2 = hft::util::Timer::now();
+        const std::uint64_t t2 = bench::Stopwatch::now_ns();
         r.book.record(t2 - t1);
         if (result.applied) {
             ++r.applied;
@@ -160,7 +160,7 @@ struct StageResult {
             mid = Price::from_raw((bid->raw() + ask->raw()) / 2);
         }
         const strategy::Quote q = quoter.quote(mid, inventory);
-        const std::uint64_t t3 = hft::util::Timer::now();
+        const std::uint64_t t3 = bench::Stopwatch::now_ns();
         r.decision.record(t3 - t2);
         if (q.valid) {
             ++r.quotes;
@@ -175,7 +175,7 @@ struct StageResult {
         now += kTickNanos;
         const risk::Decision verdict = risk_engine.check(
             Side::bid, q.valid ? q.bid : mid, Quantity::from_raw(q.bid_size), now);
-        const std::uint64_t t4 = hft::util::Timer::now();
+        const std::uint64_t t4 = bench::Stopwatch::now_ns();
         r.risk.record(t4 - t3);
         if (verdict.allowed()) {
             ++r.risk_allowed;

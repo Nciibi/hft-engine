@@ -65,7 +65,7 @@ echo "=== correctness ==="
 # one. A pipeline that drops or reorders a message looks exactly like a
 # speedup in every other column, so this is checked, not assumed.
 ctest --test-dir "${ROOT}/build" --output-on-failure \
-      -R 'concurrent|pipeline_threaded_equivalence|ring_transfer_integrity|determinism' \
+      -R 'concurrent|pipeline_threaded_equivalence|ring_transfer_integrity|determinism|tsc_calibration' \
   || { echo "concurrency tests FAILED"; exit 1; }
 echo
 
@@ -81,6 +81,18 @@ else
     echo "=== determinism across optimisation levels ==="
     echo "SKIPPED (SKIP_DETERMINISM=1). Not valid for publication."
 fi
+echo
+
+echo "=== measurement floor: clock characterisation ==="
+# First among the benchmarks, not last: this establishes what a latency
+# figure on this host is capable of resolving. Reading a stage table
+# without knowing the floor is how a p50 equal to the clock-read p50 gets
+# reported as a fast stage rather than an unmeasured one.
+"${ROOT}/build/hft_tsc_bench"
+echo
+
+echo "=== price ladder: the O(depth) walk ==="
+"${ROOT}/build/hft_ladder_bench"
 echo
 
 echo "=== latency and throughput: add-only ingest ==="

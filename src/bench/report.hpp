@@ -30,6 +30,39 @@ namespace bench {
 using hft::util::LatencyHistogram;
 using hft::util::Timer;
 
+/// A stage boundary that reports nanoseconds.
+///
+/// Exists because of a bug this file used to enable. `Timer::now()`
+/// returns platform ticks -- on Windows, 10 MHz ticks of 100 ns each on
+/// the development host -- and every benchmark recorded those ticks
+/// directly into a `LatencyHistogram` whose output is presented as
+/// nanoseconds. Every latency figure was wrong by a factor of 100 on that
+/// machine, and by an unknown factor on any other.
+///
+/// Rather than trust five call sites to remember a conversion, the
+/// boundary captures a raw tick and converts on the way out. A `record()`
+/// in this repository now receives nanoseconds by construction, and a
+/// future reader who adds a stage gets the right unit without having to
+/// know this paragraph ever existed.
+class Stopwatch final {
+public:
+    Stopwatch() : start_(Timer::now()) {}
+
+    void reset() noexcept { start_ = Timer::now(); }
+
+    /// Elapsed nanoseconds since construction or the last `reset`.
+    [[nodiscard]] std::uint64_t elapsed_ns() const noexcept {
+        return Timer::ticks_to_ns(Timer::now() - start_);
+    }
+
+    /// Current boundary as an absolute nanosecond count, for the
+    /// sequential-timestamp style of stage attribution.
+    [[nodiscard]] static std::uint64_t now_ns() noexcept { return Timer::now_ns(); }
+
+private:
+    std::uint64_t start_;
+};
+
 /// Narrowing helpers for printf's `%llu` and `%llx`, so the cast appears
 /// once instead of at every call site.
 [[nodiscard]] inline unsigned long long u64(std::uint64_t v) noexcept {
@@ -108,18 +141,24 @@ inline void histogram_row(const char* label, const LatencyHistogram& h) {
     std::fflush(stdout);
 }
 
-/// Cost of a single `Timer::now()` pair.
+/// Cost of a single clock pair, in nanoseconds.
 ///
-/// Reported first, before anything else, because every per-stage figure
-/// in these tools includes one clock pair. When this and a stage's p50
-/// are the same number, the stage is below the resolution of the
-/// measurement and the honest reading is "unmeasured", not "free".
+/// Reported first, before anything else, because every per-stage figure in
+/// these tools includes one clock pair. When this and a stage's p50 are
+/// the same number, the stage is below the resolution of the measurement
+/// and the honest reading is "unmeasured", not "free".
+///
+/// Note the floor's own scale on this host: one QPC tick is 100 ns, so
+/// the smallest non-zero reading this can return is 100 ns. A stage
+/// reported at 1 is a single tick, which means "somewhere below 200 ns"
+/// and nothing finer. `hft_tsc_bench` measures what that floor becomes
+/// with a calibrated counter.
 inline LatencyHistogram measure_clock_overhead(int samples = 200'000) {
     LatencyHistogram hist(1, 100'000);
     for (int i = 0; i < samples; ++i) {
         const std::uint64_t a = Timer::now();
         const std::uint64_t b = Timer::now();
-        hist.record(b - a);
+        hist.record(Timer::ticks_to_ns(b - a));
     }
     return hist;
 }
@@ -141,6 +180,12 @@ inline void print_environment(const char* tool) {
     std::printf("=========================\n\n");
     std::printf("topology             %s\n", hft::util::describe_topology().c_str());
     std::printf("this thread          %s\n", hft::util::describe_affinity("main").c_str());
+    // Printed because it is the number every latency figure depends on and
+    // it is not 1 GHz everywhere. See the units note in timer.hpp: a tool
+    // that recorded platform ticks and reported them as nanoseconds was
+    // wrong by exactly the reciprocal of this figure.
+    std::printf("clock                %.0f ticks/s (%.4g ns per tick)\n",
+                Timer::frequency(), 1e9 / Timer::frequency());
     std::printf("\n");
     std::fflush(stdout);
 }

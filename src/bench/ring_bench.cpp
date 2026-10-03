@@ -308,13 +308,17 @@ template <typename Forward, typename Backward>
 
     for (std::size_t i = 0; i < iterations; ++i) {
         token_add.id = static_cast<hft::OrderId>(i + 1);
-        const std::uint64_t start = hft::util::Timer::now();
+        // Boundaries in nanoseconds, converted once, so the round-trip
+        // figure below is in the unit it is printed in. See the units note
+        // in timer.hpp -- this call site previously recorded raw platform
+        // ticks into a nanosecond histogram.
+        const std::uint64_t start = hft::util::Timer::now_ns();
 
         forward.push(token);
         Payload back;
         backward.pop(back);
 
-        const std::uint64_t elapsed = hft::util::Timer::now() - start;
+        const std::uint64_t elapsed = hft::util::Timer::now_ns() - start;
         hist.record(elapsed / 2u);
 
         if (std::get<hft::itch::AddOrder>(back.body).id != token_add.id) {

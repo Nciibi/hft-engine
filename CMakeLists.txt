@@ -104,6 +104,18 @@ target_link_libraries(hft_stage_bench PRIVATE hft_core)
 add_executable(hft_pipeline_bench src/bench/pipeline_bench.cpp)
 target_link_libraries(hft_pipeline_bench PRIVATE hft_core)
 
+# Price ladder scaling: quantifies the O(depth) walk in the level list.
+# Reports ratios rather than absolute latency, because the ratio survives a
+# coarse clock and an absolute figure does not.
+add_executable(hft_ladder_bench src/bench/ladder_bench.cpp)
+target_link_libraries(hft_ladder_bench PRIVATE hft_core)
+
+# Clock characterisation: what the resolution floor of this host is, and
+# therefore which stage figures are measurable at all. Reports no engine
+# numbers; it establishes whether the other tools could measure them.
+add_executable(hft_tsc_bench src/bench/tsc_bench.cpp)
+target_link_libraries(hft_tsc_bench PRIVATE hft_core)
+
 # Replay: deterministic reconstruction of a book from a capture, with a
 # state checksum and SOUP sequence validation.
 add_executable(hft_replay src/replay/replay.cpp)
@@ -194,14 +206,49 @@ add_test(NAME pipeline_threaded_equivalence
 set_tests_properties(pipeline_threaded_equivalence PROPERTIES
     PASS_REGULAR_EXPRESSION "All four threaded runs produced a book identical")
 
-# The ring benchmark is a measurement, not a test, so only its
-# correctness claim is asserted here: every message transferred, and every
-# echoed token returned intact. The tool prints a single verdict line so
-# this is one regex rather than a pair of "must not contain" checks that
-# CTest cannot express.
+# Clock characterisation. Not an engine measurement -- it establishes the
+# resolution floor every other latency figure in this repository depends
+# on, and fails when the TSC cannot be calibrated. Asserted in CI because a
+# benchmark host whose clock cannot be calibrated cannot produce a
+# publishable latency table, and that should stop the run rather than be
+# discovered afterwards.
+add_test(NAME tsc_calibration COMMAND hft_tsc_bench)
+set_tests_properties(tsc_calibration PROPERTIES
+    PASS_REGULAR_EXPRESSION "invariant TSC      YES")
+
+# Ring benchmark is a measurement, not a test, so only its correctness
+# claim is asserted here: every message transferred, and every echoed
+# token returned intact. The tool prints a single verdict line so this is
+# one regex rather than a pair of "must not contain" checks that CTest
+# cannot express.
 add_test(NAME ring_transfer_integrity COMMAND hft_ring_bench 200000)
 set_tests_properties(ring_transfer_integrity PROPERTIES
     PASS_REGULAR_EXPRESSION "transfer integrity: PASS")
+
+# Documentation consistency. Not a code test: this checks that every
+# relative link target exists and every anchor has a matching heading.
+#
+# It is in CI because this repository's documentation accreted
+# corrections instead of replacing them, and three sections came to
+# contradict each other while every link between them still resolved. A
+# broken anchor is the same failure in a smaller costume -- the reader is
+# sent confidently to a place that no longer says what the link claims.
+if(WIN32)
+    find_program(DOC_CHECK powershell.exe)
+    if(DOC_CHECK)
+        add_test(NAME docs COMMAND "${DOC_CHECK}" -NoProfile -ExecutionPolicy Bypass
+                 -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-docs.ps1")
+    else()
+        message(STATUS "  doc check ......... powershell not found, skipped")
+    endif()
+else()
+    find_program(DOC_CHECK check-docs.sh PATHS "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+    if(DOC_CHECK)
+        add_test(NAME docs COMMAND "${DOC_CHECK}")
+    else()
+        message(STATUS "  doc check ......... bash not found, skipped")
+    endif()
+endif()
 
 # ---- Reporting -----------------------------------------------------
 message(STATUS "hft_engine ${PROJECT_VERSION}")

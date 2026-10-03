@@ -166,12 +166,33 @@ private:
 
 /// A symbol as it appears on the wire, NUL terminated.
 ///
-/// Nine bytes, not eight. The terminator is a separate member rather
-/// than a ninth element of `bytes_`, so the layout is
-/// `[8 name bytes][1 terminator]` and a reader can see at a glance that
-/// the buffer is safe to treat as a C string.
+/// Nine bytes, not eight. The terminator is a separate member rather than
+/// a ninth element of `bytes_`, so the layout is `[8 name bytes][1
+/// terminator]` and a reader can see at a glance that the buffer is safe
+/// to treat as a C string.
+///
+/// Nothing reads `terminator_` by name. It exists to occupy the byte
+/// immediately after the wire field, which is what makes `c_str()` return
+/// a NUL-terminated string -- and that is load-bearing, because the ninth
+/// byte once held the *length* instead, and a
+/// `std::unordered_map<std::string, ...>` keyed on `c_str()` read past the
+/// object on every lookup and concluded that all sixty-four symbols in a
+/// multi-symbol feed were distinct.
+///
+/// Clang's `-Wunused-private-field` reports it as dead, and it is correct
+/// that no code path names it. It is equally correct that deleting it
+/// would reintroduce that bug, so it is marked `[[maybe_unused]]` with the
+/// reason rather than removed or silenced project-wide.
+///
+/// The adjacency itself needs no assertion: `bytes_` and `terminator_` are
+/// both `char`, so both have alignment 1, and the standard requires
+/// consecutive non-bit-field members to be laid out in declaration order
+/// with padding inserted only to satisfy alignment. Nothing can come
+/// between them. What *is* worth pinning is the total size, asserted
+/// below, and the runtime behaviour, which `test_shards` checks by reading
+/// `c_str()[kSymbolSize]` directly.
 char bytes_[kSymbolSize] = {kPad, kPad, kPad, kPad, kPad, kPad, kPad, kPad};
-char terminator_ = kTerminator;
+[[maybe_unused]] char terminator_ = kTerminator;
 std::uint8_t length_ = 0;
 };
 

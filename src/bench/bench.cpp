@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "bench/report.hpp"
 #include "feed/generator.hpp"
 #include "hft/itch/decode.hpp"
 #include "hft/lob/order_book.hpp"
@@ -34,6 +35,7 @@
 
 namespace {
 
+using bench::Stopwatch;
 using hft::util::LatencyHistogram;
 using hft::util::Timer;
 
@@ -169,7 +171,12 @@ int main(int argc, char** argv) {
     std::size_t remaining = feed.size();
 
     while (remaining > 0) {
-        const std::uint64_t t_start = Timer::now();
+        // Boundaries are captured in nanoseconds, not platform ticks, so
+        // every subtraction below is in the unit the histograms are
+        // reported in. See the units note in timer.hpp: recording raw
+        // QPC ticks here made every figure in this tool wrong by 100x on
+        // the development host.
+        const std::uint64_t t_start = Stopwatch::now_ns();
 
         const hft::itch::DecodeResult r = hft::itch::decode(p, remaining);
         const std::size_t stride = hft::itch::frame_stride(r);
@@ -177,7 +184,7 @@ int main(int argc, char** argv) {
             break;
         }
 
-        const std::uint64_t t_decoded = Timer::now();
+        const std::uint64_t t_decoded = Stopwatch::now_ns();
         decode_hist.record(t_decoded - t_start);
 
         if (r.ok()) {
@@ -210,7 +217,7 @@ int main(int argc, char** argv) {
             ++malformed;
         }
 
-        const std::uint64_t t_done = Timer::now();
+        const std::uint64_t t_done = Stopwatch::now_ns();
         book_hist.record(t_done - t_decoded);
         total_hist.record(t_done - t_start);
 

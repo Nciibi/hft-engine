@@ -32,14 +32,6 @@ void write_timestamp48(std::vector<std::uint8_t>& out, std::uint64_t nanos) noex
     write_be32(out, static_cast<std::uint32_t>(nanos & 0xFFFF'FFFFu));
 }
 
-/// The symbol every generated record carries when none is specified.
-///
-/// Eight bytes, space padded, because that is the field width the Add
-/// Order message specifies and because a short symbol makes the padding
-/// rule untested -- a truncated symbol would decode as a different
-/// string without ever being wrong about the bytes.
-inline constexpr char kGeneratedSymbol[] = "SIMTEST ";
-
 /// Write an eight-byte space-padded alpha field from an 8-character
 /// name.
 ///

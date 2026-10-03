@@ -98,16 +98,32 @@ struct GeneratorConfig {
 /// separately from the bulk generator so tests can construct precise
 /// frames, including deliberately malformed ones.
 ///
+/// The symbol generated records carry when a caller does not name one.
+///
+/// Eight bytes, space padded, because that is the field width the Add
+/// Order message specifies and because a short symbol makes the padding
+/// rule untested -- a truncated symbol would decode as a different string
+/// without ever being wrong about the bytes.
+///
+/// Declared here rather than in the .cpp because `append_add_order` needs
+/// it as a default argument. It used to exist in both places: a constant in
+/// the .cpp that nothing referenced, alongside the literal in this
+/// signature. Two spellings of one wire value is exactly the arrangement
+/// that produces a generator and a decoder which agree with each other and
+/// disagree with the specification -- see the Add Order bug in the README.
+inline constexpr char kGeneratedSymbol[] = "SIMTEST ";
+
+/// Write an eight-byte stock symbol field.
+///
 /// `symbol` is the eight-byte stock symbol field, which sits between the
 /// share count and the price in the wire layout. It defaults to a fixed
 /// single name because most callers want one symbol and should not have
-/// to spell it out. The literal is exactly eight characters plus a
-/// terminator, matching the field width.
-void append_add_order(std::vector<std::uint8_t>& out, const hft::Side side,
+/// to spell it out.
+void append_add_order(std::vector<std::uint8_t>& out, hft::Side side,
                       hft::Price price, hft::Quantity size, hft::OrderId id,
                       hft::Nanos timestamp, hft::StockLocate locate = 1,
                       hft::TrackingNumber tracking = 0,
-                      const char* symbol = "SIMTEST ") noexcept;
+                      const char* symbol = kGeneratedSymbol) noexcept;
 
 void append_order_cancel(std::vector<std::uint8_t>& out, hft::OrderId id, hft::Quantity shares,
                          hft::Nanos timestamp, hft::StockLocate locate = 1,

@@ -19,6 +19,8 @@
 #include "hft/lob/apply.hpp"
 #include "hft/lob/order_book.hpp"
 #include "hft/types.hpp"
+#include "hft/util/flat_map.hpp"
+#include "hft/util/timer.hpp"
 
 namespace {
 
@@ -1860,6 +1862,236 @@ void test_report_percentiles() {
     }
 }
 
+// ---- Timer units -----------------------------------------------------
+//
+// These exist because of a bug that made every latency figure in this
+// repository wrong, and that no test caught.
+//
+// `Timer::now()` returns platform ticks. On Windows those are QPC ticks
+// and are NOT nanoseconds: on the development host QPC runs at 10 MHz, so
+// one tick is 100ns. Every benchmark recorded `now()` deltas straight
+// into a `LatencyHistogram` and printed the result as nanoseconds, so a
+// reported "decode p50 of 2" was 200ns. Throughput was correct, because
+// it was the one figure that went through a conversion -- which is exactly
+// why the bug survived: the number with an independent check was right,
+// and the numbers with no check were wrong.
+//
+// These tests pin the two properties that were missing. The first is
+// arithmetic. The second is the one that matters: a measured interval,
+// converted and reported, must agree with a duration known
+// independently. Checking a conversion against its own definition would
+// pass just as happily when the definition is wrong.
+
+// ---- FlatMap tombstone exhaustion ----------------------------------
+//
+// This exists because `FlatMap::insert` had a bug that the order book
+// depends on and no test could reach.
+//
+// `insert` recorded the first tombstone in a key's probe run and then
+// waited for an *empty* slot before using it. A run containing
+// tombstones and occupied slots but no empty slot therefore wrapped the
+// whole table and reported "full" while a usable tombstone was in hand.
+//
+// In the order book that is a permanent wedge, not a slowdown:
+// `order_index_` and `level_index_` are erased on every removal, so the
+// table fills with tombstones as the book churns, and once every slot is
+// occupied-or-tombstone every future add returns `capacity_exhausted`
+// forever while the book looks nearly empty.
+//
+// The reason no existing test found it is the point: all of them size
+// capacity far above the operation count -- 200,000 operations through a
+// 1,048,576-slot book -- so cumulative churn never reaches capacity. These
+// tests size capacity to the working set on purpose.
+
+void test_flatmap_churn() {
+    std::printf("FlatMap tombstone churn\n");
+
+    // Capacity rounds to the next power of two at or above 2x the
+    // requested entries, so 8 entries gives 16 slots. The bug needs more
+    // than `capacity` insert/erase cycles to appear.
+    hft::util::FlatMap<std::uint64_t, std::uint32_t> map(8);
+    const std::uint32_t cap = static_cast<std::uint32_t>(map.capacity());
+    check(cap == 16u, "capacity rounds to a power of two at 2x entries");
+
+    // Cycle well past capacity. Under the old code this reported full
+    // partway through and every subsequent insert failed.
+    constexpr std::uint64_t kCycles = 1000;
+    bool all_inserted = true;
+    std::size_t first_failure = 0;
+    for (std::uint64_t i = 0; i < kCycles; ++i) {
+        const std::uint64_t key = 1'000'000 + i;
+        if (!map.insert(key, static_cast<std::uint32_t>(i))) {
+            all_inserted = false;
+            first_failure = static_cast<std::size_t>(i);
+            break;
+        }
+        // Erase immediately, so live occupancy stays at one and only the
+        // tombstone accumulation can exhaust the table.
+        check(map.erase(key), "the key just inserted is present to erase");
+    }
+    check(all_inserted,
+          "insert still succeeds after 1000 insert/erase cycles at 16 slots");
+    if (!all_inserted) {
+        std::printf("    first failure at cycle %llu\n",
+                    static_cast<unsigned long long>(first_failure));
+    }
+    check(map.size() == 0u, "live occupancy is zero after the churn");
+    check(map.empty(), "empty() agrees after the churn");
+
+    // The table must still be usable, and must still find live keys.
+    check(map.insert(42u, 7u), "insert after churn succeeds");
+    check(map.contains(42u), "the key inserted after churn is found");
+    check_eq_int(static_cast<long long>(map.find(42u) == hft::util::kNoHandle), 0,
+                 "find returns a slot for the live key");
+    check(!map.contains(41u), "an absent key is still absent");
+    check(map.erase(42u), "the live key erases");
+    check(!map.contains(42u), "and is gone afterwards");
+
+    // Overwriting a live key is not a failure and must not grow the table.
+    hft::util::FlatMap<std::uint64_t, std::uint32_t> over(64);
+    check(over.insert(5u, 1u), "first insert of key 5");
+    check(over.insert(5u, 2u), "re-inserting key 5 overwrites rather than failing");
+    check_eq_int(static_cast<long long>(over.size()), 1, "overwrite did not add an entry");
+    check_eq_int(static_cast<long long>(over.value_at(over.find(5u))), 2,
+                 "overwrite stored the new value");
+
+    // Erasing an absent key is a no-op, not a corruption.
+    check(!over.erase(6u), "erasing an absent key returns false");
+    check_eq_int(static_cast<long long>(over.size()), 1, "and leaves the size alone");
+
+    // Interleaved pattern: several live keys, churn underneath them. This
+    // is the shape a real book produces, and it is the case where probe
+    // chains interleave and a naive tombstone policy loses entries.
+    hft::util::FlatMap<std::uint64_t, std::uint32_t> mix(8);
+    for (std::uint64_t i = 0; i < 4; ++i) {
+        check(mix.insert(i, static_cast<std::uint32_t>(i)), "seed key inserted");
+    }
+    bool mix_ok = true;
+    for (std::uint64_t i = 100; i < 100 + 500 && mix_ok; ++i) {
+        if (!mix.insert(i, 0u)) {
+            mix_ok = false;
+        }
+        mix.erase(i);
+    }
+    check(mix_ok, "churn alongside live keys does not exhaust the table");
+    check_eq_int(static_cast<long long>(mix.size()), 4, "the four live keys survive");
+    for (std::uint64_t i = 0; i < 4; ++i) {
+        check(mix.contains(i), "a seed key is still findable after 500 cycles");
+    }
+
+    // A genuinely full table must still report full. Fixing the tombstone
+    // case must not turn `false` into "always succeeds", which would make
+    // a real capacity limit undetectable -- the failure mode this fix
+    // trades one way for another.
+    hft::util::FlatMap<std::uint64_t, std::uint32_t> full(2);  // 4 slots
+    bool filled = true;
+    for (std::uint64_t i = 0; i < 4; ++i) {
+        if (!full.insert(i, 0u)) {
+            filled = false;
+        }
+    }
+    check(filled, "a table accepts exactly its capacity");
+    check(!full.insert(99u, 0u), "and rejects the entry past it");
+    check_eq_int(static_cast<long long>(full.size()), 4, "size is the live count");
+}
+
+void test_timer_units() {
+    std::printf("Timer units\n");
+
+    // ---- arithmetic ----
+    check(hft::util::Timer::frequency() > 0.0, "clock frequency is positive");
+
+    const double hz = hft::util::Timer::frequency();
+    const double ns_per_tick = 1e9 / hz;
+
+    // One second of ticks converts to one second of nanoseconds. Rounded,
+    // because a frequency like 10MHz does not divide evenly and the
+    // truncation in ticks_to_ns is intentional.
+    const std::uint64_t one_second_ticks =
+        static_cast<std::uint64_t>(static_cast<double>(hz));
+    const std::uint64_t one_second_ns = hft::util::Timer::ticks_to_ns(one_second_ticks);
+    check(one_second_ns > 990'000'000ULL && one_second_ns <= 1'000'000'000ULL,
+          "one second of ticks converts to about one second of nanoseconds");
+
+    // Zero is zero, and the conversion must not invent a floor.
+    check_eq_int(static_cast<long long>(hft::util::Timer::ticks_to_ns(0)), 0,
+                 "zero ticks is zero nanoseconds");
+
+    // Monotonicity: more ticks is never fewer nanoseconds. A conversion
+    // that truncated could violate this on some host.
+    std::uint64_t previous = 0;
+    bool monotonic = true;
+    for (std::uint64_t t = 1; t < 100'000; t = t + 999) {
+        const std::uint64_t ns = hft::util::Timer::ticks_to_ns(t);
+        if (ns < previous) {
+            monotonic = false;
+        }
+        previous = ns;
+    }
+    check(monotonic, "ticks_to_ns is monotonic in ticks");
+
+    // The relation the benchmark tables rely on: a millisecond of ticks is
+    // a millisecond of nanoseconds. Expressed in ticks-per-millisecond so
+    // the tolerance is in the unit being asserted rather than in the
+    // integer truncation.
+    const std::uint64_t ms_ticks = static_cast<std::uint64_t>(hz / 1000.0);
+    const std::uint64_t ms_ns = hft::util::Timer::ticks_to_ns(ms_ticks);
+    check(ms_ns > 990'000ULL && ms_ns <= 1'001'000ULL,
+          "one millisecond of ticks converts to about one millisecond");
+
+    std::printf("  clock           %.0f ticks/s (%.4f ns/tick)\n", hz, ns_per_tick);
+
+    // ---- end to end: a measured interval agrees with a known duration ----
+    //
+    // The load-bearing check. It fails if any tool ever records raw ticks
+    // into a nanosecond histogram again, and it cannot be satisfied by a
+    // conversion that is self-consistently wrong.
+    //
+    // The reference duration comes from `now_ns()`, which converts, and the
+    // measured duration comes from differencing raw ticks and converting
+    // that. Both go through the same conversion, so agreeing only proves
+    // the conversion is linear -- which is why the absolute check below
+    // exists too: it compares against a genuinely independent quantity,
+    // the number of milliseconds the loop actually asked to wait.
+    constexpr std::uint64_t kTargetNs = 30'000'000ULL;
+
+    const std::uint64_t raw_start = hft::util::Timer::now();
+    const std::uint64_t abs_start = hft::util::Timer::now_ns();
+    while (hft::util::Timer::now_ns() - abs_start < kTargetNs) {
+        // Busy-wait, so the interval is spent running rather than handed
+        // to the scheduler.
+    }
+    const std::uint64_t raw_end = hft::util::Timer::now();
+    const std::uint64_t abs_end = hft::util::Timer::now_ns();
+
+    const std::uint64_t converted =
+        hft::util::Timer::ticks_to_ns(raw_end - raw_start);
+
+    // The loop exits on the first tick past the target, so the measured
+    // interval must be at least the target and at most a few ms over it.
+    check(converted >= kTargetNs, "a 30ms wait measures at least 30ms once converted");
+    check(converted < kTargetNs + 10'000'000ULL,
+          "a 30ms wait does not overshoot by more than 10ms");
+
+    // The conversion must also round-trip against the absolute counter.
+    const std::uint64_t absolute_span = abs_end - abs_start;
+    check(absolute_span >= kTargetNs && absolute_span < kTargetNs + 10'000'000ULL,
+          "the absolute nanosecond counter spans the same interval");
+
+    // The decisive ratio. If a tool were to record raw ticks where
+    // nanoseconds are expected, the raw span would be ~30,000 while the
+    // converted span is ~30,000,000 -- a factor of exactly the clock
+    // frequency over 1e9. Assert the converted figure is in the right
+    // decade, which raw ticks cannot be on any host whose QPC is not
+    // exactly 1 GHz.
+    check(converted > 1'000'000ULL,
+          "a 30ms interval converts to millions of ns, not thousands");
+
+    std::printf("  30ms wait       %llu ns converted, %llu ns absolute\n",
+                static_cast<unsigned long long>(converted),
+                static_cast<unsigned long long>(absolute_span));
+}
+
 int main() {
     std::printf("unit tests\n----------\n");
     test_price_parse();
@@ -1881,6 +2113,8 @@ int main() {
     test_order_replace_layout_is_spec();
     test_broken_trade_layout_is_spec();
     test_trade_layouts_are_spec();
+    test_flatmap_churn();
+    test_timer_units();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

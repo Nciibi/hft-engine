@@ -2,13 +2,25 @@
 
 A from-scratch NASDAQ TotalView-ITCH 5.0 order book and market-making
 engine in C++20. Fixed-point, arena-backed, zero allocation on the hot
-path, deterministic replay, benchmarked to p999 across the full
-decode-to-encode pipeline.
+path, deterministic replay, and a latency harness that measures its own
+resolution floor before reporting anything.
 
 > **Status:** reference implementation built for understanding exchange
 > mechanics, not for production deployment. See
 > [What is implemented](#what-is-implemented) and
 > [What this is not](#what-this-is-not).
+
+**Reading paths.** Five minutes: the bug below, then
+[What is implemented](#what-is-implemented), then
+[Quick start](#quick-start). Twenty minutes: all of it. Longer: the three
+documents below, which are where the actual argument lives.
+
+| Document | What is in it |
+|---|---|
+| [`docs/BUGS.md`](docs/BUGS.md) | Every defect found in this repository, grouped by **how it was found** — and why the two categories that found the worst bugs are the ones a test suite structurally cannot provide. |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | Each design decision with the reasoning that made it deliberate, including the two places a documented justification turned out to be false. |
+| [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
+| [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why **no latency table is published yet**. |
 
 ## The bug that mattered
 
@@ -66,7 +78,7 @@ Three things are now true that were not:
    maker's "volatility" was the share-count noise in a fake price. With
    real prices the book stopped appearing to move, which exposed that
    the feed was never actually producing a market — see
-   [the market maker's feed](#the-market-makers-feed-is-the-second-half-of-this).
+   [the market maker's feed](docs/BUGS.md#the-market-makers-feed-is-the-second-half-of-this).
 
 ## What is implemented
 
@@ -99,72 +111,82 @@ Three things are now true that were not:
 | MoldUDP64 downstream packet framing | done |
 | Threaded pipeline equivalence check | done |
 | Multi-shard sequencer, rebalancing, failover | not started |
-| Packet-based capture format (MoldUDP64) | done |
-| SOUP checksum | not started |
+| Calibrated `rdtsc` clock with fences | done |
+| Measurement floor and resolution sweep, published | done |
+| Invariant-TSC determination across physical cores | done |
+| Timer unit regression test (caught a 100x error) | done |
+| `FlatMap` tombstone reclamation (fixed a permanent wedge) | done |
+| Price-ladder O(depth) walk, quantified | done |
+| Direct-indexed price ladder | not started — see below |
+| PTP / hardware-timestamp clock sync | not started |
+| Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
+| SOUP packet checksum | n/a — does not exist; see below |
 
-**Order Replace and Broken Trade are implemented, and the reason they
-were skipped for so long is worth keeping.** Both were declined on the
-grounds that their field tables could not be verified. The specification
-is public at `nasdaqtrader.com`; it was verifiable the whole time. What
-made it *look* unverifiable is the real lesson: **the same message has
-different offsets in ITCH 3.1 and 4.0**, both also published, so a table
-copied from either is wrong in a way that looks right. Skip-by-length
-was the right call under that uncertainty.
+**Order Replace and Broken Trade are implemented, and the reason they were
+skipped for so long is the lesson.** Both were declined because their field
+tables "could not be verified". They could — the specification is public
+at `nasdaqtrader.com`, and it was verifiable the whole time. What made it
+*look* unverifiable is the transferable part: **the same message has
+different offsets in ITCH 3.1 and 4.0**, both published, so a table copied
+from either is wrong in a way that looks right. Skip-by-length was the
+right call under that uncertainty; "cannot verify" quietly becoming "assume
+it is not knowable" was the actual failure. Going back to the source found
+a generator writing a 41-byte Order Replace frame against a 35-byte
+message, and that `'B'` is not Order Entry at all. Full account in
+[`docs/DESIGN.md`](docs/DESIGN.md#verifying-a-field-table-you-cannot-test-against).
 
-Going back to the source found two things:
+**Verified: 783 checks** — 383 unit + 156 risk/OMS + 47 strategy + 149
+concurrency + 51 sharding, zero failures, under **two compilers**. The
+argument is not the count; it is that each of these would fail if the
+thing it guards regressed:
 
-- **The generator was writing a 41-byte Order Replace frame against a
-  35-byte message** — the same four phantom fields (`order_type`,
-  `time_in_force`, `display`, `participant`) that made the Add Order
-  decoder wrong for this project's entire life, appended to a *different*
-  message. The decoder had been skipping these frames by length, so no
-  test ever read those bytes and the wrong size was invisible. Verified
-  layouts now derive their length from the same constants the decoder
-  reads, so the two cannot drift apart again.
-- **`'B'` is not Order Entry.** It is the Broken Trade message, a 19-byte
-  *inbound* report that an execution was cancelled under the
-  clearly-erroneous policy — see the note under
-  [What this is not](#what-this-is-not).
-
-Verified: **374 unit + 156 risk/OMS + 47 strategy + 149 concurrency + 51
-sharding = 777 checks**. One of those unit checks is a hand-built,
-byte-exact Add Order frame decoded without the generator, because
-self-consistency testing is what let the price/size mix-up survive; see
-[The bug that mattered](#the-bug-that-mattered). Order Replace and
-Broken Trade have the same treatment, and the replace tests assert the
-queue position rather than only the decoded fields: a new reference
-number means new time priority, and getting that backwards is invisible
-in a book checksum. The routing that symbol
-sharding depends on is itself differential: a fast open-addressed
-reference index is driven over a 60,000-record multi-symbol capture
-against a `std::map` oracle, with both sets of books compared after
-*every* record. The capture format is tested for round trip *and* for
-failure: the capture is cut at every byte offset across its first
-packets, and a cut that lands inside a packet must be reported rather
-than replaying as a clean shorter stream. That failure mode is the one
-that costs money — a truncated capture looks like a short one — so it
-is asserted, not assumed. Alongside that, a differential test comparing
-the fast book against an independent naive model over **400,000
-operations with full state comparison after every one**, across five
-seeds. The OMS is additionally driven through **60,000 randomised
-operations** with invariant checks against an independent tally. The
-threaded pipeline is checked against the single-threaded one: same
-feed, same order, and the final book is fingerprinted with the same
-FNV-1a checksum the replay tool uses, so a dropped or reordered
-message fails a test rather than showing up as a speedup. Determinism
-is checked too, across six optimisation levels rather than by re-running
-one binary: `scripts/determinism.sh` builds the replay tool at `-O0`,
-`-O1`, `-O2`, `-O3`, `-Os` and `-Oz` and requires an identical book
-checksum from every one.
+- **One hand-built, byte-exact Add Order frame**, assembled from the field
+  table and decoded without going near the generator. Self-consistency
+  testing is what let the price/size mix-up survive; this is the one check
+  that is external to the mistake. Order Replace and Broken Trade have the
+  same treatment, and the replace tests assert **queue position** rather
+  than only decoded fields — a new reference number means new time
+  priority, and getting that backwards is invisible in a book checksum.
+- **450,000 differential operations** of the fast book against an
+  independent naive model, with full state comparison after *every one*.
+  The capture format is tested for round trip **and for failure**: cut at
+  every byte offset across its first packets, because a truncation that
+  replays as a clean shorter stream is the failure that costs money.
+- **60,000-record multi-symbol routing differential**, fast open-addressed
+  reference index against a `std::map` oracle, both sets of books compared
+  after every record. A misrouted mutation looks exactly like a speedup.
+- **60,000 randomised OMS operations** against an independently written
+  invariant tally.
+- **Threaded pipeline equivalence in CI**, not merely measured: the final
+  book is fingerprinted with the same FNV-1a checksum the replay tool uses,
+  so a dropped or reordered message fails a test instead of appearing as a
+  speedup.
+- **Identical book checksum across six optimisation levels**
+  (`scripts/determinism.sh`), and the harness was verified by injecting a
+  level-dependent value and confirming it failed.
 
 None of that would have found a field offset. Only comparing against
 something outside this repository would have.
 
 ## Results
 
-Measured on `<instance spec>`, `<compiler + flags>`, `<kernel>`.
-Reproduce with `./scripts/bench.sh`. Full environment in
+**No latency table is published yet, and the reason is a measurement
+problem rather than a scheduling one.** Run `./scripts/bench.sh` to
+produce them; full environment in
 [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md).
+
+Before filling any cell below, read
+[the floor](docs/BUGS.md#what-the-floor-turned-out-to-be). On the development host
+the portable clock has a **100 ns** granularity, which makes the decode
+stage *unmeasurable* rather than fast: its corrected p50 is exactly one
+tick. The `[MEASURED]` placeholders are left in place deliberately, and
+`scripts/bench.sh` prints that instruction at the end of every run.
+
+The one set of latency figures that was ever committed to this file has
+been removed. It was wrong by a factor of 100 — see
+[Phase 8](docs/BUGS.md#phase-8-every-latency-figure-in-this-repository-was-wrong-by-100x).
+
+Measured on `<instance spec>`, `<compiler + flags>`, `<kernel>`.
 
 ### Latency, by pipeline stage
 
@@ -197,17 +219,23 @@ nothing.
 | Decision         | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
 | Risk check       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
 | End to end       | `[MEASURED]` | `[MEASURED]` | `[MEASURED]` |
-| Encode           | not measured — see below        |            |              |
+| Encode           | not applicable — see below     |            |              |
 
-**Encode is missing on purpose.** The outbound message is ITCH Order
-Entry ('B'), and this repository does not implement it because its field
-table could not be verified against the published specification. That is
-not a scheduling problem — inventing an outbound layout is precisely the
-mistake documented in [The bug that mattered](#the-bug-that-mattered),
-and it survived every test because the generator was guessing the same
-way. A second guessed table would be a second way to be confidently
-wrong on a wire format. `hft_stage_bench` prints this section at the end
-of every run so the row cannot be quietly forgotten.
+**Encode is not applicable, and the reason is a correction rather than
+an omission.** An earlier revision of this file justified the missing row
+by saying the outbound message was ITCH Order Entry (`'B'`) and that its
+field table could not be verified. **Both halves of that were wrong.**
+Section 1.1 of the TotalView-ITCH specification says the feed "is an
+outbound market data feed only" and "does not support order entry", and
+`'B'` is the 19-byte *inbound* Broken Trade message, which this build
+does decode. There is no ITCH order-entry message to skip and nothing to
+encode: the pipeline terminates at the book and at the strategy's
+decisions. Nasdaq order entry is a separate product with its own
+specification, and modelling one is a different piece of work. Inventing
+an outbound layout to fill a row in this table would be the exact mistake
+documented in [The bug that mattered](#the-bug-that-mattered).
+`hft_stage_bench` prints this note at the end of every run so the row
+cannot be quietly forgotten.
 
 `end to end` is a single pass over the pipeline, **not** the sum of the
 rows above it. A sum would describe four independent measurements; the
@@ -228,60 +256,29 @@ book is a number about your loop, not your engine. Reported together,
 the ratio between them is the cost of the linked-list ladder and is the
 single most load-bearing measurement in this repository.
 
-**A benchmark of a book that does not reprice measures nothing, and for
-a while that was what the deep shape was.** Over 2,000,000 records at
-1,000 levels a side the mid moved 24 times — 0.001% of observations —
-so the decision stage was timing quoting arithmetic against a frozen mid.
-That is the arithmetic and not the behaviour, and the number was
-misleading in the direction that flatters.
+**A benchmark of a book that does not reprice measures nothing.** For a
+while that was exactly what the deep shape was: over 2,000,000 records at
+1,000 levels a side the mid moved 24 times, so the decision stage was
+timing quoting arithmetic against a frozen mid. The deep shape now moves
+the mid **17,367 times in 2,000,000 records, 0.87% of observations** — and
+the tool prints that rate on every run, because a benchmark that cannot
+distinguish a repricing book from a static one is measuring the wrong
+thing quietly.
 
-The cause was not the book, it was two numbers that had nothing to do
-with each other. The walk had a fixed drift of four ticks while the
-ladder was a thousand ticks wide, so resting orders spread over a band
-two hundred times wider than the price ever travelled and the best bid
-became the maximum over that band — a stable extreme-value statistic
-rather than a price anyone was quoting. Measured at 1,000 levels over
-150,000 records: reversion 64 gave 5 mid moves, 500 gave 50, 1000 gave
-220. Drift is now scaled to the ladder and the anchor with it.
-
-The deep shape now moves the mid **17,367 times in 2,000,000 records,
-0.87% of observations**, up from 24, with the book uncrossed throughout
-and no truncation. The tool prints the measured rate on every run and
-distinguishes a repricing book from a static one rather than bucketing
-both under a threshold.
-
-Four fixes were tried along the way and three of them made it worse,
-which is the more useful half of the result:
-
-- **Concentrating liquidity toward the touch**, on the theory that real
-  books are front-loaded. Worse everywhere: 3 to 27 mid moves against
-  uniform's 54 to 61. A thick touch is a sticky touch.
-- **Removing the furthest-from-mid removal policy**, on the theory it
-  was pinning the touch. It was not the cause, and its documented
-  justification — crossing prevention — is false: with adds clamped
-  against the resting book, a thousand-level book across several
-  hundred thousand records was never crossed once either way.
-- **Distance-biased tournament selection** as a model of stale-quote
-  cancellation. Also worse: 4 to 14 moves. The measured fact is that a
-  recent-biased draw does *not* remove stale orders, which is why the
-  all-or-nothing policy was outperforming it.
-- **Capping at one order per level** instead of three. This one worked.
-  Three orders of slack at the touch is three orders too many; the touch
-  never empties.
-
-The shallow shape went from 23 mid moves to 130,270 over the same
-rewrite, so the shallow-versus-deep ratio — the most load-bearing
-measurement in this repository — is now a comparison of depth rather
-than of two different price processes.
+**Four fixes were tried, and three of them made it worse**, which is the
+more useful half of the result. Full account, including the two
+documented justifications that measurement disproved, in
+[`docs/RESULTS.md`](docs/RESULTS.md#throughput-four-fixes-three-of-which-made-it-worse).
 
 ### Correctness
 
-- `[N]` million differential operations against a naive reference model,
-  full state comparison after every operation. Zero mismatches.
-- Deterministic replay: FNV-1a book state checksum over `[N]` messages.
-  Identical across runs and across six optimisation levels, verified by
-  `scripts/determinism.sh`. Across machines is asserted but only
-  demonstrated by running the same command on the benchmark host, so
+- **450,000** differential operations against a naive reference model
+  (200,000 default + 5 seeds × 50,000), full state comparison after
+  every operation. Zero mismatches.
+- Deterministic replay: FNV-1a book state checksum over **50,000**
+  messages. Identical across runs and across six optimisation levels,
+  verified by `scripts/determinism.sh`. Across machines is asserted but
+  only demonstrated by running the same command on the benchmark host, so
   treat that half as a protocol rather than a result until someone has
   run it on both.
 - Threaded pipeline equivalence: the decoder-thread/book-thread split
@@ -317,37 +314,35 @@ batch size, within the measured noise floor.
 The difference between those two tables is the whole argument for symbol
 sharding. Splitting decode from apply leaves the expensive half — the
 ladder walk and the slab edit — running serially on one core, and adds a
-hand-off to pay for. Sharding by symbol gives every thread its own book
-to apply into, so the expensive work is parallel *and* balanced. Every
-sharded row is checked to have produced books byte-identical to the
-single-threaded baseline; a pipeline that misroutes a mutation looks
-exactly like a pipeline that is fast.
+hand-off to pay for. Sharding by symbol gives every thread its own book to
+apply into, so the expensive work is parallel *and* balanced. Ratios
+flatten as workers are added because the dispatcher decodes and routes
+**every** message and is therefore a serial floor — that floor is the
+number to quote for a design like this, not the worker count.
 
-Ratios flatten as workers are added because the dispatcher decodes and
-routes **every** message and is therefore a serial floor. That floor is
-the number to quote for a design like this, not the worker count.
+**This tool once reported the opposite conclusion, and the correction is
+the more useful half.** It measured the split at 0.81x–0.91x and blamed
+load imbalance. That story was a rationalisation: the consumer drained the
+ring, found it empty, *then* checked the producer's stop flag, and the
+producer could push more messages and set that flag in between. The run
+did less work and timed as slower. With the drain fixed, the split is
+break-even.
 
-**An earlier version of this tool reported the opposite conclusion, and
-the correction is the more useful half.** It measured the split at
-0.91x“0.81x and attributed the loss to load imbalance. The
-load-imbalance story was a rationalisation: the consumer drained the
-ring, found it empty, and then checked the producer's stop flag, and the
-producer could push more messages and set that flag in between. The
-consumer exited with messages still queued, so the run did less work and
-timed as slower. With the drain fixed, the split is break-even.
-
-Two lessons worth more than the numbers. A benchmark reporting a
-*slowdown* deserves the same suspicion as one reporting a speedup — and
-the checksum column is what caught this, because books that differ from
-the baseline are reported as INVALID rather than as a result. And a
-plausible mechanism is not a verified one.
+Every sharded row is checked to have produced books byte-identical to the
+single-threaded baseline. That check is not a formality — a pipeline that
+misroutes a mutation looks exactly like a pipeline that is fast, and it is
+what caught the dropped-message bug. Two lessons survive all of it: **a
+benchmark reporting a slowdown deserves the same suspicion as one
+reporting a speedup**, and **a plausible mechanism is not a verified
+one**. Full account in
+[`docs/RESULTS.md`](docs/RESULTS.md#concurrency-the-conclusion-that-reversed).
 
 ## Quick start
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-./build/hft_test           # codec, values, sequence tracking
+./build/hft_test           # codec, values, sequence tracking, timer units
 ./build/hft_risk_oms       # pre-trade risk and the OMS
 ./build/hft_strategy       # quoting model, adverse selection, book invariant
 ./build/hft_concurrent     # SPSC ring, single- and two-threaded
@@ -355,12 +350,18 @@ cmake --build build --parallel
 ./build/hft_differential   # fast book vs naive model, full state compare
 ./build/hft_replay         # deterministic replay, prints the book checksum
 ./build/hft_market_maker   # market maker over a replay, prints toxicity
+./build/hft_tsc_bench      # clock characterisation: the resolution floor
+./build/hft_ladder_bench   # price ladder: the O(depth) walk, quantified
 ./build/hft_bench          # add-only ingest: latency and throughput table
 ./build/hft_stage_bench    # per-stage latency, shallow vs deep book
 ./build/hft_ring_bench     # ring vs mutex baseline, throughput and round trip
 ./build/hft_pipeline_bench # 1 thread vs 2, batch-size sweep, checksum-matched
 ctest --test-dir build     # everything
 ```
+
+**Start with `hft_tsc_bench`.** It reports what latency figures this host
+is capable of resolving, and reading a stage table without knowing the
+floor is how an unresolved measurement gets published as a fast stage.
 
 Determinism across optimisation levels is a separate check because it
 rebuilds the replay tool six times:
@@ -389,7 +390,7 @@ skips past a failed correctness run should not be able to.
       |
       v
   [ ITCH decoder ]  zero-copy, big-endian, 48-bit timestamps
-      |             A / E / C / X / D; others skipped by length
+      |             A / E / C / X / D / U / B / P / Q; others skipped
       v
   [ SOUP sequence ] gap and duplicate detection, 64-bit
       |
@@ -426,423 +427,160 @@ skips past a failed correctness run should not be able to.
       |
       +---> [ FNV-1a state checksum ]  compared against the
                                        single-threaded book
+
+  --- the measurement path, which is a component in its own right ---
+
+  hft_tsc_bench
+      |
+      +---> [ TsClock ]  calibrated rdtsc, fences, invariant check
+      +---> [ Resolution sweep ]  what this host can resolve at all
+      +---> [ Drift ]  the threshold below which a ratio is noise
+                |
+                v
+        every latency figure above is read against this floor
 ```
 
 ## Design decisions
 
-**Fixed-point integers, never floating point.** Prices are `int64_t` at
-1/10000, matching ITCH's native precision. Floating point in a price
-ladder is a rounding bug waiting for a specific fill size.
+Each of these is a deliberate choice with a reason, not a default. The
+reasoning is in [`docs/DESIGN.md`](docs/DESIGN.md); the summary is here
+because the *choice* is the interesting part and the prose is not.
 
-**Slab arena, no allocation on the hot path.** Orders are integer
-handles into a preallocated arena, never pointers. Allocation is
-batched and amortised outside the message loop. This is the same
-size-class and freelist reasoning that drives
-[allox](https://github.com/Nciibi/allox), my thread-cached allocator.
+**Data representation**
 
-**ITCH `X` and `D` are different operations.** `X` is a partial cancel:
-subtract cancelled shares from the original add. `D` removes the order
-entirely. Conflating them is the most common ITCH book bug, and the
-naive reference model exists partly to catch it.
+- **Fixed-point `int64_t` prices, never floating point.** ITCH's native
+  precision is 1/10000. Float in a price ladder is a rounding bug waiting
+  for a specific fill size.
+- **Slab arena, integer handles, no hot-path allocation.** Orders are
+  indices into a preallocated arena, never pointers.
+- **The price ladder is a sorted linked list, and that is a known cost.**
+  Inserting a price not adjacent to the best walks from the head, so
+  book-update cost is O(depth). `hft_ladder_bench` measures it rather than
+  asserting it, and the result is more useful than expected: the walk is
+  **linear in both depth and distance**, confirmed. A full-depth walk at
+  3,200 levels costs **178x** a touch insert; at the tens of levels a liquid
+  US equity actually shows, it is a rounding error. So the ladder is *not*
+  the next thing to fix for a liquid name — it binds only on a very deep
+  book, or when quoting far from the touch. The direct-indexed replacement
+  is deliberately not implemented, because a change to the book's hot path
+  is only worth making if its effect can be measured. See
+  [`docs/RESULTS.md`](docs/RESULTS.md).
 
-**Sequence gaps are detected, never absorbed.** A SOUP sequence gap
-means book state is corrupt. Continuing silently produces confident
-wrong numbers, which is worse than stopping.
+**Protocol correctness**
 
-**Unknown message types skip by length.** A live feed will always
-contain types this build does not implement. Crashing is not an option.
+- **`X` and `D` are different operations.** `X` subtracts cancelled shares
+  from the original add; `D` removes the order. Conflating them is the most
+  common ITCH book bug, and the naive reference model exists partly to
+  catch it.
+- **Wire layouts are asserted against the specification, not against each
+  other.** A `static_assert` comparing two constants proves internal
+  consistency, which is not the same as being right — and that distinction
+  is the entire reason the Add Order bug survived 512 green checks.
+- **Skip rather than guess.** An unverified offset on a live feed yields a
+  decoder that confidently misreads it; a skipped message is recoverable
+  and wrong bytes are not.
+- **Sequence gaps are detected, never absorbed.** A gap means the book is
+  missing orders the venue believes are resting, so continuing produces a
+  book that looks healthy and is wrong.
+- **Unknown message types skip by length.** A live feed will always contain
+  types this build does not implement. Crashing is not an option.
 
-**Wire layouts are asserted against the specification, not against each
-other.** Every offset in `protocol.hpp` has a `static_assert` against its
-literal value from the published field table. The relationship asserts
-(`size == last offset + width`) only prove the table is internally
-consistent, which is not the same as being right — and that distinction
-is the entire reason the Add Order bug survived 512 green checks.
-Internally-consistent-but-wrong is a real and underappreciated failure
-mode: it defeats differential testing, because both sides of the
-comparison share the error.
+**Measurement** — the section that changed most after the 100x bug
 
-**Skip rather than guess was the right rule, and it was applied to a
-message that could have been verified.** Order Replace sat on the
-skip-by-length path for most of this project's life because its field
-table could not be confirmed. It could be — and going to the
-specification found the generator writing it four bytes too long, with
-the same phantom order-entry fields that broke Add Order. An unverified
-offset on a live feed produces a decoder that confidently misreads it;
-a skipped message is recoverable and wrong bytes are not. The rule was
-sound. The gap was that "cannot verify" had quietly become "assume it is
-not knowable", which is a different claim and a weaker one.
+- **A clock reading is not a duration, and a duration is not a number you
+  may print without saying what it is in.** This repository made that
+  mistake three times in one afternoon, each time as internally consistent
+  arithmetic producing a confident wrong answer. The rule is now
+  mechanical: convert at the point of capture.
+- **The measurement floor is measured, published and asserted.** Not
+  "assumed fast". See [`hft_tsc_bench`](#quick-start).
+- **Ticks are not cycles.** Under turbo a TSC tick is not a retired cycle;
+  cycles need APERF/MPERF or `perf_event_open`. Nanoseconds are reported
+  because the honest nanosecond is available everywhere.
+- **Determinism is checked, not claimed.** Identical book checksum across
+  six optimisation levels, verified by `scripts/determinism.sh`.
 
-**Determinism is a feature.** Same capture, same book, same checksum, at
-any optimisation level on any host. This is checked, not claimed:
-`scripts/determinism.sh` and `scripts/determinism.ps1` build the replay
-tool at `-O0`, `-O1`, `-O2`, `-O3`, `-Os` and `-Oz`, replay the same
-generated capture in each, and fail if a single checksum disagrees. Both
-bench scripts run it as a correctness gate, because a book checksum that
-depended on `-O` would invalidate every latency figure in this file: the
-thing being measured would not be the same program twice.
+**Concurrency**
 
-That test was added after this file had been claiming it for some time.
-The `determinism` CTest runs `hft_replay` twice from a single binary,
-which proves the engine repeats within a build and proves nothing about
-the optimiser. A build with an uninitialised read that happened to zero
-itself at every level tried would have passed it. The harness was
-verified by injecting a level-dependent value and confirming it failed
-before the claim was left standing. Without that property no benchmark
-is reproducible and no bug is reproducible, and a latency number that
-cannot be re-derived is an
-anecdote.
+- **Monotonic ring counters, not masked and reused.** Wrapping indices make
+  `head == tail` mean both empty *and* full. Monotonic counters make each
+  case unambiguous with no reserved slot and no auxiliary flag.
+- **Acquire and release, nothing stronger.** A `seq_cst` fence would order
+  those two atomics against every other atomic in the program, which this
+  queue has no business synchronising.
+- **Four cache lines for the indices, deliberately.** Producer writes
+  `head` and reads `tail`; sharing a line makes every push invalidate the
+  line the consumer is reading.
+- **The topology is discovered, never assumed.** `logical + cores` is
+  correct for one enumeration order and puts both threads on one core on
+  another. The benchmark prints the placement it achieved.
+- **A bidirectional exchange needs two rings.** SPSC has one producer and
+  one consumer; a request/response hand-off is two queues.
+- **Routing an order is the hard part of sharding, not the books.** ITCH
+  carries a stock symbol in Add Order and nowhere else, so a mutation
+  cannot be routed by reading the message — it has to be remembered. The
+  dispatcher owns all routing state, so there is exactly one writer.
+- **No locks, because the routing is arranged rather than synchronised.**
 
-**Sequence gaps are detected, never absorbed.** A gap means the book is
-missing orders the venue believes are resting, so continuing past one
-produces a book that looks healthy and is wrong. The replay tool
-reports the missing count and marks the run as not comparable with a
-clean one. The tracker handles the 32-bit wrap explicitly, because
-`observed == expected + 1` is correct everywhere except the one moment
-it is hardest to reproduce.
+**Strategy and risk**
 
-**The ring's counters are monotonic, not masked and reused.** The obvious
-implementation keeps `head` and `tail` as indices that wrap at capacity,
-which makes `head == tail` mean the ring is both empty *and* full. Here
-the counters only increase: `size` is `head - tail`, `full` is
-`head - tail == capacity`, and each case is unambiguous with no reserved
-slot and no auxiliary flag. The cost is one extra counter.
+- **Time is injected, never read.** A component that called a clock
+  internally could not be tested deterministically, which is the property
+  the rest of this repository depends on.
+- **Every rejection has a specific reason.** No catch-all verdict: an
+  unexplained rejection is unactionable for a trader and undiagnosable for
+  an operator. Limit evaluation order is part of the contract.
+- **The OMS state machine is a table, not scattered `if`s**, exhaustively
+  tested against an independently written matrix. `pending_cancel` is
+  deliberately not terminal, because a fill can arrive while a cancel is
+  outstanding.
+- **The market maker quotes around the mid but is bounded by the touch.**
+  Each side is clamped to be at or outside its own touch and never to cross
+  it. A long inventory bids further away while still offering.
+- **The tick size is a constraint the model does not get to ignore.** A
+  spread narrower than one tick is widened to the minimum placeable, and
+  reported as `tick_constrained`.
+- **The metrics are defined, not approximated.** `realised = effective -
+  2 * markout` holds exactly and both sides are printed every run. A
+  *negative* effective spread is correct: a passive fill buys at the bid,
+  below the mid. It is not a market maker beating the mid.
 
-**Acquire and release, and nothing stronger.** A release store publishing
-a slot and an acquire load observing it is exactly the edge that makes
-the slot's writes visible before the index that publishes it. A
-`seq_cst` fence would order those two atomics against every *other*
-atomic in the program, which this queue has no business doing — it is not
-synchronising anything outside itself. On x86-64 the acquire/release pair
-compiles to plain loads and stores with no fence instruction at all, which
-is the whole reason to use it here rather than the stronger option.
+**The bugs this repository found in itself are catalogued in
+[`docs/BUGS.md`](docs/BUGS.md)**, and that document is the strongest thing
+here — not because the bugs are impressive, but because the catalogue is
+grouped by *how each one was found*, and two of those categories are the
+whole argument for how this project is built:
 
-**Four cache lines for the indices, and the count is deliberate.** The
-producer writes `head` and reads `tail`; the consumer does the reverse. If
-those shared a line, every push would invalidate the line the consumer is
-reading — pure coherence traffic achieving nothing. The two producer-
-private cache indices are padded separately for the same reason: they are
-written on opposite threads, and the refresh happens on the full/empty
-path, which in a saturated pipeline is *every* operation. Four lines of
-indices against a 1024-slot ring is well under 1% overhead against a
-coherence tax of 50-100ns per message.
+- **The worst bug here was a permanent wedge, and every test missed it.**
+  `FlatMap::insert` reused a tombstone only when it also found an *empty*
+  slot in the same probe run. The order book erases from its indexes on
+  every removal, so both tables fill with tombstones as the book churns —
+  and once every slot is occupied-or-tombstone, **every future add returns
+  `capacity_exhausted`, forever**, while the book looks nearly empty. A
+  book that traded a few hundred million shares would stop accepting
+  orders. Every test missed it because every test sizes capacity far above
+  its operation count, so cumulative churn never reached capacity; the new
+  ladder benchmark sizes it tightly and hit it on the first operation.
+- **Compared against the specification, 4 times.** Including the Add Order
+  price/size swap above. A test suite can only prove that two things agree;
+  when the thing under test and the thing it is compared against share an
+  assumption, they agree perfectly and are both wrong. Only reading the
+  published field table finds that.
+- **By reading this repository's own output critically, 5 times.** These
+  produced *plausible numbers* rather than failures: a 60x concurrency
+  speedup that was two threads racing on one queue index, a 20% slowdown
+  that was a drain loop exiting early and doing less work, and a book that
+  never repriced so the decision stage was timing arithmetic against a
+  frozen mid. A defect that produces a good number is more dangerous than
+  one that crashes, because nothing goes red.
 
-**The topology is discovered, never assumed.** Picking "core 0" and
-"core 1" for the two threads is a guess that is wrong on a large fraction
-of machines. On the development host here, siblings are laid out as
-`(0,1), (2,3), (4,5)...`, so a `logical + 6` heuristic — correct for the
-first-half/second-half layout — would put both threads on the same core
-and halve the result while looking entirely plausible. The benchmark asks
-the OS and prints the placement it actually achieved.
-
-**A bidirectional exchange needs two rings, not one.** This one is in the
-bugs section below, but the design consequence belongs here: an SPSC
-queue has exactly one producer and one consumer, so a request/response
-hand-off is two queues, one per direction. The benchmark models the two
-directions as two named channel types rather than passing one object
-twice, specifically so the mistake cannot be made quietly again.
-
-**A MoldUDP64 Message Block is an ITCH frame, so the framing does not
-translate anything.** A block is `[2-byte length][body]` and an ITCH
-frame is `[2-byte length][body]`; `MessageBlocks::next()` returns the
-block *including* its prefix so it can be handed straight to `decode()`
-with no adjustment at either layer. The block length field excludes its
-own two bytes, so a block occupies `length + 2` — a detail worth stating
-because getting it backwards produces a packet that parses one block
-short and then reads the next packet's header as message data.
-
-Verified against the Nasdaq MoldUDP64 specification with a hand-built
-packet in `tests/test_units.cpp`, including two facts this repository had
-previously stated wrongly: the Sequence Number field is **eight** bytes
-and MoldUDP64 has **no checksum**. See "What this is not".
-
-**Routing an order is the hard part of sharding, not the books.** ITCH
-carries a stock symbol in Add Order and in nothing else — Execute, Cancel
-and Delete name only the order reference. So a multi-symbol handler
-cannot decide which book a mutation belongs to by reading the message;
-it has to remember. Three options, and the obvious one is rejected:
-
-- *Search every shard* — O(shards) per mutation, and worse exactly where
-  sharding was supposed to help.
-- *Encode the shard in the reference number* — the venue lets the client
-  choose it, so this is O(1) with no shared state, and many venues'
-  documentation suggests it. Not used here: it puts a correctness
-  requirement into a number that arrives from outside. If the reference
-  does not carry the shard — a venue-assigned reference, a second client
-  on the same feed — routing is silently wrong, and the symptom is a
-  mutation applied to a book that never saw the order. That is not a
-  crash. It is inventory created out of nothing.
-- *Keep the index* — a table from reference to book, written by the Add
-  that created it.
-
-The third is what `include/hft/lob/shards.hpp` does. It needs no
-cooperation from the venue and it degrades to "the order is unknown"
-rather than "the order is on the wrong book". Because ITCH references
-are unique for the trading day, the table is insert-only — no deletions,
-no tombstones, and none of the clustering problems open addressing
-acquires under long runs of removals.
-
-**No locks, because the routing is arranged rather than synchronised.**
-Sharding by symbol alone would put two symbols in one shard, and two
-threads writing one index bucket. Instead the dispatcher owns *all*
-routing state, so the sequence is: the dispatcher decodes, learns the
-symbol on an Add, records the owner, and pushes to that worker's ring.
-A mutation for that symbol cannot arrive before its Add, so the
-dispatcher always knows where to send it — one hash and one probe, no
-search and no shared mutable state. The workers never touch the index at
-all. The trick is not making the index concurrent; it is arranging for
-there to be exactly one thread that writes it.
-
-**Time is injected, never read.** Every risk and OMS entry point that
-needs the current time takes it as a parameter. A component that called
-a clock internally could not be tested deterministically and could not
-be compared against a reference implementation, which is the property
-the rest of this repository depends on. The cost is one parameter.
-
-**Every rejection has a specific reason.** There is no catch-all limit
-verdict, because an unexplained rejection is unactionable for a trader
-and undiagnosable for an operator. Limits are also evaluated in a fixed,
-documented order, and the order is part of the contract: the kill
-switch first, so a tripped switch stops everything regardless of what
-else is true, and the price band before the rate limiter, so a
-fat-fingered order is reported as a fat finger rather than being
-silently rate-limited into a different and less actionable reason.
-
-**The OMS state machine is a table, not scattered `if`s.** It is
-exhaustively tested against an independently written 8×8 matrix, so a
-single wrong edge cannot hide. `pending_cancel` is deliberately not
-terminal: a fill can arrive while a cancel is outstanding, and treating
-that as a completed cancel silently drops the residual order and leaks
-inventory.
-
-**The market maker quotes around the mid but is bounded by the touch.**
-The Avellaneda-Stoikov model wants a spread and a price, and the
-book is not centred on the mid the model is using. Each side is
-therefore clamped to be at or outside its own touch and never to cross
-it, which is what joining a queue means. The model still does the
-deciding: when it wants a *wider* quote than the touch offers, the
-clamp is inactive and the widening happens. A long inventory
-therefore bids further away while continuing to offer, which is
-inventory control expressed purely through placement.
-
-**The tick size is a constraint the model does not get to ignore.**
-When A-S produces a spread narrower than one tick, the quote is
-widened to the minimum placeable spread rather than declared invalid.
-The edge the model expected above the touch is edge the strategy does
-not get, and that is precisely why tick size is a real constraint on
-market making profitability rather than a formatting detail. Quoting
-is reported as `tick_constrained` so the cost is visible.
-
-**The metrics are defined, not approximated.** `realised = effective
-- 2 * markout` holds exactly and the tool prints both sides of it
-every run, because it is the one arithmetic relation a reviewer will
-check. A *negative* effective spread is correct here: a passive fill
-buys at the bid, which is below the mid, so `2*sign*(fill-mid)` is
-negative by construction. The profit is in the round trip; what costs
-money is adverse selection, which is why the reported number is the
-markout and the toxicity rate.
-
-**A negative EFFECTIVE spread is not a market maker beating the mid.**
-
-**The price ladder is a sorted linked list, and that is a known cost.**
-Inserting a price that is not adjacent to the best walks from the head
-of the ladder, so book-update latency is proportional to ladder depth.
-At the ~3,200 levels per side in the development run this is
-comfortably inside the tail, but it is O(levels), not O(1), and it is
-the first thing to replace with a price-ladder array or a tree once a
-real depth target is known. The benchmark reports ladder depth for
-exactly this reason: a latency figure quoted without it cannot be
-interpreted.
-
-## The market maker's feed is the second half of this
-
-With the decoder fixed, the market maker's numbers collapsed: volatility
-exactly zero, quoted half-spread a third of a tick, and therefore a
-strategy that quoted nothing at all.
-
-The cause was not the decoder. It was that the book genuinely did not
-move. The feed used to carry 24 live orders across 4 price levels a side
-with a mean reversion of 1/64 per record, and under those settings the
-touch is never left empty, so the best bid and ask are set early and
-frozen. The mid moved on **0.7% of observations**. More than half the
-per-tick returns were exactly zero, so the median-absolute-deviation
-volatility estimate was zero, so the Avellaneda-Stoikov risk term was
-zero, so the spread collapsed below the one tick that can be placed.
-
-This was already documented as a known failure mode — "a price that does
-not move is not a market, and a strategy cannot be studied on one" — and
-it had been fixed once before by bounding the live-order count. The
-decoder bug then re-created it, because a book whose "prices" were random
-share counts *did* appear to move. The old measurement was measuring the
-misdecoded field.
-
-The fix is the same lever applied again: 6 live orders over 4 levels a
-side, and reversion of 4 instead of 64, which lets the walk travel. The
-mid now moves on 4.3% of observations, sigma lands near 43 raw units per
-tick, and the quoted half-spread is about 2.8 ticks — set by the risk
-term rather than pinned down by the tick grid, which is the regime where
-the model is actually doing something.
-
-Two things are now permanent rather than incidental:
-
-- **`hft_market_maker` prints how often the mid moved, before any other
-  number.** A mid that barely moves makes volatility, spread, markout and
-  PnL meaningless rather than merely wrong, and a reader should not have
-  to know that to distrust them.
-- **The tool warns below 2%**, so this cannot recur silently.
-
-**Bugs the tests found, kept here deliberately.** These are the
-reasons the tests exist and the reasons to distrust code that has never
-been differentially tested:
-
-- A partial fill was implemented as unlink-then-relink, which moved the
-  order to the tail of its price level. A partial fill must not change
-  queue priority. Caught by the first partial fill in the run.
-- Full fills and full cancels zeroed the order size *before*
-  detaching, so the level aggregate subtracted zero and was left
-  permanently inflated. Caught 37 operations in.
-- The level index entry was erased unconditionally on removal, so
-  removing one of two orders at the same price made a still-populated
-  level unreachable. Found by review before it ever ran.
-- The ITCH Order Cancel and Order Delete body sizes were hand-written
-  as 20 and 16 and were wrong by 3 bytes each; the `static_assert`s did
-  not catch it because they compared constants to each other rather
-  than to the field offsets. The sizes are now derived from the offsets.
-- The feed generator indexed one past the end of its live-order vector
-  whenever exactly one order was resting. Heap corruption, surfacing
-  only as tens of thousands of undecodable records in the replay tool.
-- The feed generator built cancel, execute and delete frames and then
-  discarded them without emitting, while still consuming a sequence
-  number for each. The SOUP sequence check reported 79,707 missing
-  messages, which is exactly what it exists to report.
-
-The last two are worth dwelling on. Both were in the *test
-infrastructure*, both were found only because a check that should have
-been automatic actually ran, and both would have been invisible to
-anyone reading the book code alone.
-
-Phase 3 added four more, and the pattern is worth naming because it is
-the same lesson three times over:
-
-- The `TokenBucket` treated its burst multiplier as an absolute token
-  count, so a 100/second limit admitted exactly **one** order and then
-  refused ninety-nine. The rate limiter worked; it simply did not work
-  at the rate anyone asked for.
-- The refill clamped the interval to the time to add *one* token rather
-  than to fill the *bucket*, silently truncating any interval longer
-  than a fraction of a second.
-- The refill then divided by 1000 in the wrong direction, granting
-  1/1000th of the tokens owed: 0.005 tokens per half second instead of
-  five.
-- The OMS state counters were decremented on slot reuse even for a
-  never-used slot, and the `pending_new` count was never incremented,
-  so a reconcile view reported **-105 orders in live states** after a
-  randomised run.
-
-A rate limiter that quietly admits one order per second, and a
-reconciliation counter that goes negative, are both the kind of defect
-that reaches production. Neither is the kind that code review catches.
-
-Phase 4 added six more, and two of them are worth reading twice:
-
-- The feed generator chose the side and the price offset
-  **independently**, so bids and asks were drawn from the same wide
-  band and overlapped. The best ask sat **$15 below the best bid**. A
-  crossed book cannot occur in a real market, and every measurement
-  taken from one — mid, volatility, markout, PnL — is meaningless
-  rather than merely wrong. It was invisible until the resting quote
-  was printed next to the touch.
-- The fix for that had its own bug: a single `have` flag was guarding
-  **both** sides of the clamp, so the minimum ask was never recorded
-  and the bid clamp never fired. The first fix appeared to work and
-  did nothing.
-- A book that only ever accumulates never clears a price level, so
-  its mid is frozen: **24 moves in 40,000 messages**. A price that does
-  not move is not a market, and a strategy cannot be studied on one.
-- Avellaneda-Stoikov was implemented with a *fractional* sigma. The
-  model is dimensionally incoherent that way, the inventory term
-  collapses to zero, and the spread became a third of a tick — so the
-  strategy quoted nothing at all, silently.
-- The markout was recorded against the mid **after** the move that
-  filled it, which prices every fill as better than the mid and
-  reports a negative effective spread. This is the exact bug the
-  metrics header warns about, committed in the same commit.
-- `realisation_ratio` was reported as a finding while being
-  meaningless: for a market maker it is negative whenever fills are
-  passive, which is always. It was replaced with the markout, which is
-  the number that carries information.
-
-Phases 5 and 6 added eight more. The first two are the most instructive
-defects in this repository, because both produced a plausible *number*
-rather than a failure, and one of them produced a plausible *explanation*
-for a number that was itself wrong:
-
-- **The round-trip benchmark used one ring in both directions.** It
-  pushed a token down an SPSC queue and waited for it to come back up the
-  same one. That quietly makes *both* threads consumers of a
-  single-producer queue. It did not deadlock and it did not crash: it
-  reported a clean, confident, roughly sixty-fold speedup that was
-  measuring two threads racing on the same index. The fix is two queues,
-  one per direction. The lesson generalises — a concurrency bug does not
-  have to manifest as a hang, and the most dangerous ones are the ones
-  that produce a good-looking number.
-- **A drain loop that exited on a flag it had read too early.** The
-  consumer drained the ring, found it empty, and *then* checked the
-  producer's stop flag — and the producer could push more messages and
-  set that flag in between. The consumer left with messages still
-  queued, losing roughly a sixth of the stream. The interesting part is
-  what it did next: the benchmark reported a 20% **slowdown**, and its own
-  output explained that slowdown with a plausible-sounding story about
-  load imbalance and the cost of hand-offs. The story was wrong; the
-  number was an artefact of doing less work. It survived only because it
-  fit, and it was caught only because the benchmark compares books
-  against a baseline and marks a mismatch INVALID instead of reporting
-  it as a result. The same defect had already been found and fixed once,
-  in the concurrency test's drain helper — so it now exists once, in one
-  place, with a comment explaining both failure modes.
-- **A packed routing value returned unpacked.** The sharded dispatcher
-  stored `(worker, local_index)` folded into one 32-bit word and then
-  handed the *packed* word to the worker as the local index. Every
-  mutation arrived with an index in the tens of thousands, failed the
-  bounds check, and was dropped; only the Adds were ever applied. It
-  looked like a successful speedup right up until the checksums
-  disagreed.
-- **`Symbol::c_str()` was not NUL terminated.** The ninth byte held the
-  string *length*, so a `std::unordered_map<std::string, ...>` keyed on
-  it read past the object on every lookup, missed every time, and
-  concluded that all sixty-four symbols in a multi-symbol feed were
-  distinct — so every worker claimed every book. One character, one
-  access violation, and now a regression test that reads the terminator
-  directly.
-- **The consumer drained once and exited**, before the producer had pushed
-  anything, which left the producer blocked forever on a full ring. This
-  is not a rare interleaving; it is the *common* one, because a freshly
-  spawned consumer usually gets scheduled first. The exit condition also
-  needed one more drain pass after the stop flag: the pass that found the
-  ring empty may have run before the final push landed, and skipping the
-  retry silently drops the tail of the stream.
-- **A ring of 1024 slots × 128-message batches is 8MB**, and it was a
-  stack local. The tool died with a stack overflow two thirds of the way
-  through its own output, having already printed four rows of a table
-  that were therefore never seen.
-- **The OMS could `retire()` a negative slot.** Every public entry point
-  takes `int slot`, and `retire` took `std::size_t`, so a bad slot became
-  a huge unsigned index and a write out of bounds. It was unreachable
-  only because `lookup` happened to reject the bad value first — a
-  property of the call order, not of the callee.
-- **`__int128` under `-Wpedantic`.** The overflow-safe notional multiply
-  is the right way to do it and `__int128` is not ISO C++, so the
-  project built with clang and failed with GCC. The relaxation is now
-  scoped to those four lines rather than applied to the translation unit,
-  because widening a pedantic setting project-wide to accommodate one
-  extension is how a second extension gets added unnoticed.
-
-The last four are the ordinary kind: found by a test, a crash, or a
-compiler. The first is the kind worth remembering.
-
-And the one above all of them is not in this list because no test found
-it. It took reading the published field table against the code, which is
-a check this repository had never performed on itself.
+The two headlines — the Add Order misdecode, and **every latency figure in
+this repository having been wrong by 100x** — are both internally consistent
+arithmetic that was wrong at the boundary. `docs/BUGS.md` also records the
+three times a benchmark silently measured the wrong thing (an optimised-away
+workload, a 2-second window labelled 20 ms, and an O(depth) experiment
+whose insertion points were all already occupied), because a benchmark that
+cannot detect its own flaws cannot be trusted to detect anyone else's.
 
 ## Failure modes
 
@@ -884,8 +622,11 @@ built to answer are:
    candidates most under-prepare for, and the one most likely to be
    asked regardless of the round.
 
-Not yet built, and named honestly: symbol sharding and MoldUDP64
-framing.
+Not yet built, and named honestly: a multi-shard sequencer with
+rebalancing and failover, clock synchronisation, kernel-bypass transport,
+and persistence. Symbol sharding and MoldUDP64 framing *are* built — an
+earlier revision of this line said otherwise and contradicted the table
+in [What is implemented](#what-is-implemented).
 
 ## What this is not
 
@@ -906,66 +647,56 @@ production software is worse than one that does not:
   truncation — but the gap detector is only as good as the packets it is
   given.
 - **There is no checksum, and that is correct.** An earlier revision of
-  this file promised "MoldUDP64 packet framing and checksum" as one
-  item. They are two protocols. MoldUDP64 is an unreliable transport
-  wrapper and does not checksum packets; integrity is SOUP's job, in the
-  protocol layered above it. Implementing a CRC in the framing would
-  mean inventing a field the specification does not define — the exact
-  mistake described in [The bug that mattered](#the-bug-that-mattered).
-- **The sequence tracker is 64-bit.** The MoldUDP64 Sequence Number
-  field is eight bytes and `hft/itch/sequence.hpp` matches it, with
-  tests for the 64-bit wrap. The 32-bit width that a plain ITCH stream
-  would imply is a separate concern and is not conflated with it.
-- **No order entry, because TotalView-ITCH has none.** An earlier
-  revision of this file claimed the benchmark's missing encode stage was
-  "ITCH Order Entry ('B')", skipped because its field table could not be
-  verified. Both halves were wrong. Section 1.1 of the specification says
-  TotalView-ITCH "is an outbound market data feed only" and "does not
-  support order entry", and `'B'` is the 19-byte *inbound* Broken Trade
-  message — Match Number at offset 11, identical in Nasdaq's NQ, BX and
-  PSX specifications. There is no ITCH order-entry message to skip, and
-  an implementation that encoded `'B'` as an order would have put an
-  eight-byte match number where a venue expects an order. Nasdaq order
-  entry is a separate product (Basic, OU Clearsight, FIX); modelling one
-  is a different piece of work with its own specification, and inventing
-  an ITCH table to fill a row in the results would repeat the exact
-  mistake documented in
+  this file promised "MoldUDP64 packet framing and checksum" as one item.
+  They are two protocols. MoldUDP64 is an unreliable transport wrapper and
+  does not checksum packets; integrity is SOUP's job, in the protocol
+  layered above it. Implementing a CRC in the framing would mean inventing
+  a field the specification does not define — the exact mistake in
   [The bug that mattered](#the-bug-that-mattered).
-- **Order Replace is decoded but the generator under-models it.** `'U'`
-  is implemented and applied per spec §4.4.5, including the rule that a
-  new reference number means new time priority. The generator, however,
-  does not track the replacement order's new reference in its live set,
-  so a captured replace is the last mutation that order receives. That is
-  a generator limitation, stated here rather than papered over: the decode
-  and apply paths are exercised directly by hand-built frames.
-- **No multi-shard sequencing.** Symbol sharding works and is measured,
-  but there is no sequencer arbitrating across shards, no partition
-  rebalancing when the symbol set changes, and no recovery when a shard
-  falls behind. Those are the hard parts of running this in production
-  and none of them are here. What *is* here is the part that had to be
-  got right before any of them mattered: routing a mutation to the right
-  book when the message does not say which book it belongs to.
-- **No clock synchronisation.** No PTP, no NTP discipline, no
-  cross-machine timestamp alignment. Cross-host latency claims would
-  be meaningless without it.
-- **No persistence or recovery.** A process restart loses all state.
-  A real system needs a write-ahead log and a snapshot cadence.
-- **The market making backtest is an upper bound.** No queue position,
-  no latency, no size at level. Its fill model is also *symmetric*,
-  which means the position is a random walk the inventory term cannot
-  damp, so the strategy reaches its inventory limit and stays there.
-  Real inventory control depends on fills being asymmetric, which
-  requires order-flow toxicity as a model input. The adverse-selection
-  metrics do not depend on this and stand on their own; the inventory
-  numbers demonstrate the mechanism is wired up, not that the strategy
-  controls inventory.
-- **No self-trade prevention, no auction handling, no order book
-  state message processing.**
+- **The sequence tracker is 64-bit**, matching the eight-byte MoldUDP64
+  Sequence Number field, with tests for the 64-bit wrap. The 32-bit width a
+  plain ITCH stream would imply is a separate concern and is not conflated
+  with it.
+- **No order entry, because TotalView-ITCH has none.** An earlier revision
+  claimed the missing encode stage was "ITCH Order Entry (`'B'`)", skipped
+  because its field table could not be verified. Both halves were wrong.
+  Section 1.1 says the feed "is an outbound market data feed only" and
+  "does not support order entry", and `'B'` is the 19-byte *inbound* Broken
+  Trade message — identical in Nasdaq's NQ, BX and PSX specifications. An
+  implementation encoding `'B'` as an order would put an eight-byte match
+  number where a venue expects an order. Nasdaq order entry is a separate
+  product (Basic, OU Clearsight, FIX) with its own specification.
+- **Order Replace is decoded but the generator under-models it.** `'U'` is
+  implemented and applied per spec §4.4.5, including the rule that a new
+  reference number means new time priority. The generator does not track
+  the replacement order's new reference in its live set, so a captured
+  replace is the last mutation that order receives. The decode and apply
+  paths are exercised directly by hand-built frames.
+- **No multi-shard sequencing.** Symbol sharding works and is measured, but
+  there is no sequencer arbitrating across shards, no rebalancing when the
+  symbol set changes, and no recovery when a shard falls behind. Those are
+  the hard parts of production and none are here. What *is* here is the
+  part that had to be right first: routing a mutation to the right book when
+  the message does not say which book it belongs to.
+- **No clock synchronisation** — no PTP, no NTP discipline, no
+  cross-machine timestamp alignment. Cross-host latency claims would be
+  meaningless without it.
+- **No persistence or recovery.** A restart loses all state; a real system
+  needs a write-ahead log and a snapshot cadence.
+- **The market making backtest is an upper bound.** No queue position, no
+  latency, no size at level. Its fill model is *symmetric*, so the position
+  is a random walk the inventory term cannot damp and the strategy reaches
+  its limit and stays there. The adverse-selection metrics do not depend on
+  this and stand on their own; the inventory numbers show the mechanism is
+  wired up, not that the strategy controls inventory.
+- **No self-trade prevention, no auction handling, no order book state
+  message processing.**
 - **Price ladder is a sorted linked list**, so inserting a price not
-  adjacent to the best is O(ladder depth). See the design note above.
-- **Benchmarks are single-socket.** No kernel bypass, no io_uring, no
-  DPDK. Real shops measure the syscall layer separately because it
-  dominates.
+  adjacent to the best is O(ladder depth) — measured at 178x a touch insert
+  at 3,200 levels, and negligible at realistic equity depths.
+- **No kernel bypass.** Benchmarks are single-socket: no `io_uring`, no
+  `DPDK`, no `SO_TIMESTAMPING`. Real shops measure the syscall layer
+  separately because it dominates.
 
 ## Reference
 

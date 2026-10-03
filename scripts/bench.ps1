@@ -147,7 +147,7 @@ if ($LASTEXITCODE -ne 0) { Fail 'differential test' }
 $ctest = Get-Command ctest -ErrorAction SilentlyContinue
 if ($ctest) {
     & ctest --test-dir $BuildDir --output-on-failure `
-        -R 'concurrent|shards|pipeline_threaded_equivalence|ring_transfer_integrity|determinism'
+        -R 'concurrent|shards|pipeline_threaded_equivalence|ring_transfer_integrity|determinism|tsc_calibration'
     if ($LASTEXITCODE -ne 0) { Fail 'concurrency and sharding tests' }
 } else {
     Write-Host 'WARNING: ctest not found; running the binaries directly.' -ForegroundColor Yellow
@@ -186,7 +186,20 @@ if (-not $SkipDeterminism) {
 }
 Write-Host ''
 
-# ---- Benchmarks ------------------------------------------------------
+# ---- Measurement floor, before any latency number ----------------------
+# The clock characterisation goes FIRST among the benchmarks, not last,
+# because it establishes what a latency figure on this host is capable of
+# resolving. Reading a stage table without knowing the floor is how a p50
+# that equals the clock-read p50 gets reported as a fast stage rather than
+# an unmeasured one.
+Write-Host '=== measurement floor: clock characterisation ==='
+Run (Join-Path $BuildDir 'hft_tsc_bench.exe') @() 'hft_tsc_bench'
+
+Write-Host ''
+Write-Host '=== price ladder: the O(depth) walk ==='
+Run (Join-Path $BuildDir 'hft_ladder_bench.exe') @() 'hft_ladder_bench'
+
+Write-Host ''
 Write-Host '=== latency and throughput: add-only ingest ==='
 Run (Join-Path $BuildDir 'hft_bench.exe') @("$Messages") 'hft_bench'
 

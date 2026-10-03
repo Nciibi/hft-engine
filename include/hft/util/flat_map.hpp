@@ -94,16 +94,48 @@ public:
         return find(key) != kNoHandle;
     }
 
-    /// Insert or overwrite. Returns false only when the map is full.
-    /// Overwriting an existing key is not a failure and reuses the
-    /// existing slot, refreshing the tombstone if there was one.
+    /// Insert or overwrite. Returns false only when the map is genuinely
+    /// full of live entries.
+    ///
+    /// Tombstone handling is the whole subtlety here, and the obvious
+    /// implementation of it is wrong in a way that wedges the order book.
+    ///
+    /// The wrong version records the first tombstone in the key's probe
+    /// run and then *waits for an empty slot* before using it, on the
+    /// theory that an empty slot is a better home because it ends the run
+    /// cleanly. That works right up until the moment it matters: a run
+    /// containing tombstones and occupied slots but **no empty slot**. Then
+    /// the probe wraps the entire table, finds nothing, and returns false
+    /// -- while `first_free` is sitting there holding a perfectly good
+    /// free slot.
+    ///
+    /// In the order book that is not a slow degradation, it is a hard
+    /// stop. `order_index_` and `level_index_` are erased on every removal,
+    /// so a table fills with tombstones as the book churns. Once every
+    /// slot is occupied-or-tombstone, the next add of a new order reference
+    /// returns `capacity_exhausted` and **every subsequent add does too,
+    /// forever**, because the tombstones are never reclaimed and the live
+    /// occupancy is a small fraction of capacity. A book that traded a few
+    /// hundred million shares would stop accepting orders while looking
+    /// almost empty.
+    ///
+    /// Nothing in this repository's tests caught it, and the reason is
+    /// worth recording: every one of them sizes capacity far above its
+    /// operation count -- the differential test drives 200,000 operations
+    /// through a book with 1,048,576 order slots -- so cumulative churn
+    /// never once reaches capacity. `hft_ladder_bench` found it by sizing
+    /// capacity tightly to the working set, which is the only way to see it.
+    ///
+    /// So: keep scanning for an empty slot to preserve the probe-chain
+    /// distribution, but treat a remembered tombstone as a valid
+    /// destination in its own right, and use it when the run ends without
+    /// one. `insert` returns false only when there is no empty slot *and*
+    /// no tombstone anywhere in the run, which is the only case where the
+    /// table really cannot hold another entry.
     bool insert(const K& key, const V& value) noexcept {
         if (capacity_ == 0) {
             return false;
         }
-        // Reuse a tombstone in this key's probe run if one exists, so
-        // repeated erase/insert of the same key does not consume the
-        // table.
         std::uint32_t first_free = kNoHandle;
         std::uint32_t i = index_for(key);
         for (std::uint32_t probes = 0; probes < capacity_; ++probes) {
@@ -123,18 +155,34 @@ public:
             }
             // Slot::empty: the key is absent. Claim the first tombstone
             // if one was seen, otherwise this slot.
-            const std::uint32_t target =
-                (first_free != kNoHandle) ? first_free : slot;
-            keys_[target] = key;
-            values_[target] = value;
-            if (slots_[target] == Slot::tombstone) {
-                --tombstones_;
-            }
-            slots_[target] = Slot::occupied;
-            ++size_;
-            return true;
+            return place(key, value, (first_free != kNoHandle) ? first_free : slot);
+        }
+        // The run wrapped without finding an empty slot. A tombstone is
+        // still a usable slot -- see the note above -- so this succeeds
+        // whenever one was seen, and fails only when the table genuinely
+        // has no room left.
+        if (first_free != kNoHandle) {
+            return place(key, value, first_free);
         }
         return false;
+    }
+
+    /// Write a key into a slot known to be empty or a tombstone, keeping
+    /// the tombstone count honest.
+    ///
+    /// Split out because both call sites above must do it identically, and
+    /// a `--tombstones_` that only one of them performs is a leak that
+    /// eventually reintroduces the original symptom through a different
+    /// route.
+    bool place(const K& key, const V& value, std::uint32_t slot) noexcept {
+        keys_[slot] = key;
+        values_[slot] = value;
+        if (slots_[slot] == Slot::tombstone) {
+            --tombstones_;
+        }
+        slots_[slot] = Slot::occupied;
+        ++size_;
+        return true;
     }
 
     /// Remove a key. Returns false if absent.
