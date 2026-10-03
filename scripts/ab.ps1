@@ -215,9 +215,19 @@ if ($CompareBuildDir -ne '') {
     # evidence available here, so it is reported rather than left implicit.
     $wins = @($deltas | Where-Object { $_ -gt 0 }).Count
     $losses = $deltas.Count - $wins
-    $signP = 1.0
-    for ($k = 0; $k -le [math]::Max($wins, $losses); $k++) {
-        $signP += [math]::Comb($deltas.Count, $k) * [math]::Pow(0.5, $deltas.Count)
+    # Two-sided binomial tail probability: P(X >= max(wins,losses)) under a
+    # fair coin. C(n,k) is computed by hand because [math]::Comb does not
+    # exist in .NET Framework 4.x, which is what PowerShell 5.1 runs on --
+    # and a helper script that only works on PowerShell 7 is a helper
+    # script that does not run here.
+    $tail = [math]::Max($wins, $losses)
+    $signP = 0.0
+    for ($k = $tail; $k -le $deltas.Count; $k++) {
+        $c = 1.0
+        for ($j = 1; $j -le $k; $j++) {
+            $c = $c * ($deltas.Count - $k + $j) / $j
+        }
+        $signP += $c * [math]::Pow(0.5, $deltas.Count)
     }
     $signP = [math]::Min(1.0, $signP)
 
