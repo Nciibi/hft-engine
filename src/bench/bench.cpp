@@ -170,6 +170,63 @@ int main(int argc, char** argv) {
     const std::uint8_t* p = feed.data();
     std::size_t remaining = feed.size();
 
+    // ---- Two loops, on purpose, rather than one loop with a branch ---
+    //
+    // The instrumented loop takes three clock reads per message. On the
+    // development host `QueryPerformanceCounter` costs ~50-100ns per
+    // read, so that is 150-300ns of instrumentation on a message whose
+    // real cost is a fraction of that -- and the instrumented throughput
+    // figure was landing within 20% of the instrumentation overhead
+    // itself.
+    //
+    // That makes the instrumented number useless as a measure of engine
+    // throughput: it is substantially a measure of the clock. It is still
+    // the right loop for per-stage latency, where the clock reads are the
+    // subject rather than the overhead.
+    //
+    // So `throughput` mode runs the same work with no per-message clock
+    // read at all -- two reads for the entire run -- and that is the
+    // number optimisation work is judged on. Written as a separate loop
+    // rather than a flag tested inside one, because a branch on a
+    // predictable flag still costs the branch, still keeps the histogram
+    // updates in the loop body, and still lets the compiler treat the
+    // whole thing as one computation it can schedule around.
+    if (throughput_only) {
+        while (remaining > 0) {
+            const hft::itch::DecodeResult r = hft::itch::decode(p, remaining);
+            const std::size_t stride = hft::itch::frame_stride(r);
+            if (stride == 0) {
+                break;
+            }
+            if (r.ok()) {
+                ++decoded;
+                const auto* ao = std::get_if<hft::itch::AddOrder>(&r.message.body);
+                if (ao == nullptr) {
+                    ++unexpected;
+                } else {
+                    hft::lob::BookStatus st{};
+                    book.add(ao->side, ao->price, ao->size, ao->id, st);
+                    if (st == hft::lob::BookStatus::ok) {
+                        ++applied;
+                    } else {
+                        ++rejected;
+                        switch (st) {
+                            case hft::lob::BookStatus::capacity_exhausted: ++rej_capacity; break;
+                            case hft::lob::BookStatus::duplicate_order:   ++rej_duplicate; break;
+                            case hft::lob::BookStatus::zero_size:         ++rej_zero_size; break;
+                            default: break;
+                        }
+                    }
+                }
+            } else if (r.status == hft::itch::DecodeStatus::unknown_type) {
+                ++unknown;
+            } else {
+                ++malformed;
+            }
+            p += stride;
+            remaining -= stride;
+        }
+    } else {
     while (remaining > 0) {
         // Boundaries are captured in nanoseconds, not platform ticks, so
         // every subtraction below is in the unit the histograms are
