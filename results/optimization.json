@@ -8,5 +8,15 @@
                         "messages":  800000,
                         "buildDir":  "build",
                         "note":  "2026-10-03 BASELINE RECORDED"
-                    }
+                    },
+    "o2.1-interleaved-flatmap":  {
+                                     "median":  2459808,
+                                     "noisePct":  3,
+                                     "min":  2389922,
+                                     "max":  2502450,
+                                     "runs":  11,
+                                     "messages":  800000,
+                                     "buildDir":  "build",
+                                     "note":  "2026-10-03 NO MEASURABLE CHANGE"
+                                 }
 }
