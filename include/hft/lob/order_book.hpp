@@ -230,6 +230,16 @@ public:
     Handle add(Side side, Price price, Quantity size, OrderId id,
                BookStatus& status) noexcept;
 
+    /// True when `price` is addressable by the dense ladder.
+    ///
+    /// Exposed so a benchmark can assert that its band actually covers the
+    /// prices it is about to use. Without this, a mis-sized band is
+    /// invisible: every probe falls out of band, takes the sparse fallback,
+    /// and the tool reports the fallback's numbers under a dense heading.
+    [[nodiscard]] bool dense_covers(Price price) const noexcept {
+        return ladder_slot(price) != util::kNoHandle;
+    }
+
     /// Warm the cache lines that `add` is about to touch.
     ///
     /// Purely advisory: it changes no state and is safe to call with keys
