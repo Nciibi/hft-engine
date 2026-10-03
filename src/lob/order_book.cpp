@@ -774,15 +774,47 @@ std::vector<LevelSnapshot> OrderBook::levels(Side side) const {
 
 std::vector<OrderSnapshot> OrderBook::orders(Side side) const {
     std::vector<OrderSnapshot> out;
-    Handle level = (side == Side::bid) ? bid_head_ : ask_head_;
-    while (level != kInvalidHandle) {
+
+    // Collect level handles in PRICE order first, then walk each level's
+    // FIFO queue. The price order is the book's priority order, so it has
+    // to be established before the queues are walked -- collecting orders
+    // level by level and sorting afterwards would be wrong, because
+    // price-time priority is a total order across levels.
+    //
+    // Both sources have to be visited. In dense-only operation the sparse
+    // head is empty and costs one comparison; in sparse-only operation the
+    // bitmaps are empty and cost one branch. Only a mixed book pays for the
+    // merge, which is the case that arises when a price strays outside the
+    // configured band.
+    std::vector<Handle> level_handles;
+
+    Handle cur = (side == Side::bid) ? bid_head_ : ask_head_;
+    for (; cur != kInvalidHandle; cur = levels_[cur].next) {
+        level_handles.push_back(cur);
+    }
+
+    if (ladder_.dense) {
+        for (const std::uint32_t slot : ladder_occupied(side)) {
+            const Handle h = ladder_get(side, slot);
+            if (h != kInvalidHandle) {
+                level_handles.push_back(h);
+            }
+        }
+        const bool ascending = (side == Side::ask);
+        std::sort(level_handles.begin(), level_handles.end(),
+                  [this, ascending](Handle a, Handle b) {
+                      return ascending ? (levels_[a].price < levels_[b].price)
+                                       : (levels_[b].price < levels_[a].price);
+                  });
+    }
+
+    for (const Handle level : level_handles) {
         Handle o = levels_[level].head;
         while (o != kInvalidHandle) {
             out.push_back(OrderSnapshot{orders_[o].id, orders_[o].price, orders_[o].size,
                                         orders_[o].state});
             o = orders_[o].next;
         }
-        level = levels_[level].next;
     }
     return out;
 }
