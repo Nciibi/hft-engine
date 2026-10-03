@@ -115,6 +115,63 @@ struct LevelSnapshot {
 };
 
 /// One order's worth of state, for cross-implementation comparison.
+/// Dense price-ladder geometry.
+///
+/// A dense ladder replaces "find the price, then walk a sorted linked list
+/// to position it" with an array index. It is the structure every serious
+/// low-latency book converges on, for reasons that are worth recording
+/// because they are the opposite of what the linked list was chosen for:
+///
+///   * **O(1) insert and O(1) find, with no hashing.** The index is
+///     `(price - floor) / tick`. There is no probe, no collision, and no
+///     probe-length distribution.
+///   * **Contiguous, so it is cache-friendly in the way the hash map is
+///     not.** A 4096-tick band is 16 KB per side at 4 bytes per entry --
+///     it lives in L2, or mostly in L1. The hash map it replaces was
+///     sized from the *order* count, which at 1.6M records meant 125 MiB
+///     of table holding ~2,000 live levels: 99.9% empty, and every single
+///     lookup still a DRAM miss because the miss is on the address, not
+///     the contents.
+///   * **No pointer chasing to position a level.** This is what removes the
+///     O(depth) walk the linked list imposed, measured at 178x a touch
+///     insert at 3,200 levels.
+///
+/// The cost, and it is a real one, is the **bounded band**. A price outside
+/// `[floor, floor + ticks*tick)` has no slot. That is not silently
+/// truncated: such a price falls back to the hash index, so a sparse
+/// instrument keeps working and a liquid one never touches the fallback.
+/// What the band buys is bounded memory and constant-time access; what it
+/// costs is that the band must be configured to cover the instrument.
+///
+/// ### Why the occupancy bitmap is not optional
+///
+/// The documented failure of the pure-array variant is that removing the
+/// last order at the inside limit becomes O(M): to find the new best you
+/// must scan downward for the next occupied tick. The fix is a per-side
+/// bitmap of occupied ticks, maintained on every level create and destroy,
+/// so best-bid is the highest set bit and best-ask is the lowest -- one
+/// `ctz`/`clz` per query regardless of book depth.
+///
+/// Without it this structure trades an O(depth) insert for an O(depth)
+/// delete-at-the-touch, and a market maker cancels at the touch constantly.
+struct LadderConfig {
+    /// Master switch. Off by default, so every existing construction site
+    /// keeps its current behaviour and the differential test still compares
+    /// like with like.
+    bool dense = false;
+
+    /// Lowest price the band can represent. Anything below is out of band.
+    Price floor_price = Price::from_int(0);
+
+    /// Tick size in raw price units. A book straddling two ticks has no
+    /// slot, because its levels are not addressable.
+    std::int64_t tick = 1;
+
+    /// Ticks per side. 4096 is enough for a liquid equity quoted at one
+    /// cent and keeps each side's index array at 16 KB.
+    std::size_t ticks_per_side = 4096;
+};
+
 struct OrderSnapshot {
     OrderId id = kInvalidOrderId;
     Price price{};
