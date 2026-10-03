@@ -739,11 +739,34 @@ Quantity OrderBook::aggregate_at(Side side) const noexcept {
 
 std::vector<LevelSnapshot> OrderBook::levels(Side side) const {
     std::vector<LevelSnapshot> out;
+
+    // Sparse list: out-of-band levels, in price order already.
     Handle cur = (side == Side::bid) ? bid_head_ : ask_head_;
     while (cur != kInvalidHandle) {
         out.push_back(LevelSnapshot{levels_[cur].price, levels_[cur].aggregate_size,
                                     levels_[cur].order_count});
         cur = levels_[cur].next;
+    }
+
+    // Dense path: walk the occupancy bits, best first. `ladder_occupied`
+    // already returns descending slots for bids and ascending for asks, so
+    // appending in that order puts the dense levels in price order -- but
+    // they have to be *merged* with the sparse ones, which are not
+    // interleaved, so the combined vector is sorted below.
+    if (ladder_.dense) {
+        for (const std::uint32_t slot : ladder_occupied(side)) {
+            const Handle h = ladder_get(side, slot);
+            if (h == kInvalidHandle) {
+                continue;
+            }
+            out.push_back(LevelSnapshot{levels_[h].price, levels_[h].aggregate_size,
+                                        levels_[h].order_count});
+        }
+        const bool ascending = (side == Side::ask);
+        std::sort(out.begin(), out.end(),
+                  [ascending](const LevelSnapshot& a, const LevelSnapshot& b) {
+                      return ascending ? (a.price < b.price) : (b.price < a.price);
+                  });
     }
     return out;
 }
