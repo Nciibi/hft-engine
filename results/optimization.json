@@ -8,5 +8,15 @@
                                      "messages":  800000,
                                      "buildDir":  "build",
                                      "note":  "2026-10-03 BASELINE RECORDED"
-                                 }
+                                 },
+    "o4-march-native":  {
+                            "median":  3293705,
+                            "noisePct":  4.86752760189513,
+                            "min":  3098880,
+                            "max":  3458513,
+                            "runs":  11,
+                            "messages":  800000,
+                            "buildDir":  "build-native",
+                            "note":  "2026-10-03 NO MEASURABLE CHANGE"
+                        }
 }
