@@ -359,7 +359,20 @@ private:
     util::FlatMap<Price, Handle, PriceHash> bid_level_index_;
     util::FlatMap<Price, Handle, PriceHash> ask_level_index_;
 
-    /// Ladder heads. Bids descend from best to worst, asks ascend.
+    /// Dense ladder state. Empty and untouched unless `ladder_.dense`, so
+    /// the default construction costs nothing.
+    ///
+    /// Indexed by ladder slot, not by handle. `ticks_per_side` entries per
+    /// side, holding `handle + 1`, plus one occupancy word per 64 slots.
+    std::vector<std::uint32_t> bid_slots_;
+    std::vector<std::uint32_t> ask_slots_;
+    std::vector<std::uint64_t> bid_bits_;
+    std::vector<std::uint64_t> ask_bits_;
+    LadderConfig ladder_{};
+
+    /// Ladder heads, used only by the sparse path. Bids descend from best
+    /// to worst, asks ascend. The dense path does not maintain these --
+    /// that is the entire point of the occupancy bitmap.
     Handle bid_head_ = kInvalidHandle;
     Handle ask_head_ = kInvalidHandle;
 
