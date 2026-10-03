@@ -171,6 +171,21 @@ public:
     Handle add(Side side, Price price, Quantity size, OrderId id,
                BookStatus& status) noexcept;
 
+    /// Warm the cache lines that `add` is about to touch.
+    ///
+    /// Purely advisory: it changes no state and is safe to call with keys
+    /// that will never be added, or out of order, or not at all. It exists
+    /// because a real market-data handler knows its next message before it
+    /// finishes the current one, and the two hash probes plus the order-pool
+    /// write are all random accesses into structures far larger than any
+    /// level cache.
+    ///
+    /// A hint, not a correctness mechanism. Nothing checks that a prefetched
+    /// key was the key eventually added, because the whole point is that it
+    /// may not be -- an order can be rejected between the prefetch and the
+    /// add, and the prefetched line is simply unused.
+    void prefetch_add(Price price, OrderId id, Side side) noexcept;
+
     /// ITCH 'E': consume `qty` from the order. Removes the order when
     /// its remaining size reaches zero.
     BookStatus execute(OrderId id, Quantity qty) noexcept;
