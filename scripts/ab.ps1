@@ -130,6 +130,95 @@ if (-not (Test-Path -LiteralPath $exe)) {
     exit 1
 }
 
+function Measure-One([string]$exePath, [int]$messages, [string]$mode) {
+    $out = & $exePath $messages $mode 2>&1
+    $line = $out | Select-String -Pattern 'throughput\s+(\d+)' | Select-Object -First 1
+    if ($null -eq $line) {
+        throw "no throughput line from $exePath"
+    }
+    $noise = ($out | Select-String -Pattern 'WARNING|rejected\s+[1-9]')
+    if ($noise) {
+        throw ("run reported a warning: " + ($noise | Select-Object -First 1))
+    }
+    return [double]$line.Matches[0].Groups[1].Value
+}
+
+# ---- Paired mode -------------------------------------------------------
+#
+# Run A and B alternately and compare WITHIN each pair.
+#
+# This exists because the machine is not quiet enough to resolve the
+# effects being looked for with independent runs. Nine unpaired runs of the
+# same binary once spanned 11% raw and 8% trimmed, and a 6% improvement --
+# a plausible size for `-march=native` -- landed inside that noise and was
+# reported as no change.
+#
+# Pairing fixes it structurally rather than by taking more samples. Within
+# one pair both binaries run seconds apart, so anything slow-moving on the
+# host -- a thermal ramp, a background indexer, another user's process --
+# is common to both members and cancels in the ratio. What survives is
+# the difference between the two builds, which is what was being measured
+# in the first place. Eleven pairs then resolve an effect several times
+# smaller than the run-to-run spread, which eleven unpaired runs never can.
+if ($CompareBuildDir -ne '') {
+    $exeB = Join-Path (Join-Path $RepoRoot $CompareBuildDir) 'hft_bench.exe'
+    if (-not (Test-Path -LiteralPath $exeB)) {
+        Write-Host "missing $exeB -- build it first" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+
+    Write-Host "A/B PAIRED: $Label"
+    Write-Host "  A = $BuildDir (portable ISA)   B = $CompareBuildDir"
+    Write-Host "  $Runs pairs x $Messages messages, $Mode mode"
+    Write-Host '---------------------------------------------------------------'
+
+    $deltas = @()
+    $aVals = @()
+    $bVals = @()
+    for ($i = 0; $i -lt $Runs; $i++) {
+        # A then B, every pair, so neither build is systematically first
+        # against a machine whose load is drifting in one direction.
+        $a = Measure-One $exe $Messages $Mode
+        $b = Measure-One $exeB $Messages $Mode
+        $d = 100.0 * ($b - $a) / $a
+        $deltas += $d
+        $aVals += $a
+        $bVals += $b
+        Write-Host ('  pair {0,2}   A {1,10:N0}   B {2,10:N0}   {3:+0.00;-0.00;0.00}%' -f ($i + 1), $a, $b, $d)
+    }
+
+    $ds = Get-Stats $deltas
+    $as = Get-Stats $aVals
+    $bs = Get-Stats $bVals
+    $thresh = [math]::Max($ds.noisePct, 2.0)
+
+    Write-Host ''
+    Write-Host ('  A median  {0,10:N0} msg/s   (raw {1:N2}%, trimmed {2:N2}%)' -f $as.median,
+        (100.0 * ($as.max - $as.min) / $as.min), $as.trimmedPct)
+    Write-Host ('  B median  {0,10:N0} msg/s   (raw {1:N2}%, trimmed {2:N2}%)' -f $bs.median,
+        (100.0 * ($bs.max - $bs.min) / $bs.min), $bs.trimmedPct)
+    Write-Host ('  paired delta (median) {0:+0.00;-0.00;0.00}%   spread {1:N2}%   threshold {2:N2}%' -f
+        $ds.median, $ds.trimmedPct, $thresh)
+
+    if ([math]::Abs($ds.median) -lt $thresh) {
+        $verdict = 'NO MEASURABLE CHANGE'
+    } elseif ($ds.median -gt 0) {
+        $verdict = 'IMPROVEMENT'
+    } else {
+        $verdict = 'REGRESSION'
+    }
+    Write-Host ''
+    Write-Host "  VERDICT: $verdict" -ForegroundColor $(if ($verdict -eq 'REGRESSION') { 'Red' } elseif ($verdict -eq 'IMPROVEMENT') { 'Green' } else { 'Yellow' })
+
+    if ($Save) {
+        Write-Host '  (paired results are not written to the store; the store holds'
+        Write-Host '   unpaired medians, which are not comparable to a paired delta)'
+    }
+    Pop-Location
+    exit 0
+}
+
 Write-Host "A/B: $Label   ($Runs runs x $Messages messages, $Mode mode, $BuildDir)"
 Write-Host '---------------------------------------------------------------'
 
