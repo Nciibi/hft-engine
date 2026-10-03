@@ -48,7 +48,95 @@ though one earlier run at 3.2M messages had briefly shown p = 0.046 and a
 of the same comparison disagreeing in sign is what a 5% effect inside a 6%
 noise band looks like.
 
-## Where the time actually goes
+## The dense price ladder: a tail fix, not an average fix
+
+Research first, because this had already been reinvented badly. The
+structure every low-latency book converges on is a **direct-indexed price
+grid with a per-side occupancy bitmap** — not a hash map keyed by price and
+not a sorted linked list:
+
+> "Bid/ask **dense price ladders** → price-level aggregate quantity and
+> order count → intrusive FIFO queue of live order nodes. OrderId hash
+> table → live order node → price-level queue links. **The price grid
+> determines a direct ladder index.** The book validates that its number of
+> ticks is within a named dense-ladder bound. Each side maintains an
+> **occupancy bitmap so the best ask and best bid can be located without
+> scanning order nodes.**" — Kalshi, ADR-003
+
+And the documented pitfall, which is why the bitmap is not optional: the
+pure-array variant "will give O(1) always for add operations, but at the
+cost of making deletion/execution of the last order at the inside limit
+O(M)" unless the best level is tracked incrementally.
+
+Implemented as `LadderConfig`, opt-in, with the hash map and linked list
+retained as the out-of-band fallback — so a sparse instrument keeps
+working and a liquid one never touches the fallback. The bitmap handles
+the documented pitfall: best-bid is the highest set bit, best-ask the
+lowest.
+
+### It removes the worst case completely
+
+`hft_ladder_bench` forces a walk of N levels by inserting at rank N:
+
+| depth | walk = depth | sparse | dense |
+|---|---|---|---|
+| 1,000 | full ladder | 39.69x | **1.01x** |
+| 3,200 | full ladder | 177.63x | **0.93x** |
+
+Flat across every distance at every depth: the O(depth) walk is gone. In
+absolute terms the deepest row went from 28,324 ticks/op to 155 — **183x**.
+
+### And it costs 2.5% on the average
+
+End-to-end on a realistic bounded book (`hft_stage_bench` deep, 1.6M
+records, medians of 7): sparse **2,983,961** msg/s, dense **2,908,714**
+msg/s, **−2.5%**.
+
+Both numbers are true and the difference between them is the whole point.
+A real price process inserts near the touch most of the time, so the
+*sparse* book's average walk is short — and eliminating a short walk saves
+little. The dense ladder's value is that the 177x case cannot happen at
+all. **This is a tail optimisation, and whether you want it depends on
+whether your latency budget cares about p999.** In a market maker it does.
+
+The 2.5% is not free either: `ladder_slot` divides by the tick, an integer
+division by a runtime value at roughly 30 cycles, which the sparse book
+never paid. Threading the slot through the add path cut that from three
+divisions to one. Replacing it with a precomputed reciprocal is the
+obvious next step and was not attempted here, because an off-by-one in a
+price-to-slot mapping is a silent wrong-price bug and this path has already
+produced enough of those.
+
+### Two bugs this change introduced, both caught by the differential
+
+The dense ladder is the first thing in this repository implemented
+knowingly rather than derived, and it immediately produced two defects that
+450,000 differential operations caught and review did not:
+
+- **`bid_bits_` declared `uint32_t` instead of `uint64_t`.** A narrower word
+  silently truncates `1ULL << (slot & 63)`, setting the wrong bit for every
+  slot whose bit index exceeds 31 — half of them. It would have surfaced
+  as `best_bid` returning the wrong price. `-Wconversion` caught it at
+  compile time, which is the only reason it was caught at all.
+- **The best-word hint declared "empty" instead of rescanning.** When the
+  hinted word emptied on a clear, the hint was set to its sentinel — losing
+  every level in every other word. Four of five seeds caught it; the fifth
+  took a seventh operation to trip.
+
+Both are in `docs/BUGS.md` alongside the FlatMap wedge, because the pattern
+is the same one this repository keeps rediscovering: **a cached index that
+is not invalidated correctly is worse than no cache**, and the only thing
+that reliably catches it is an independent implementation to compare
+against.
+
+### Why the ladder was not the whole story anyway
+
+Even with the walk eliminated, end-to-end barely moves, because on a
+realistic feed the walk was never the cost. The average case was already
+dominated by the order-reference hash and the pool accesses. That is
+consistent with everything else measured here: this workload resists
+improvements that make existing accesses cheaper and rewards only ones that
+remove them.
 
 Every attempt below failed to move throughput, which is itself the most
 useful result in this file. `hft_bench decode` answers why.
