@@ -55,7 +55,7 @@ param(
     [int]$Runs = 11,
     [switch]$Save,
     [switch]$List,
-    [string]$Mode = 'throughput',
+    [string]$Mode = 'stage',
     [string]$Store = '',
     # Paired mode. Alternate the two builds run-by-run and compare WITHIN
     # each pair, so machine drift is common-mode and cancels.
@@ -123,7 +123,8 @@ if ($List) {
     exit 0
 }
 
-$exe = Join-Path (Join-Path $RepoRoot $BuildDir) 'hft_bench.exe'
+$tool = if ($Mode -eq 'stage') { 'hft_stage_bench.exe' } else { 'hft_bench.exe' }
+$exe = Join-Path (Join-Path $RepoRoot $BuildDir) $tool
 if (-not (Test-Path -LiteralPath $exe)) {
     Write-Host "missing $exe -- build first" -ForegroundColor Red
     Pop-Location
@@ -193,7 +194,7 @@ function Measure-One([string]$exePath, [int]$messages, [string]$mode) {
 # in the first place. Eleven pairs then resolve an effect several times
 # smaller than the run-to-run spread, which eleven unpaired runs never can.
 if ($CompareBuildDir -ne '') {
-    $exeB = Join-Path (Join-Path $RepoRoot $CompareBuildDir) 'hft_bench.exe'
+    $exeB = Join-Path (Join-Path $RepoRoot $CompareBuildDir) $tool
     if (-not (Test-Path -LiteralPath $exeB)) {
         Write-Host "missing $exeB -- build it first" -ForegroundColor Red
         Pop-Location
