@@ -56,7 +56,10 @@ param(
     [switch]$Save,
     [switch]$List,
     [string]$Mode = 'throughput',
-    [string]$Store = ''
+    [string]$Store = '',
+    # Paired mode. Alternate the two builds run-by-run and compare WITHIN
+    # each pair, so machine drift is common-mode and cancels.
+    [string]$CompareBuildDir = ''
 )
 
 $ErrorActionPreference = 'Stop'
