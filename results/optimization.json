@@ -1,0 +1,12 @@
+{
+    "portable-o3-portable-isa":  {
+                                     "median":  3102566,
+                                     "noisePct":  6.6530091543580374,
+                                     "min":  2954427,
+                                     "max":  3222853,
+                                     "runs":  11,
+                                     "messages":  800000,
+                                     "buildDir":  "build",
+                                     "note":  "2026-10-03 BASELINE RECORDED"
+                                 }
+}
