@@ -213,6 +213,56 @@ int main(int argc, char** argv) {
     // predictable flag still costs the branch, still keeps the histogram
     // updates in the loop body, and still lets the compiler treat the
     // whole thing as one computation it can schedule around.
+    if (decode_only) {
+        // Decode with no book at all, to split the per-message cost
+        // between the wire format and the book.
+        //
+        // Every optimisation attempt in results/OPTIMIZATION.md failed to
+        // move throughput -- cache-line interleaving, a single-probe add,
+        // lookahead prefetch -- and all three of those attack memory
+        // latency directly. That pattern says the cost is probably not
+        // latency. This mode is the measurement that distinguishes "the
+        // book is slow" from "the decoder is slow", and it decides where
+        // any further work should go.
+        while (remaining > 0) {
+            const hft::itch::DecodeResult r = hft::itch::decode(p, remaining);
+            const std::size_t stride = hft::itch::frame_stride(r);
+            if (stride == 0) {
+                break;
+            }
+            if (r.ok()) {
+                ++decoded;
+                const auto* ao = std::get_if<hft::itch::AddOrder>(&r.message.body);
+                // Consume the payload so the decode cannot be elided as
+                // dead code. `g_sink` is volatile and printed below, which
+                // is the entire reason it exists.
+                if (ao != nullptr) {
+                    g_sink += static_cast<std::uint64_t>(ao->price.raw());
+                }
+            } else if (r.status == hft::itch::DecodeStatus::unknown_type) {
+                ++unknown;
+            } else {
+                ++malformed;
+            }
+            p += stride;
+            remaining -= stride;
+        }
+        std::printf("decoded             %s\n", humanize(decoded).c_str());
+        std::printf("applied             0 (decode-only mode)\n");
+        std::printf("decode sink         %llu\n", bench::u64(g_sink));
+        const std::uint64_t decode_only_ns = total_timer.elapsed_ns();
+        std::printf("elapsed             %.6f s\n",
+                    static_cast<double>(decode_only_ns) / 1e9);
+        if (decode_only_ns > 0) {
+            std::printf("throughput          %.0f msg/s\n",
+                        static_cast<double>(decoded) * 1e9 /
+                            static_cast<double>(decode_only_ns));
+        }
+        bench::print_publication_notice();
+        std::fflush(stdout);
+        return 0;
+    }
+
     if (throughput_only) {
         // Lookahead prefetch.
         //
