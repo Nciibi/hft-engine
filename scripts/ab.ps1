@@ -191,25 +191,64 @@ if ($CompareBuildDir -ne '') {
     $ds = Get-Stats $deltas
     $as = Get-Stats $aVals
     $bs = Get-Stats $bVals
-    $thresh = [math]::Max($ds.noisePct, 2.0)
+
+    # Threshold for a PAIRED delta, in absolute percentage points.
+    #
+    # Get-Stats' noisePct is `2 * MAD / median`, which is correct for a
+    # metric whose median is the quantity being compared against a stored
+    # baseline -- and wrong here. For a paired delta the median IS the
+    # effect, so dividing its spread by the effect measures the effect's
+    # own size rather than the noise. A +5% median with two +15%
+    # excursions produced a "threshold" of 133%, which would have retired
+    # the experiment rather than reporting it.
+    #
+    # For paired data the spread of the deltas is the noise, in percentage
+    # points, with no division.
+    $deltaNoise = 2.0 * $ds.mad
+    $thresh = [math]::Max($deltaNoise, 2.0)
+
+    # Sign test. On a machine this noisy, no threshold derived from spread
+    # is trustworthy, but the *direction* of every pair is. Eleven pairs
+    # all favouring one build is 2^-11 under a null of no difference --
+    # about one chance in two thousand -- and that statement does not
+    # depend on the magnitude of any single run. It is the strongest
+    # evidence available here, so it is reported rather than left implicit.
+    $wins = @($deltas | Where-Object { $_ -gt 0 }).Count
+    $losses = $deltas.Count - $wins
+    $signP = 1.0
+    for ($k = 0; $k -le [math]::Max($wins, $losses); $k++) {
+        $signP += [math]::Comb($deltas.Count, $k) * [math]::Pow(0.5, $deltas.Count)
+    }
+    $signP = [math]::Min(1.0, $signP)
 
     Write-Host ''
     Write-Host ('  A median  {0,10:N0} msg/s   (raw {1:N2}%, trimmed {2:N2}%)' -f $as.median,
         (100.0 * ($as.max - $as.min) / $as.min), $as.trimmedPct)
     Write-Host ('  B median  {0,10:N0} msg/s   (raw {1:N2}%, trimmed {2:N2}%)' -f $bs.median,
         (100.0 * ($bs.max - $bs.min) / $bs.min), $bs.trimmedPct)
-    Write-Host ('  paired delta (median) {0:+0.00;-0.00;0.00}%   spread {1:N2}%   threshold {2:N2}%' -f
-        $ds.median, $ds.trimmedPct, $thresh)
+    Write-Host ('  paired delta (median)  {0:+0.00;-0.00;0.00} percentage points' -f $ds.median)
+    Write-Host ('  delta spread           {0:N2} pp (2 x MAD);  threshold {1:N2} pp' -f $deltaNoise, $thresh)
+    Write-Host ('  sign test              {0} of {1} pairs favour B;  p = {2:N5} under a null of no difference' -f
+        $wins, $deltas.Count, $signP)
 
-    if ([math]::Abs($ds.median) -lt $thresh) {
-        $verdict = 'NO MEASURABLE CHANGE'
-    } elseif ($ds.median -gt 0) {
+    # The verdict requires BOTH: an effect larger than the measured spread,
+    # AND direction agreement strong enough that chance is an unlikely
+    # explanation. Either alone is a weaker claim than the data supports.
+    $bySize = [math]::Abs($ds.median) -ge $thresh
+    $bySign = ($wins -eq $deltas.Count -or $losses -eq $deltas.Count) -and $signP -lt 0.05
+
+    if ($bySize -and $bySign -and $ds.median -gt 0) {
         $verdict = 'IMPROVEMENT'
-    } else {
+    } elseif ($bySize -and $bySign) {
         $verdict = 'REGRESSION'
+    } elseif ($bySign) {
+        $verdict = $(if ($ds.median -gt 0) { 'IMPROVEMENT (direction unanimous, magnitude inside noise)' }
+        else { 'REGRESSION (direction unanimous, magnitude inside noise)' })
+    } else {
+        $verdict = 'NO MEASURABLE CHANGE'
     }
     Write-Host ''
-    Write-Host "  VERDICT: $verdict" -ForegroundColor $(if ($verdict -eq 'REGRESSION') { 'Red' } elseif ($verdict -eq 'IMPROVEMENT') { 'Green' } else { 'Yellow' })
+    Write-Host "  VERDICT: $verdict" -ForegroundColor $(if ($verdict -like 'REGRESSION*') { 'Red' } elseif ($verdict -like 'IMPROVEMENT*') { 'Green' } else { 'Yellow' })
 
     if ($Save) {
         Write-Host '  (paired results are not written to the store; the store holds'
