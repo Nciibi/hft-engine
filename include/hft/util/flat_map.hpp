@@ -256,6 +256,29 @@ public:
         return place(key, value, slot);
     }
 
+    /// Start loading the slot `key` would probe, without waiting for it.
+    ///
+    /// A no-op on toolchains without the builtin, because a prefetch that
+    /// has to be conditionally compiled is still better than one that does
+    /// not exist, and this is called once per message from a latency path
+    /// where the alternative is a stall.
+    ///
+    /// Only the FIRST slot of the probe run is prefetched, not the whole
+    /// run. That is deliberate: prefetching a probe you have not measured
+    /// is speculative, and for the load factors this map runs at the first
+    /// slot holds the key with high probability. If a run turns out to be
+    /// long the subsequent slots are still real misses -- which is the
+    /// cost of being nearly-right rather than the cost of doubling the
+    /// memory traffic on every message.
+    void prefetch(const K& key) const noexcept {
+        if (capacity_ == 0) {
+            return;
+        }
+#if defined(__GNUC__) || defined(__clang__)
+        __builtin_prefetch(&keys_[index_for(key)]);
+#endif
+    }
+
     /// Remove a key. Returns false if absent.
     bool erase(const K& key) noexcept {
         const std::uint32_t slot = find(key);
