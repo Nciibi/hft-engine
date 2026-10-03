@@ -286,6 +286,34 @@ private:
     [[nodiscard]] Handle acquire_level(Side side, Price price) noexcept;
     void release_level(Handle h) noexcept;
 
+    // ---- Dense ladder -------------------------------------------------
+    //
+    // One index space per side, shared range, separate occupancy. An entry
+    // stores `handle + 1` so that zero means "no level here" and a real
+    // handle of 0 is representable. The bitmaps exist so best-bid and
+    // best-ask are a bit scan rather than a scan of slots -- see the note
+    // on `LadderConfig` for why that is not optional.
+    static constexpr std::size_t kSlotEmpty = 0;
+
+    [[nodiscard]] bool ladder_enabled() const noexcept { return ladder_.dense; }
+
+    /// Ladder slot for `price`, or `kNoHandle` if it is out of band or
+    /// does not sit on a tick boundary.
+    [[nodiscard]] std::uint32_t ladder_slot(Price price) const noexcept;
+
+    void ladder_set(Side side, std::uint32_t slot, Handle h) noexcept;
+    void ladder_clear(Side side, std::uint32_t slot) noexcept;
+
+    /// Handle at `slot`, or `kInvalidHandle`.
+    [[nodiscard]] Handle ladder_get(Side side, std::uint32_t slot) const noexcept;
+
+    /// Best occupied slot on `side`, or `kNoHandle` when the side is empty.
+    [[nodiscard]] std::uint32_t ladder_best_slot(Side side) const noexcept;
+
+    /// Every occupied slot on `side`, best first. Test and reporting use
+    /// only; it is a bit walk, not a hot path.
+    [[nodiscard]] std::vector<std::uint32_t> ladder_occupied(Side side) const;
+
     /// Insert level `h` into its side's ladder, keeping price order.
     void link_level(Handle h) noexcept;
     void unlink_level(Handle h) noexcept;
