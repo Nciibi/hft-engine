@@ -272,10 +272,24 @@ Handle OrderBook::find_order(OrderId id) const noexcept {
 
 Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
                       BookStatus& status) noexcept {
-    if (id == kInvalidOrderId || order_index_.contains(id)) {
+    // One walk answers both "is this reference already live?" and "where
+    // would it go?". It used to be two: a `contains` here and an `insert`
+    // below, both probing a table far larger than any cache on this
+    // machine, separated by the level lookup and the pool acquisition --
+    // long enough that the second probe missed again rather than hitting
+    // L1. Collapsing them is the "remove a dependent memory access" case;
+    // making the probe itself cheaper was measured and did nothing. See
+    // results/OPTIMIZATION.md.
+    bool already_present = false;
+    std::uint32_t reserved_slot = order_index_.find_or_reserve(id, already_present);
+    if (id == kInvalidOrderId || already_present) {
         // ITCH order references are day-unique. A repeat is a replay
         // or sequence fault, never a second live order.
         status = BookStatus::duplicate_order;
+        return kInvalidHandle;
+    }
+    if (reserved_slot == util::kNoHandle) {
+        status = BookStatus::capacity_exhausted;
         return kInvalidHandle;
     }
     if (size.is_zero()) {
