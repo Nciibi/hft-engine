@@ -152,8 +152,8 @@ Three things are now true that were not:
 | Invariant-TSC determination across physical cores | done |
 | Timer unit regression test (caught a 100x error) | done |
 | `FlatMap` tombstone reclamation (fixed a permanent wedge) | done |
+| **Dense price ladder + occupancy bitmap** (removed the O(depth) walk) | done |
 | Price-ladder O(depth) walk, quantified | done |
-| Direct-indexed price ladder | not started — see below |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
