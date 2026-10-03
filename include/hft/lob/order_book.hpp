@@ -137,7 +137,26 @@ public:
     OrderBook()
         : OrderBook(kDefaultOrderCapacity, kDefaultLevelCapacity) {}
 
-    OrderBook(std::size_t order_capacity, std::size_t level_capacity);
+    /// `level_index_capacity` bounds the price->level hash tables
+    /// independently of the order and level pools, and defaults to
+    /// `level_capacity` so existing callers are unaffected.
+    ///
+    /// It exists because sizing the index to the order count is a trap,
+    /// and an expensive one. A book that accepts 800,000 orders was being
+    /// given two 26 MiB price indexes -- 52 MiB in total -- to hold the
+    /// few dozen price levels such a book actually has. The tables were
+    /// 99.997% empty and every single `find_level` was a DRAM miss into
+    /// 26 MiB of nothing, because `index_for` masks the hash to the table
+    /// capacity and the capacity is enormous.
+    ///
+    /// The pools still have to be sized for the worst case, since any
+    /// order can arrive at any price and the level count is bounded only
+    /// by the order count. The *index* does not: an over-small index is a
+    /// clean `capacity_exhausted` rather than a silent problem, and a book
+    /// with more live levels than the index was sized for should be told so
+    /// rather than quietly given a quarter-gigabyte of sparse table.
+    OrderBook(std::size_t order_capacity, std::size_t level_capacity,
+              std::size_t level_index_capacity = 0);
 
     // ---- Mutations ----------------------------------------------------
 
