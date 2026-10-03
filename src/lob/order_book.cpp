@@ -198,18 +198,41 @@ void OrderBook::ladder_clear(Side side, std::uint32_t slot) noexcept {
     // empty. Anything else leaves it pointing at a word that still holds an
     // occupied slot, which is the whole invariant.
     //
-    // An explicit sentinel rather than an initial 0: word zero is a legal
-    // index, so "nothing occupied yet" cannot also be encoded as 0 without
-    // the two meanings colliding. That collision produced a hint of
-    // UINT32_MAX after the first level at the bottom of the band was
-    // removed, and an out-of-bounds bitmap read on the next best_ask.
+    // "Move" means rescan, NOT "declare empty". Setting the hint to the
+    // sentinel here loses every level in every other word, which surfaced
+    // as best_bid returning nothing while the book was clearly not empty.
+    // The scan is bounded by how far the occupied words are from the one
+    // just vacated -- for a book with contiguous prices that is the very
+    // next word -- so it costs a couple of instructions in the common case
+    // and a full walk only when the side genuinely empties.
     if (side == Side::bid) {
         if (word == bid_hint_ && bits[word] == 0) {
-            bid_hint_ = kNoWordHint;
+            std::uint32_t w = word;
+            while (true) {
+                if (bits[w] != 0) {
+                    bid_hint_ = w;
+                    break;
+                }
+                if (w == 0) {
+                    bid_hint_ = kNoWordHint;
+                    break;
+                }
+                --w;
+            }
         }
     } else {
         if (word == ask_hint_ && bits[word] == 0) {
-            ask_hint_ = kNoWordHint;
+            std::size_t w = word;
+            while (w < bits.size()) {
+                if (bits[w] != 0) {
+                    ask_hint_ = static_cast<std::uint32_t>(w);
+                    break;
+                }
+                ++w;
+            }
+            if (w >= bits.size()) {
+                ask_hint_ = kNoWordHint;
+            }
         }
     }
 }
