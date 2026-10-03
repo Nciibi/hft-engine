@@ -102,7 +102,7 @@ struct StageResult {
 };
 
 /// One full pass over the feed, timing each stage separately.
-[[nodiscard]] StageResult run(const std::vector<std::uint8_t>& data, std::size_t pool) {
+[[nodiscard]] StageResult run(const std::vector<std::uint8_t>& data, std::size_t pool, bool dense) {
     StageResult r;
 
     // Dense price ladder, selected by argv[2]. The sparse book links
@@ -112,7 +112,6 @@ struct StageResult {
     // behaviour, different mechanism -- which is what makes this an A/B
     // rather than a rewrite.
     hft::lob::LadderConfig ladder;
-    const bool dense = (argc > 2 && std::string(argv[2]) == "dense");
     ladder.dense = dense;
     // The generator walks around $100 with drift; a band from $10 to $400
     // covers every shape this tool produces with enormous margin.
@@ -381,9 +380,9 @@ int main(int argc, char** argv) {
 
         // One throwaway run first, so the measured one is not paying for
         // page faults in the feed or in the pools.
-        (void)run(feed, pool);
+        (void)run(feed, pool, dense);
 
-        const StageResult r = run(feed, pool);
+        const StageResult r = run(feed, pool, dense);
         report(shape, r, records);
     }
 
