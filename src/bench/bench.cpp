@@ -68,6 +68,8 @@ int main(int argc, char** argv) {
     // at the measured pass below for why this is the default for anything
     // judging engine speed.
     bool throughput_only = false;
+    // Decode-only mode: no book at all. See the decode-only loop below.
+    bool decode_only = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
