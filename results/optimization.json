@@ -1,0 +1,12 @@
+{
+    "soa-3-parallel-arrays":  {
+                                  "median":  3188121,
+                                  "noisePct":  3.1779847753582753,
+                                  "min":  2997756,
+                                  "max":  3261484,
+                                  "runs":  11,
+                                  "messages":  800000,
+                                  "buildDir":  "build",
+                                  "note":  "2026-10-03 BASELINE RECORDED"
+                              }
+}
