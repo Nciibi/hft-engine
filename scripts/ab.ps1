@@ -66,16 +66,24 @@ if ([string]::IsNullOrEmpty($Store)) {
 }
 
 function Get-Stats([double[]]$values) {
-    $s = $values | Sort-Object
-    $n = $s.Count
-    $median = if ($n % 2 -eq 1) { $s[[int]($n / 2)] } else { ($s[$n / 2 - 1] + $s[$n / 2]) / 2 }
-    $devs = $s | ForEach-Object { [math]::Abs($_ - $median) } | Sort-Object
-    $mad = if ($n % 2 -eq 1) { $devs[[int]($n / 2)] } else { ($devs[$n / 2 - 1] + $devs[$n / 2]) / 2 }
+    $s = @($values | Sort-Object)
+    $n = [int]$s.Count
+    if ($n -eq 0) { throw 'no samples' }
+    $half = [int][math]::Floor($n / 2)
+    $median = if ($n % 2 -eq 1) { $s[$half] } else { ($s[$half - 1] + $s[$half]) / 2.0 }
+    $devs = @($s | ForEach-Object { [math]::Abs($_ - $median) } | Sort-Object)
+    $mad = if ($n % 2 -eq 1) { $devs[$half] } else { ($devs[$half - 1] + $devs[$half]) / 2.0 }
     # A floor of 1.5% so a suspiciously quiet machine cannot produce a
     # threshold so tight that rounding decides every verdict.
     $noisePct = if ($median -gt 0) { 100.0 * (2.0 * $mad) / $median } else { 100.0 }
     if ($noisePct -lt 1.5) { $noisePct = 1.5 }
-    return @{ median = $median; mad = $mad; noisePct = $noisePct; min = $s[0]; max = $s[-1] }
+    return [pscustomobject]@{
+        median   = [double]$median
+        mad      = [double]$mad
+        noisePct = [double]$noisePct
+        min      = [double]$s[0]
+        max      = [double]$s[$n - 1]
+    }
 }
 
 if ($List) {
