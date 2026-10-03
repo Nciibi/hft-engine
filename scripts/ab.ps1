@@ -135,43 +135,60 @@ Write-Host ('  range   {0,10:N0} .. {1:N0}  ({2:N2}% raw spread)' -f $st.min, $s
     (100.0 * ($st.max - $st.min) / $st.min))
 Write-Host ('  noise   {0,10:N2}%  (2 x MAD; a delta smaller than this is not a result)' -f $st.noisePct)
 
-$store = @{}
+# ---- history ----------------------------------------------------------
+#
+# Named `$history`, never `$store`: PowerShell variable names are
+# case-insensitive, so a `$store` here would overwrite the `[string]$Store`
+# path parameter and every later use of it would be an array. This is not
+# hypothetical -- it is the second time this script hit that trap.
+#
+# Always a PSCustomObject, never a Hashtable. `ConvertFrom-Json` returns
+# one, but an empty `@{}` does not, and `.PSObject.Properties` over a
+# Hashtable yields its CLR properties (Count, Keys, ...) rather than its
+# entries -- so a Hashtable silently reports a "baseline" of zero and every
+# verdict after it is meaningless.
+$history = [pscustomobject]@{}
 if (Test-Path -LiteralPath $Store) {
-    $store = Get-Content -LiteralPath $Store -Raw -Encoding UTF8 | ConvertFrom-Json
+    $loaded = Get-Content -LiteralPath $Store -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -ne $loaded) { $history = $loaded }
 }
 
-# Compare against the most recently stored label, which is the convention:
-# you record a baseline, then measure the next thing against it.
+# Compare against the most recently *stored* label, which is the intended
+# workflow: record a baseline, then measure the next change against it.
 $baselineName = $null
 $baseline = $null
-$store.PSObject.Properties | ForEach-Object {
-    $baselineName = $_.Name
-    $baseline = $_.Value
+foreach ($prop in $history.PSObject.Properties) {
+    $baselineName = $prop.Name
+    $baseline = $prop.Value
 }
 
 $verdict = 'BASELINE RECORDED'
 if ($null -ne $baseline -and $baselineName -ne $Label) {
     $baseMedian = [double]$baseline.median
-    $deltaPct = 100.0 * ($st.median - $baseMedian) / $baseMedian
-    $threshold = [math]::Max($st.noisePct, [double]$baseline.noisePct)
-    Write-Host ''
-    Write-Host ('  baseline           {0}  {1:N0} msg/s' -f $baselineName, $baseMedian)
-    Write-Host ('  delta              {0:+0.00;-0.00;0.00}%' -f $deltaPct)
-    Write-Host ('  threshold          {0:N2}%' -f $threshold)
-
-    if ([math]::Abs($deltaPct) -lt $threshold) {
-        $verdict = 'NO MEASURABLE CHANGE'
-    } elseif ($deltaPct -gt 0) {
-        $verdict = 'IMPROVEMENT'
+    if ($baseMedian -le 0) {
+        Write-Host '  stored baseline is unusable (median <= 0); ignoring it' -ForegroundColor Yellow
     } else {
-        $verdict = 'REGRESSION'
+        $deltaPct = 100.0 * ($st.median - $baseMedian) / $baseMedian
+        $threshold = [math]::Max($st.noisePct, [double]$baseline.noisePct)
+        Write-Host ''
+        Write-Host ('  baseline           {0}  {1:N0} msg/s' -f $baselineName, $baseMedian)
+        Write-Host ('  delta              {0:+0.00;-0.00;0.00}%' -f $deltaPct)
+        Write-Host ('  threshold          {0:N2}%' -f $threshold)
+
+        if ([math]::Abs($deltaPct) -lt $threshold) {
+            $verdict = 'NO MEASURABLE CHANGE'
+        } elseif ($deltaPct -gt 0) {
+            $verdict = 'IMPROVEMENT'
+        } else {
+            $verdict = 'REGRESSION'
+        }
+        Write-Host ''
+        Write-Host "  VERDICT: $verdict" -ForegroundColor $(if ($verdict -eq 'REGRESSION') { 'Red' } elseif ($verdict -eq 'IMPROVEMENT') { 'Green' } else { 'Yellow' })
     }
-    Write-Host ''
-    Write-Host "  VERDICT: $verdict" -ForegroundColor $(if ($verdict -eq 'REGRESSION') { 'Red' } elseif ($verdict -eq 'IMPROVEMENT') { 'Green' } else { 'Yellow' })
 }
 
 if ($Save) {
-    $store | Add-Member -NotePropertyName $Label -NotePropertyValue ([pscustomobject]@{
+    $history | Add-Member -NotePropertyName $Label -NotePropertyValue ([pscustomobject]@{
             median   = $st.median
             noisePct = $st.noisePct
             min      = $st.min
@@ -179,10 +196,10 @@ if ($Save) {
             runs     = $Runs
             messages = $Messages
             buildDir = $BuildDir
-            note     = "$(Get-Date -Format 'yyyy-mm-dd') $verdict"
+            note     = "$(Get-Date -Format 'yyyy-MM-dd') $verdict"
         }) -Force
     $ordered = [ordered]@{}
-    $store.PSObject.Properties | ForEach-Object { $ordered[$_.Name] = $_.Value }
+    foreach ($prop in $history.PSObject.Properties) { $ordered[$prop.Name] = $prop.Value }
     [System.IO.File]::WriteAllText($Store, ($ordered | ConvertTo-Json -Depth 5),
         (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "  saved to $([System.IO.Path]::GetFileName($Store))"
