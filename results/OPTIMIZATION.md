@@ -5,6 +5,80 @@ Every entry here was measured on the development host with
 A log containing only successful optimisations is a log of confirmations,
 not of engineering, and the failures are where the information is.
 
+## Where the time actually goes
+
+Every attempt below failed to move throughput, which is itself the most
+useful result in this file. `hft_bench decode` answers why.
+
+```
+hft_bench 800000 decode        26,104,293 msg/s     38 ns/message
+hft_bench 800000 throughput     3,242,697 msg/s    308 ns/message
+```
+
+**Decoding is 12% of the cost. `OrderBook::add` is the other 88%** — about
+270 ns, or roughly 870 cycles, for one add.
+
+That is a very large number for what the operation does: two hash probes,
+a pool pop, a few field writes and a linked-list append. It is large
+because the operation performs about **four random accesses into
+structures of 26–38 MiB**, and each one that misses L3 costs a DRAM round
+trip:
+
+| Access | Target | Size |
+|---|---|---|
+| `order_index_` probe | 2M-slot table | 26 MiB |
+| `level_index_` probe | 2M-slot table | 26 MiB |
+| `levels_[level]` | level pool | 38 MiB |
+| `orders_[lv.tail].next` | order pool | 38 MiB |
+
+Four misses at ~70–80 ns each accounts for very nearly all of the 270 ns.
+
+### Why the optimisations failed, precisely
+
+This is the part worth keeping, because each failure was predicted by a
+specific wrong assumption:
+
+- **Cache-line interleaving** assumed three lines per probe was the cost.
+  The three loads are *independent*, so they issue in parallel and expose
+  roughly the latency of one. Reducing three concurrent misses to one
+  reduces bandwidth, not latency exposure.
+- **The single-probe collapse** assumed the two probes to the same
+  address were separated by long enough for the line to be evicted. They
+  are not: the intervening work is a few dozen cycles, so the second
+  probe was already an L1 hit and there was nothing to save.
+- **Lookahead prefetching** assumed the misses were latency-exposed with
+  nothing overlapping them. The out-of-order engine was already overlapping
+  them, and the two accesses that dominate — `levels_[level]` and
+  `orders_[lv.tail]` — **cannot be prefetched at all**, because neither
+  address is knowable until after the hash probes have completed.
+
+So the constraint is not latency exposure, not layout, and not footprint.
+It is simply **the number of random memory accesses per operation**, and
+only a change that reduces that count can help.
+
+### What would actually work, in order of expected value
+
+1. **Co-locate a level with its orders.** `levels_[level]` and
+   `orders_[lv.tail]` are two misses into two different 38 MiB arrays for
+   one logical operation. Putting the level header adjacent to its order
+   list, or caching the tail `OrderNode` inline in the level, collapses two
+   misses into one. This is the single biggest available win and it is a
+   data-structure change, not a tuning knob.
+2. **A per-level ring buffer instead of an intrusive linked list.**
+   Appending becomes a sequential write into a contiguous per-level array
+   instead of a random one. Removal from the middle is the hard part, and
+   for a market maker's own quoting orders it is rarely needed — which is
+   exactly the workload this repository models.
+3. **Direct-index the order reference.** ITCH references are day-unique.
+   Where they are dense enough, a direct-mapped array removes both the hash
+   computation and the probe-length uncertainty.
+4. **PGO and LTO**, on a toolchain that has them (both unavailable here —
+   see below).
+
+Items 1 and 2 are the work. Everything attempted in this session was
+item 5: making existing accesses cheaper, which is the one category
+measured to be worthless on this workload.
+
 ## How anything here was measured
 
 `scripts/ab.ps1` runs `hft_bench` in pairs and compares **within** each
