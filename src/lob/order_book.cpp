@@ -563,7 +563,9 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
         unlink_order(h);
         release_order(h);
         if (created_level) {
-            index.erase(price);
+            if (!in_ladder) {
+                index.erase(price);
+            }
             unlink_level(level);
             release_level(level);
             if (side == Side::bid) {
