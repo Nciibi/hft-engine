@@ -489,18 +489,18 @@ because the *choice* is the interesting part and the prose is not.
   for a specific fill size.
 - **Slab arena, integer handles, no hot-path allocation.** Orders are
   indices into a preallocated arena, never pointers.
-- **The price ladder is a sorted linked list, and that is a known cost.**
-  Inserting a price not adjacent to the best walks from the head, so
-  book-update cost is O(depth). `hft_ladder_bench` measures it rather than
-  asserting it, and the result is more useful than expected: the walk is
-  **linear in both depth and distance**, confirmed. A full-depth walk at
-  3,200 levels costs **178x** a touch insert; at the tens of levels a liquid
-  US equity actually shows, it is a rounding error. So the ladder is *not*
-  the next thing to fix for a liquid name — it binds only on a very deep
-  book, or when quoting far from the touch. The direct-indexed replacement
-  is deliberately not implemented, because a change to the book's hot path
-  is only worth making if its effect can be measured. See
-  [`docs/RESULTS.md`](docs/RESULTS.md).
+- **The price ladder was a sorted linked list; it is now a dense ladder.**
+  Inserting a price not adjacent to the best used to walk from the head, so
+  book-update cost was O(depth) — measured at **178×** a touch insert at
+  3,200 levels. It is now a direct-indexed price grid (`(price − floor) /
+  tick`) with a per-side **occupancy bitmap**, so the walk is gone: the same
+  measurement reads **1.01×** at 1,000 levels and **0.93×** at 3,200, and the
+  deepest row went from 28,324 to 155 ticks/op. This is the structure
+  production engines converge on, and the bitmap is what makes deleting the
+  last order at the touch cheap — the documented failure of the pure-array
+  variant. Opt-in via `LadderConfig`, with the hash map retained as the
+  out-of-band fallback. Costs **2.5% on the average** and buys the whole
+  tail; see [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
 
 **Protocol correctness**
 
