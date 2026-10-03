@@ -143,9 +143,9 @@ for ($i = 0; $i -lt $Runs; $i++) {
 $st = Get-Stats $samples
 Write-Host ''
 Write-Host ('  median  {0,10:N0} msg/s' -f $st.median)
-Write-Host ('  range   {0,10:N0} .. {1:N0}  ({2:N2}% raw spread)' -f $st.min, $st.max,
-    (100.0 * ($st.max - $st.min) / $st.min))
-Write-Host ('  noise   {0,10:N2}%  (2 x MAD; a delta smaller than this is not a result)' -f $st.noisePct)
+Write-Host ('  range   {0,10:N0} .. {1:N0}  ({2:N2}% raw, {3:N2}% trimmed)' -f $st.min, $st.max,
+    (100.0 * ($st.max - $st.min) / $st.min), $st.trimmedPct)
+Write-Host ('  noise   {0,10:N2}%  (max of 2xMAD and a 3% floor; a delta smaller than this is not a result)' -f $st.noisePct)
 
 # ---- history ----------------------------------------------------------
 #
