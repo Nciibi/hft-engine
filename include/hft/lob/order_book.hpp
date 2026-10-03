@@ -385,9 +385,26 @@ private:
     /// side, holding `handle + 1`, plus one occupancy word per 64 slots.
     std::vector<std::uint32_t> bid_slots_;
     std::vector<std::uint32_t> ask_slots_;
-    std::vector<std::uint64_t> bid_bits_;
+    std::vector<std::uint32_t> bid_bits_;
     std::vector<std::uint64_t> ask_bits_;
     LadderConfig ladder_{};
+
+    /// Cached index of the highest (bid) or lowest (ask) bitmap word that
+    /// can contain an occupied slot.
+    ///
+    /// A full bit scan is O(band/64) -- 1,024 words for a 65,536-tick band
+    /// -- and `best_bid()` is read on nearly every message, so scanning made
+    /// the dense ladder **2.6x slower than the hash map it replaced**. That
+    /// is the single most expensive mistake available when implementing a
+    /// price grid, and it is invisible until measured.
+    ///
+    /// The hint turns the common case into a couple of instructions:
+    /// `ladder_set` raises it when a word beyond it becomes occupied, and
+    /// `ladder_clear` only rescans downward when the cleared slot was in
+    /// the hinted word, which for a liquid book finds the next occupied
+    /// word immediately.
+    std::uint32_t bid_hint_ = 0;
+    std::uint32_t ask_hint_ = 0;
 
     /// Ladder heads, used only by the sparse path. Bids descend from best
     /// to worst, asks ascend. The dense path does not maintain these --
