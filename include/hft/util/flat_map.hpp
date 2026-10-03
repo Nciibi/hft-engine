@@ -275,7 +275,14 @@ public:
             return;
         }
 #if defined(__GNUC__) || defined(__clang__)
-        __builtin_prefetch(&keys_[index_for(key)]);
+        const std::uint32_t slot = index_for(key);
+        // `slots_` first, because that is what a probe touches first: the
+        // loop reads the state byte to decide whether the key is even
+        // present. An earlier version of this prefetched `keys_` and
+        // measured nothing at all, because by the time the key array was
+        // in flight the state array had already missed.
+        __builtin_prefetch(&slots_[slot]);
+        __builtin_prefetch(&keys_[slot]);
 #endif
     }
 
