@@ -279,6 +279,15 @@ void OrderBook::link_level(Handle h) noexcept {
 
 void OrderBook::unlink_level(Handle h) noexcept {
     LevelNode& lv = levels_[h];
+
+    // Dense path: clear the slot and its occupancy bit. Nothing else to
+    // touch -- the ordering was the array, not a list.
+    if (const std::uint32_t slot = ladder_slot(lv.price); slot != util::kNoHandle &&
+                                       ladder_get(lv.side, slot) == h) {
+        ladder_clear(lv.side, slot);
+        return;
+    }
+
     if (lv.prev != kInvalidHandle) {
         levels_[lv.prev].next = lv.next;
     } else {
