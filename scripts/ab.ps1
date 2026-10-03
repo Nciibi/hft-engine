@@ -73,16 +73,28 @@ function Get-Stats([double[]]$values) {
     $median = if ($n % 2 -eq 1) { $s[$half] } else { ($s[$half - 1] + $s[$half]) / 2.0 }
     $devs = @($s | ForEach-Object { [math]::Abs($_ - $median) } | Sort-Object)
     $mad = if ($n % 2 -eq 1) { $devs[$half] } else { ($devs[$half - 1] + $devs[$half]) / 2.0 }
-    # A floor of 1.5% so a suspiciously quiet machine cannot produce a
-    # threshold so tight that rounding decides every verdict.
+    # Threshold floor of 3%. The median and MAD are robust to outliers,
+    # but the *machine* is not quiet: nine runs of 800,000 messages on the
+    # development host have spanned 17% raw, with occasional runs 12% below
+    # the cluster and almost certainly a background process rather than the
+    # engine. A threshold derived only from MAD came out at 1.5%, which
+    # would call a 2% "improvement" a result whenever both measurements
+    # happened to land in a quiet patch. 3% is chosen because it is above
+    # the observed within-cluster variation and below any change worth
+    # having made to the hot path.
     $noisePct = if ($median -gt 0) { 100.0 * (2.0 * $mad) / $median } else { 100.0 }
-    if ($noisePct -lt 1.5) { $noisePct = 1.5 }
+    if ($noisePct -lt 3.0) { $noisePct = 3.0 }
+    # Trimmed spread: raw range with the single best and worst run removed.
+    # The gap between this and the raw range is the size of the outliers,
+    # which is the honest way to show that a machine has them.
+    $trim = if ($n -ge 5) { ($s[1] - $s[$n - 2]) } else { ($s[$n - 1] - $s[0]) }
     return [pscustomobject]@{
-        median   = [double]$median
-        mad      = [double]$mad
-        noisePct = [double]$noisePct
-        min      = [double]$s[0]
-        max      = [double]$s[$n - 1]
+        median      = [double]$median
+        mad         = [double]$mad
+        noisePct    = [double]$noisePct
+        min         = [double]$s[0]
+        max         = [double]$s[$n - 1]
+        trimmedPct  = if ($median -gt 0) { 100.0 * $trim / $median } else { 100.0 }
     }
 }
 
