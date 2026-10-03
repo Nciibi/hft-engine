@@ -221,15 +221,15 @@ public:
         std::uint32_t i = index_for(key);
         for (std::uint32_t probes = 0; probes < capacity_; ++probes) {
             const std::uint32_t slot = (i + probes) & mask_;
-            const Entry& e = entries_[slot];
-            if (e.state == Slot::occupied) {
-                if (e.key == key) {
+            const Slot state = slots_[slot];
+            if (state == Slot::occupied) {
+                if (keys_[slot] == key) {
                     found = true;
                     return slot;
                 }
                 continue;
             }
-            if (e.state == Slot::tombstone) {
+            if (state == Slot::tombstone) {
                 if (first_free == kNoHandle) {
                     first_free = slot;
                 }
