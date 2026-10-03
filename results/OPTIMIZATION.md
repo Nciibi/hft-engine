@@ -59,7 +59,9 @@ hft_bench 800000 throughput     3,242,697 msg/s    308 ns/message
 ```
 
 **Decoding is 12% of the cost. `OrderBook::add` is the other 88%** — about
-270 ns, or roughly 870 cycles, for one add.
+270 ns at 800,000 messages, though note the caveat above: that figure is
+inflated by pool warm-up, and on the bounded-book instrument the whole
+decode-apply-decision-risk pipeline runs at ~348 ns/message.
 
 That is a very large number for what the operation does: two hash probes,
 a pool pop, a few field writes and a linked-list append. It is large
