@@ -330,7 +330,6 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     o.side = side;
     o.price = price;
     o.size = size;
-    o.original_size = size;
     o.state = OrderState::new_order;
 
     link_order(h, level);
