@@ -57,6 +57,35 @@ nothing in the repository was external to the mistake.
 
 ---
 
+### A third bug class: the dense ladder's own two
+
+The dense price ladder is the first thing in this repository implemented
+because the literature said to, rather than derived. It immediately
+produced two defects that 450,000 differential operations caught and
+review did not.
+
+**A bitmap word declared 32 bits instead of 64.** `bid_bits_` was
+`std::vector<std::uint32_t>`. A narrower word silently truncates
+`1ULL << (slot & 63)`, setting the wrong bit for every slot whose bit index
+exceeds 31 — half of them. The symptom would be `best_bid()` returning the
+wrong price, intermittently, on roughly half of all levels.
+`-Wconversion` caught it at compile time, which is the only reason it was
+caught at all.
+
+**A cache hint that declared "empty" instead of rescanning.** Best-bid is
+found by scanning for the highest set bit, which is O(band/64) and made the
+dense ladder **2.6× slower** than the hash map it replaced. The fix was a
+cached best-word index — and the first version of that cache, on clearing
+the hinted word, set the hint to "nothing occupied" rather than scanning for
+the next occupied word. Every level in every other word was lost.
+Four of five differential seeds caught it; the fifth took seven operations.
+
+The pattern is the same one this catalogue keeps arriving at, which is why
+it is worth naming a third time: **a cached index that is not invalidated
+correctly is worse than no cache**, because it converts a slow correct
+answer into a fast wrong one. Nothing but an independent implementation to
+compare against finds it.
+
 ## The worst bug in this repository: the order book wedges permanently
 
 Found while writing `hft_ladder_bench`, and it is the most serious defect
