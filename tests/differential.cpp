@@ -130,14 +130,34 @@ int main(int argc, char** argv) {
 
     std::uint64_t seed = 0xA5A5'1234'DEAD'0001ULL;
     std::size_t ops = 200'000;
-    if (argc > 1) {
-        seed = std::strtoull(argv[1], nullptr, 0);
-    }
-    if (argc > 2) {
-        ops = std::strtoull(argv[2], nullptr, 10);
+    bool dense = false;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "dense") {
+            dense = true;
+        } else if (i == 1) {
+            seed = std::strtoull(argv[i], nullptr, 0);
+        } else if (i == 2) {
+            ops = std::strtoull(argv[i], nullptr, 10);
+        }
     }
 
-    hft::lob::OrderBook fast(1u << 20, 1u << 16);
+    // The dense ladder is a different implementation of level lookup and
+    // of price ordering, so "the tests pass" means nothing for it unless
+    // the same 200,000-operation differential runs against it with full
+    // state comparison after every single operation. This is the guard
+    // that makes the structure safe to have at all.
+    //
+    // The band is deliberately wide and deliberately OFF-TICK-STRADDING:
+    // the walk below generates prices on a one-cent grid around $100, and
+    // the fallback path for anything out of band is exercised by the
+    // `off_tick` case below.
+    hft::lob::LadderConfig ladder;
+    ladder.dense = dense;
+    ladder.floor_price = Price::from_int(50);
+    ladder.tick = 100;  // one cent, matching the generator
+    ladder.ticks_per_side = 1u << 16;
+    hft::lob::OrderBook fast(1u << 20, 1u << 16, 0, ladder);
     hft::lob::ReferenceBook ref;
     hft::feed::SplitMix64 rng(seed);
 
