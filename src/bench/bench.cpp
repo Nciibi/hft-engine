@@ -128,7 +128,19 @@ int main(int argc, char** argv) {
                 humanize(feed.size() / hft::itch::frame_size(hft::itch::off::kAddOrderSize))
                     .c_str());
 
-    hft::lob::OrderBook book(pool, pool);
+    // The price index is sized to the feed's price levels, NOT to the
+    // order count. `pool` orders can be at `config.price_levels` distinct
+    // prices per side and no more, so an index sized to `pool` is 52 MiB of
+    // table holding a few dozen entries -- empty, and still a DRAM miss on
+    // every single `find_level`, because the probe address is masked to
+    // the table's capacity.
+    //
+    // The pools stay at `pool` because they must tolerate the worst case
+    // where every order is at its own price; only the index gets a
+    // realistic bound. Four times the expected level count leaves room for
+    // the walk to wander well outside its nominal band without saturating.
+    const std::size_t expected_levels = config.price_levels * 4 + 64;
+    hft::lob::OrderBook book(pool, pool, expected_levels);
 
     // ---- Warmup: fault in the pages, prime the pools -----------------
     // Uses a throwaway book. Reusing the measured book would re-add the
