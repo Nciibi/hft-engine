@@ -26,15 +26,23 @@ namespace {
 }  // namespace
 
 OrderBook::OrderBook(std::size_t order_capacity, std::size_t level_capacity,
-                     std::size_t level_index_capacity)
+                     std::size_t index_capacity, LadderConfig ladder)
     : orders_(order_capacity),
       levels_(level_capacity),
       order_index_(order_capacity),
       // Zero means "no separate opinion", i.e. size the index to the
       // level pool as before. Anything else is the caller's stated
       // expectation of how many price levels will be live at once.
-      bid_level_index_(level_index_capacity == 0 ? level_capacity : level_index_capacity),
-      ask_level_index_(level_index_capacity == 0 ? level_capacity : level_index_capacity) {
+      bid_level_index_(index_capacity == 0 ? level_capacity : index_capacity),
+      ask_level_index_(index_capacity == 0 ? level_capacity : index_capacity),
+      ladder_(ladder) {
+    if (ladder_.dense) {
+        const std::size_t slots = ladder_.ticks_per_side;
+        bid_slots_.assign(slots, kSlotEmpty);
+        ask_slots_.assign(slots, kSlotEmpty);
+        bid_bits_.assign((slots + 63) / 64, 0);
+        ask_bits_.assign((slots + 63) / 64, 0);
+    }
     // Populate the free lists in reverse so the first acquire returns
     // handle 0. Deterministic handle assignment keeps the differential
     // test's state comparison reproducible run to run.
