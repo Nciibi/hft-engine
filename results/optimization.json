@@ -1,0 +1,12 @@
+{
+    "00-baseline":  {
+                        "median":  2447381,
+                        "noisePct":  3,
+                        "min":  2284999,
+                        "max":  2537508,
+                        "runs":  11,
+                        "messages":  800000,
+                        "buildDir":  "build",
+                        "note":  "2026-10-03 BASELINE RECORDED"
+                    }
+}
