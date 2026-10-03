@@ -132,6 +132,38 @@ if (-not (Test-Path -LiteralPath $exe)) {
 
 function Measure-One([string]$exePath, [int]$messages, [string]$mode) {
     $out = & $exePath $messages $mode 2>&1
+
+    if ($mode -eq 'stage') {
+        # `hft_stage_bench` prints two throughput lines: shallow then deep.
+        # The DEEP one is taken, and the choice matters more than it looks.
+        #
+        # `hft_bench` sizes its pools from the message count and never
+        # removes an order, so its book grows without bound and its cost per
+        # message never converges -- measured at 180, 119 and 91 ns/message
+        # at 1.6M, 3.2M and 6.4M messages, still falling. It is measuring
+        # pool page-faulting, not the engine.
+        #
+        # `hft_stage_bench` caps live orders at the level count, so its book
+        # is bounded and its throughput is flat: 2.99M, 2.86M and 2.87M
+        # msg/s at the same three sizes, a 4% spread across a 16x range.
+        # That is an instrument. `hft_bench` is not.
+        $vals = @()
+        foreach ($l in ($out | Select-String 'throughput')) {
+            # The line is `throughput  2 855 380 msg/s   175.108 ms`, so the
+            # number carries space separators and the line carries a second
+            # number. Naively stripping non-digits concatenates them into
+            # nonsense -- which is exactly what an earlier version of this
+            # script's ad-hoc callers did.
+            if ($l.ToString() -match 'throughput\s+([\d\s]+?)msg/s') {
+                $vals += [double](($Matches[1] -replace '\D', ''))
+            }
+        }
+        if ($vals.Count -lt 2) {
+            throw "could not find both throughput lines in stage output"
+        }
+        return $vals[$vals.Count - 1]
+    }
+
     $line = $out | Select-String -Pattern 'throughput\s+(\d+)' | Select-Object -First 1
     if ($null -eq $line) {
         throw "no throughput line from $exePath"
