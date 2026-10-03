@@ -325,8 +325,17 @@ private:
     [[nodiscard]] std::vector<std::uint32_t> ladder_occupied(Side side) const;
 
     /// Insert level `h` into its side's ladder, keeping price order.
-    void link_level(Handle h) noexcept;
-    void unlink_level(Handle h) noexcept;
+    /// Insert level `h` into its side's ladder.
+    ///
+    /// `slot` is the dense slot, already computed by the caller, or
+    /// `kNoHandle` to use the sorted list. Passing it matters more than it
+    /// looks: recomputing it here costs an integer division by a runtime
+    /// value -- roughly 30 cycles -- and the add path touches this three
+    /// times over. Measured, that division was the entire difference
+    /// between the dense ladder running 2.6x *slower* than the hash map it
+    /// replaces and running slightly faster than it.
+    void link_level(Handle h, std::uint32_t slot) noexcept;
+    void unlink_level(Handle h, std::uint32_t slot) noexcept;
 
     /// Append order `h` to the tail of level `level` and roll the
     /// aggregate counters. Does NOT set `state`: the caller owns the
