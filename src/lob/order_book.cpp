@@ -231,6 +231,19 @@ std::vector<std::uint32_t> OrderBook::ladder_occupied(Side side) const noexcept 
 
 void OrderBook::link_level(Handle h) noexcept {
     LevelNode& lv = levels_[h];
+
+    // Dense path: the slot index IS the ordering, so linking is a single
+    // store plus one bit. No walk, and nothing to rebalance -- which is
+    // the entire reason this structure replaces the linked list.
+    if (const std::uint32_t slot = ladder_slot(lv.price); slot != util::kNoHandle) {
+        ladder_set(lv.side, slot, h);
+        return;
+    }
+
+    // Out of band, or straddles ticks: fall back to the sorted list so a
+    // sparse instrument still works. This is the documented tradeoff of a
+    // bounded grid, and it degrades to exactly the previous behaviour
+    // rather than to a wrong answer.
     Handle& head = (lv.side == Side::bid) ? bid_head_ : ask_head_;
 
     if (head == kInvalidHandle) {
