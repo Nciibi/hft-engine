@@ -286,10 +286,19 @@ int main(int argc, char** argv) {
 
     std::printf("results\n");
     std::printf("-------\n");
-    print_histogram("decode", decode_hist);
-    print_histogram("book update", book_hist);
-    print_histogram("total", total_hist);
+    if (throughput_only) {
+        // The histograms are empty in this mode by construction, and
+        // printing them would invite a reader to compare a p50 against a
+        // distribution that was never collected.
+        std::printf("per-stage latency    NOT COLLECTED (throughput mode takes no\n");
+        std::printf("                     per-message clock reads -- see below)\n");
+    } else {
+        print_histogram("decode", decode_hist);
+        print_histogram("book update", book_hist);
+        print_histogram("total", total_hist);
+    }
     std::printf("\n");
+    std::printf("mode                %s\n", throughput_only ? "throughput" : "instrumented");
     std::printf("decoded             %s\n", humanize(decoded).c_str());
     std::printf("applied             %s\n", humanize(applied).c_str());
     std::printf("rejected            %s\n", humanize(rejected).c_str());
