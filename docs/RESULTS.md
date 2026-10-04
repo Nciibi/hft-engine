@@ -162,11 +162,16 @@ the out-of-band fallback so a sparse instrument keeps working.
 
 | depth | walk = depth, sparse | walk = depth, dense |
 |---|---|---|
-| 1,000 | 39.69x | **1.01x** |
-| 3,200 | 177.63x | **0.93x** |
+| 1,000 | 43.38x | **0.84x** |
+| 3,200 | 137.81x | **1.52x** |
 
-Flat across every distance at every depth: the walk is gone. In absolute
-terms the deepest row went from 28,324 ticks/op to 155 — **183x**.
+One run of `./build/hft_ladder_bench sparse` followed by
+`dense`, same session, same clock — so both columns are the same
+experiment. Flat across every distance at every depth on the dense ladder:
+the walk is gone. In absolute terms the deepest row went from 24,652 to
+250 ticks/op — **99x** on this run. An earlier run of the same pair read
+28,324 to 155, or 183x; `results/OPTIMIZATION.md` records that figure and
+its own provenance. The ratio moves between runs, the structure does not.
 
 **And it costs 2.5% on the average.** End-to-end on a realistic bounded
 book: sparse 2,983,961 msg/s, dense 2,908,714 msg/s. Both numbers are
