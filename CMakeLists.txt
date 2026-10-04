@@ -271,6 +271,37 @@ else()
     endif()
 endif()
 
+# Claim check: the counts the README publishes against the counts the
+# binaries actually print.
+#
+# Separate from the doc check above, and for a different reason. The doc
+# check asks whether a link resolves; it cannot notice that "783 checks"
+# disagrees with a binary printing 1,412, because a number typed by hand
+# into prose has nothing to disagree with it. That is how this repository
+# shipped a check count wrong by more than a factor of two while every
+# test passed and the docs check was green.
+#
+# CMAKE_BINARY_DIR is passed explicitly because CTest runs tests with the
+# build directory as the working directory, and a relative path from there
+# would resolve against the wrong tree.
+if(WIN32)
+    find_program(CLAIM_CHECK powershell.exe)
+    if(CLAIM_CHECK)
+        add_test(NAME claims COMMAND "${CLAIM_CHECK}" -NoProfile -ExecutionPolicy Bypass
+                 -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-claims.ps1"
+                 -BuildDir "${CMAKE_BINARY_DIR}")
+    else()
+        message(STATUS "  claim check ....... powershell not found, skipped")
+    endif()
+else()
+    find_program(CLAIM_CHECK check-claims.sh PATHS "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+    if(CLAIM_CHECK)
+        add_test(NAME claims COMMAND "${CLAIM_CHECK}" "${CMAKE_BINARY_DIR}")
+    else()
+        message(STATUS "  claim check ....... bash not found, skipped")
+    endif()
+endif()
+
 # ---- Reporting -----------------------------------------------------
 message(STATUS "hft_engine ${PROJECT_VERSION}")
 message(STATUS "  build type ....... ${CMAKE_BUILD_TYPE}")
