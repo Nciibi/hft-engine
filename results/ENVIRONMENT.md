@@ -78,6 +78,19 @@ repository rather than two that disagree; re-run
 the tool's own output, which prints the run-to-run noise floor that
 governs how these ratios may be read.
 
+The ring against its own baseline, for scale:
+
+```
+lock-free SPSC ring, 1024 slots  118 568 405 msg/s
+mutex + condition_variable          6 679 471 msg/s    17.8x
+```
+
+The mutex figure's absolute value is platform-specific in a way the ratio
+is not, and the gap is a scheduling property rather than an algorithmic
+one: the baseline blocks, so each hand-off can cost a futex wakeup and a
+context switch. It is here as a reminder that the ring's benefit is not
+in the instructions removed but in the blocking avoided.
+
 ```
 1 thread, decode + apply         752 926 msg/s   1.00x  (baseline)
 2 threads, ring, K=1             740 635 msg/s   0.98x  checksum match
