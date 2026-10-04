@@ -199,6 +199,8 @@ search and no shared mutable state. The workers never touch the index at
 all. The trick is not making the index concurrent; it is arranging for
 there to be exactly one thread that writes it.
 
+## Strategy and risk
+
 **Time is injected, never read.** Every risk and OMS entry point that
 needs the current time takes it as a parameter. A component that called
 a clock internally could not be tested deterministically and could not
