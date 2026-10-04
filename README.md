@@ -753,7 +753,7 @@ production software is worse than one that does not:
   instrument needs a price range it does not have. The dense ladder with
   its occupancy bitmap is the structure the benchmarks exercise; it is
   opt-in via `LadderConfig` rather than the only path, and
-  [`docs/RESULTS.md`](docs/RESULTS.md#the-o-depth-walk-measured-then-removed)
+  [`docs/RESULTS.md`](docs/RESULTS.md#the-depth-proportional-walk-measured-and-removed)
   has the before-and-after for both.
 - **No kernel bypass.** Benchmarks are single-socket: no `io_uring`, no
   `DPDK`, no `SO_TIMESTAMPING`. Real shops measure the syscall layer
