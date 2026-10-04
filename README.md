@@ -399,18 +399,34 @@ it at all, in
 
 ### Correctness
 
-- **450,000** differential operations against a naive reference model
-  (200,000 default + 5 seeds × 50,000), full state comparison after
-  every operation. Zero mismatches.
-- Deterministic replay: FNV-1a book state checksum over **50,000**
-  messages. Identical across runs and across six optimisation levels,
-  verified by `scripts/determinism.sh`. Across machines is asserted but
-  only demonstrated by running the same command on the benchmark host, so
-  treat that half as a protocol rather than a result until someone has
-  run it on both.
-- Threaded pipeline equivalence: the decoder-thread/book-thread split
+| Check | Scale | Result |
+|---|---|---|
+| Fast book vs naive model, **sparse** ladder | **450,000 ops** (200,000 default + 5 seeds × 50,000) | 0 mismatches |
+| Fast book vs naive model, **dense** ladder | **450,000 ops** (200,000 default + 5 seeds × 50,000) | 0 mismatches |
+| Symbol routing, open-addressed index vs `std::map` oracle | **60,000 records**, 12 symbols | 0 misroutes |
+| Randomised OMS operations vs independent invariant tally | **60,000 ops** | 0 violations |
+| Unit + risk/OMS + strategy + concurrency + sharding checks | **1,815 checks** | 0 failures |
+
+The two differential suites are separate on purpose. The dense ladder is
+a different implementation of level lookup and price ordering — an array
+index and an occupancy bitmap where the sparse book has a hash map and a
+linked list — so the sparse suite says nothing whatsoever about it. It is
+also the only thing standing between the dense path and the two defects
+it introduced on the way in, one of which four of five seeds caught and
+the fifth needed a seventh operation to trip
+([`docs/BUGS.md`](docs/BUGS.md#a-third-bug-class-the-dense-ladders-own-two)).
+
+Two more properties, both asserted in CI rather than merely measured:
+
+- **Deterministic replay.** FNV-1a book-state checksum over 50,000
+  messages, identical across runs and across six optimisation levels
+  (`scripts/determinism.sh`), with the harness verified by injecting a
+  level-dependent value and confirming it failed. Across machines is
+  asserted as a protocol but only demonstrated on one host, so treat that
+  half as a protocol until someone runs it on both.
+- **Threaded pipeline equivalence.** The decoder-thread/book-thread split
   builds a byte-identical book to the single-threaded loop over the same
-  feed, at every batch size. Asserted in CI, not merely measured.
+  feed, at every batch size, plus every sharded configuration.
 
 ### Concurrency
 
