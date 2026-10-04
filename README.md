@@ -50,13 +50,55 @@ line — is unambiguously better *layout*, and it measured **−1.2%**: nothing.
 Three further attempts (collapsing a double probe, lookahead prefetching,
 shrinking the order node) all landed inside the noise too.
 
-Measuring *where* the time goes is what explained all four:
-`hft_bench decode` puts the decoder at **38 ns/message and the order book
-at ~270 ns**. The book performs four random accesses per add into 26–38 MiB
-structures, and that **count** — not latency exposure, layout, or
-footprint — is the constraint. Every failed attempt was in the category of
-making existing accesses cheaper; the fix is reducing how many there are.
-Full account in [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
+Measuring *where* the time goes is what explained all four. Decoding is
+**12%** of per-message cost; `OrderBook::add` is the other **88%**, and
+that 270 ns figure is not explained by any instruction, flag or layout
+choice. It is four *dependent* random accesses into structures far larger
+than the 8 MiB last-level cache:
+
+```mermaid
+flowchart LR
+    msg["one Add Order message"] --> h1["order_index_ probe<br/>26 MiB"]
+    msg --> h2["level_index_ probe<br/>26 MiB"]
+    h1 --> l1["levels_[level]<br/>38 MiB"]
+    h2 --> l1
+    l1 --> tail["orders_[lv.tail].next<br/>38 MiB"]
+    classDef big fill:#fdecea,stroke:#c0392b
+    class h1,h2,l1,tail big
+```
+
+Four DRAM round trips at 70–80 ns each accounts for very nearly all of
+the 270 ns. That **count** is the constraint — not latency exposure, not
+cache-line layout, not footprint.
+
+**Every optimisation in the log failed for the same reason, and the log
+records them.** Interleaving the `FlatMap` entry from three vectors into
+one 16-byte cache line — four per line, unambiguously better *layout* —
+measured **−1.2%: nothing.** The reason is the kind of thing that is easy
+to be wrong about confidently: the three loads in one probe are
+*independent* addresses, so they issue in parallel and expose roughly the
+latency of one. Memory-level parallelism means three concurrent misses
+cost three times the bandwidth and about the same latency. This workload
+is latency-bound, so trading three parallel misses for one buys nothing on
+the critical path. Reducing lines helps when loads are *dependent*, which
+these are not.
+
+Three further attempts — collapsing a double probe, lookahead prefetching,
+shrinking the order node — all landed inside the noise. The two
+dominant accesses **cannot be prefetched at all**, because neither
+address is knowable until after the hash probes complete.
+
+So the fix is not making existing accesses cheaper. It is removing them:
+
+| Rank | Change | Why |
+|---|---|---|
+| 1 | Co-locate a level with its orders | Two misses into two 38 MiB arrays become one. A data-structure change, not a tuning knob. |
+| 2 | Per-level ring buffer instead of an intrusive list | Append becomes a sequential write. Removal from the middle is the hard part, and a market maker's own quoting orders rarely need it. |
+| 3 | Direct-index the order reference | ITCH references are day-unique; where dense enough, this removes both the hash and the probe-length uncertainty. |
+| 4 | PGO + LTO | Worth 10–20% on a latency project; both unavailable on this toolchain. |
+
+Full account, including the two documented justifications that measurement
+disproved, in [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
 
 ## The bug that mattered
 
