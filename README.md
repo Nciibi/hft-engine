@@ -171,12 +171,28 @@ a generator writing a 41-byte Order Replace frame against a 35-byte
 message, and that `'B'` is not Order Entry at all. Full account in
 [`docs/DESIGN.md`](docs/DESIGN.md#verifying-a-field-table-you-cannot-test-against).
 
+<!-- claims
+Machine-readable copy of the counts asserted by scripts/check-claims.sh.
+Kept in sync with the prose above by that script, which fails the build
+when any of it drifts from what the binaries actually print. If you add a
+test, this block and the sentence above it both have to change, and
+forgetting is a red build rather than a stale README.
+
+checks_unit: 1412
+checks_risk_oms: 156
+checks_strategy: 47
+checks_concurrent: 149
+checks_shards: 51
+checks_total: 1815
+ctest_tests: 23
+-->
+
 **Verified: 1,815 checks across 23 CTest suites** — 1,412 unit + 156
 risk/OMS + 47 strategy + 149 concurrency + 51 sharding, zero failures,
 under **two compilers**. Every number in that sentence is asserted by
-`ctest`; `scripts/check-claims.sh` fails the build if it drifts from what
-the binaries actually print. The argument is not the count; it is that each
-of these would fail if the thing it guards regressed:
+`ctest`, and `scripts/check-claims.sh` fails the build if it drifts from
+what the binaries actually print. The argument is not the count; it is
+that each of these would fail if the thing it guards regressed:
 
 - **One hand-built, byte-exact Add Order frame**, assembled from the field
   table and decoded without going near the generator. Self-consistency
