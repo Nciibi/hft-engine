@@ -101,9 +101,9 @@ is not adjacent to the best walks from the head of the ladder. The
 README.md states this as a known weakness; hft_ladder_bench measures
 it, and the measurement is cleaner than expected.
 
-\\\
+```
 hft_ladder_bench
-\\\
+```
 
 **Ratios, not nanoseconds.** The development host's clock has 100 ns
 granularity, so an absolute add/remove latency here is a floor reading. A
@@ -113,7 +113,7 @@ the quotient. Every figure below is therefore a **lower** bound: a ladder
 that looks 178x worse is at least 178x worse, and cannot look worse than it
 is.
 
-**The control is the point.** \distance = 1\ walks a single node, so it
+**The control is the point.** `distance = 1` walks a single node, so it
 measures all of add/remove except the ladder. It sits at 160-230 ticks
 across every depth from 10 to 3200 — flat, as it must be, since a one-node
 walk costs the same whatever the ladder size. Any signal in the other
