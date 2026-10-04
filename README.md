@@ -89,8 +89,8 @@ So every price in the engine was a share count in `[1, 500]`, and every
 share count was the first four bytes of the symbol `SIMTEST`. At $100 a
 real price is 1,000,000 raw units; this decoder would have reported 100.
 
-**Why 512 checks, a differential test over 400,000 operations and a
-determinism harness did not catch it.** Every test built its input with
+**Why 512 checks at the time, a differential test over 400,000 operations
+and a determinism harness did not catch it.** Every test built its input with
 this repository's own feed generator and read it back with its own
 decoder. The generator wrote the same wrong layout the decoder read, so
 the two agreed perfectly with each other and both disagreed with the
@@ -171,10 +171,12 @@ a generator writing a 41-byte Order Replace frame against a 35-byte
 message, and that `'B'` is not Order Entry at all. Full account in
 [`docs/DESIGN.md`](docs/DESIGN.md#verifying-a-field-table-you-cannot-test-against).
 
-**Verified: 783 checks** — 383 unit + 156 risk/OMS + 47 strategy + 149
-concurrency + 51 sharding, zero failures, under **two compilers**. The
-argument is not the count; it is that each of these would fail if the
-thing it guards regressed:
+**Verified: 1,815 checks across 23 CTest suites** — 1,412 unit + 156
+risk/OMS + 47 strategy + 149 concurrency + 51 sharding, zero failures,
+under **two compilers**. Every number in that sentence is asserted by
+`ctest`; `scripts/check-claims.sh` fails the build if it drifts from what
+the binaries actually print. The argument is not the count; it is that each
+of these would fail if the thing it guards regressed:
 
 - **One hand-built, byte-exact Add Order frame**, assembled from the field
   table and decoded without going near the generator. Self-consistency
