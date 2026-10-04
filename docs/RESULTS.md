@@ -133,19 +133,45 @@ O(depth), confirmed rather than asserted.
 **So what?** At the depths a liquid US equity actually shows — tens of
 levels — the walk is a rounding error against the ~55 ns control. At 3200
 levels it is 178x the control, and it would dominate the book update
-entirely. The honest conclusion is that the ladder is *not* the next thing to
-fix for a market-making book on a liquid name, and would only become the
-binding constraint on an instrument with a very deep book, or on one where
-the strategy quotes far from the touch.
+entirely. That is a real cost, but on this workload it is not the cost:
+end-to-end barely moves when the walk is eliminated (see below), because
+the average case was already dominated by the order-reference hash and the
+pool accesses.
 
-The fix, when it is wanted, is a direct-indexed price ladder: an array
-indexed by price offset from an anchor, making both "find the level at this
-price" and "insert at the head" O(1). It is deliberately **not** implemented
-here. A change to the book's hot path is only worth making if its effect can
-be measured, and on this host it cannot be — so the implementation belongs on
-the benchmark host, where this table becomes the before half of a
-before-and-after. Taking the before half now means it cannot later be
-recalled from memory.
+## The O(depth) walk: measured, then removed
+
+The fix is a **direct-indexed price ladder**: an array indexed by price
+offset from an anchor, with a per-side occupancy bitmap, making both "find
+the level at this price" and "insert at the head" O(1). It is implemented,
+opt-in via `LadderConfig`, with the hash map and linked list retained as
+the out-of-band fallback so a sparse instrument keeps working.
+
+| depth | walk = depth, sparse | walk = depth, dense |
+|---|---|---|
+| 1,000 | 39.69x | **1.01x** |
+| 3,200 | 177.63x | **0.93x** |
+
+Flat across every distance at every depth: the walk is gone. In absolute
+terms the deepest row went from 28,324 ticks/op to 155 — **183x**.
+
+**And it costs 2.5% on the average.** End-to-end on a realistic bounded
+book: sparse 2,983,961 msg/s, dense 2,908,714 msg/s. Both numbers are
+true, and the gap between them is the whole point. A real price process
+inserts near the touch most of the time, so the *sparse* book's average
+walk is short and eliminating a short walk saves little. The dense
+ladder's value is that the 177x case cannot happen at all. **This is a
+tail optimisation**, and whether you want it depends on whether your
+latency budget cares about p999. In a market maker it does.
+
+The occupancy bitmap is not optional, because the pure-array variant
+trades the add for a different pathology: "will give O(1) always for add
+operations, but at the cost of making deletion/execution of the last order
+at the inside limit O(M)" unless the best level is tracked incrementally.
+Best-bid is the highest set bit, best-ask the lowest.
+
+Full account, including the two bugs the change introduced and the
+documented research it was built from, in
+[`results/OPTIMIZATION.md`](../results/OPTIMIZATION.md#the-dense-price-ladder-a-tail-fix-not-an-average-fix).
 
 ### Getting the experiment right took three attempts
 
