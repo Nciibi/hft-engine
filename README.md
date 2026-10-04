@@ -585,33 +585,53 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
+ctest --test-dir build --output-on-failure   # 24 suites, ~60s
+```
+
+That is the whole verification story. The individual binaries, if you want
+to watch them work:
+
+```bash
 ./build/hft_test           # codec, values, sequence tracking, timer units
 ./build/hft_risk_oms       # pre-trade risk and the OMS
 ./build/hft_strategy       # quoting model, adverse selection, book invariant
 ./build/hft_concurrent     # SPSC ring, single- and two-threaded
 ./build/hft_shards         # symbol routing vs a std::map oracle
 ./build/hft_differential   # fast book vs naive model, full state compare
+./build/hft_differential dense   # ...and the same against the dense ladder
 ./build/hft_replay         # deterministic replay, prints the book checksum
 ./build/hft_market_maker   # market maker over a replay, prints toxicity
-./build/hft_tsc_bench      # clock characterisation: the resolution floor
-./build/hft_ladder_bench   # price ladder: the O(depth) walk, quantified
-./build/hft_bench          # add-only ingest: latency and throughput table
-./build/hft_stage_bench    # per-stage latency, shallow vs deep book
-./build/hft_ring_bench     # ring vs mutex baseline, throughput and round trip
-./build/hft_pipeline_bench # 1 thread vs 2, batch-size sweep, checksum-matched
-ctest --test-dir build     # everything
+
+# measurements -- read hft_tsc_bench's output before believing any of them
+./build/hft_tsc_bench            # what latency this host can resolve at all
+./build/hft_ladder_bench sparse  # price ladder: the O(depth) walk
+./build/hft_ladder_bench dense   # ...and the same sweep on the dense grid
+./build/hft_bench 2000000 throughput   # add-only ingest, no per-message clock
+./build/hft_stage_bench 2000000 # per-stage latency, shallow vs deep book
+./build/hft_ring_bench           # ring vs mutex baseline, integrity-checked
+./build/hft_pipeline_bench 1000000  # 1 thread vs 2 vs sharded, checksum-matched
 ```
 
 **Start with `hft_tsc_bench`.** It reports what latency figures this host
 is capable of resolving, and reading a stage table without knowing the
 floor is how an unresolved measurement gets published as a fast stage.
+That is not hypothetical here: it is why the latency table above has
+empty cells and the throughput table does not.
 
-Determinism across optimisation levels is a separate check because it
-rebuilds the replay tool six times:
+Two checks are separate because they rebuild or re-derive rather than
+re-run:
 
 ```bash
-./scripts/determinism.sh              # or scripts\determinism.ps1
+./scripts/determinism.sh     # same capture at -O0/-O1/-O2/-O3/-Os/-Oz, one checksum
+./scripts/check-docs.sh      # every link target and anchor resolves
+./scripts/check-claims.sh    # the counts in this README match what the binaries print
 ```
+
+`check-claims` exists because this README asserted "783 checks" for a
+long time while `hft_test` was printing 1,412 — every test green, every
+link resolving, and a published number that was wrong by more than 2x. A
+number typed by hand into prose has nothing to disagree with it. Now
+adding a test without updating the count is a red build.
 
 Zero external dependencies in the library target. CMake, a C++20
 compiler, and `git`.
