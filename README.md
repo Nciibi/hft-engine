@@ -414,38 +414,55 @@ it at all, in
 
 ### Concurrency
 
-Measured on `<instance spec>`, `<compiler + flags>`, `<kernel>`, with the
-decoder and book threads on two distinct physical cores. Reproduce with
-`./build/hft_pipeline_bench`.
+`hft_pipeline_bench 1000000`, decoder and book threads on two distinct
+physical cores, placement discovered rather than assumed and printed by
+the tool. Every row is checksum-matched against the single-threaded
+baseline.
 
-**Splitting decode from apply, through one ring.** Break even at every
-batch size, within the measured noise floor.
+**Splitting decode from apply, through one ring.**
 
-| Variant                                     | msgs/sec | vs 1 thread |
-|---------------------------------------------|----------|-------------|
-| Single thread, decode + apply               | `[MEASURED]` | 1.00x   |
-| Two threads through the ring, K=1           | `[MEASURED]` | `[MEASURED]` |
-| Two threads through the ring, K=8           | `[MEASURED]` | `[MEASURED]` |
-| Two threads through the ring, K=32          | `[MEASURED]` | `[MEASURED]` |
-| Two threads through the ring, K=128         | `[MEASURED]` | `[MEASURED]` |
+| Variant                                     | msgs/sec | vs 1 thread | Book     |
+|---------------------------------------------|----------|-------------|----------|
+| Single thread, decode + apply               | 752,926  | 1.00x       | baseline |
+| Two threads through the ring, K=1           | 740,635  | 0.98x       | identical |
+| Two threads through the ring, K=8           | 805,387  | 1.07x       | identical |
+| Two threads through the ring, K=32          | 816,973  | 1.09x       | identical |
+| Two threads through the ring, K=128         | 793,071  | 1.05x       | identical |
+
+Measured drift, same baseline re-run: **−0.81%**.
+
+**These ratios straddle 1.00x, and that is the finding, not a
+disappointment.** Across repeated runs K=1 has been observed at both
+0.98x and 1.10x — the sign is not stable, so the honest reading is
+break-even, and the tool now *computes* that verdict from its own best
+ratio against its own measured noise floor rather than asserting one. An
+earlier revision printed "BREAK EVEN" as a hardcoded string while the
+table above it read 1.10x–1.13x; a conclusion that cannot be refuted by
+the measurement printed beside it is not a result.
 
 **Sharding by symbol, 64 instruments.** This is where it pays.
 
-| Variant                          | msgs/sec | vs 1 thread |
-|----------------------------------|----------|-------------|
-| Single thread, fused, 64 books   | `[MEASURED]` | 1.00x   |
-| Dispatcher + 2 workers           | `[MEASURED]` | `[MEASURED]` |
-| Dispatcher + 3 workers           | `[MEASURED]` | `[MEASURED]` |
-| Dispatcher + 5 workers           | `[MEASURED]` | `[MEASURED]` |
+| Variant                          | msgs/sec | vs 1 thread | Books |
+|----------------------------------|----------|-------------|-------|
+| Single thread, fused, 64 books   | 2,829,609 | 1.00x       | baseline |
+| Dispatcher + 2 workers           | 5,229,936 | 1.85x       | identical |
+| Dispatcher + 3 workers           | 5,216,391 | 1.84x       | identical |
+| Dispatcher + 5 workers           | 4,787,692 | 1.69x       | identical |
 
 The difference between those two tables is the whole argument for symbol
 sharding. Splitting decode from apply leaves the expensive half — the
-ladder walk and the slab edit — running serially on one core, and adds a
+ladder lookup and the slab edit — running serially on one core, and adds a
 hand-off to pay for. Sharding by symbol gives every thread its own book to
-apply into, so the expensive work is parallel *and* balanced. Ratios
-flatten as workers are added because the dispatcher decodes and routes
-**every** message and is therefore a serial floor — that floor is the
-number to quote for a design like this, not the worker count.
+apply into, so the expensive work is parallel *and* balanced.
+
+Ratios flatten past two workers, and 5 workers is *slower* than 3. The
+reason is that the dispatcher decodes and routes **every** message and is
+therefore a serial floor: **that floor is the number to quote for a
+design like this, not the worker count.** A 1.8x ceiling from a
+dispatcher-bound design is a property of the architecture, and no amount
+of core count moves it — which is why the single-threaded fused baseline
+in the second table is 2.83M msg/s while the whole sharded design peaks
+near 5.2M.
 
 **This tool once reported the opposite conclusion, and the correction is
 the more useful half.** It measured the split at 0.81x–0.91x and blamed
@@ -453,7 +470,7 @@ load imbalance. That story was a rationalisation: the consumer drained the
 ring, found it empty, *then* checked the producer's stop flag, and the
 producer could push more messages and set that flag in between. The run
 did less work and timed as slower. With the drain fixed, the split is
-break-even.
+break-even rather than a loss.
 
 Every sharded row is checked to have produced books byte-identical to the
 single-threaded baseline. That check is not a formality — a pipeline that
