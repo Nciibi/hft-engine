@@ -5,10 +5,12 @@ reasoning that made it deliberate. The short form of each is in the
 [README](../README.md#design-decisions); this is the long form, for when
 someone asks why.
 
-The order is roughly the order a reader meets them in the code.
+The order is roughly the order a reader meets them in the code. The
+short form of each is in the [README](../README.md#design-decisions).
 
 ---
 
+## Data representation
 
 **Fixed-point integers, never floating point.** Prices are `int64_t` at
 1/10000, matching ITCH's native precision. Floating point in a price
@@ -243,15 +245,30 @@ markout and the toxicity rate.
 
 **A negative EFFECTIVE spread is not a market maker beating the mid.**
 
-**The price ladder is a sorted linked list, and that is a known cost.**
-Inserting a price that is not adjacent to the best walks from the head
-of the ladder, so book-update latency is proportional to ladder depth.
-At the ~3,200 levels per side in the development run this is
-comfortably inside the tail, but it is O(levels), not O(1), and it is
-the first thing to replace with a price-ladder array or a tree once a
-real depth target is known. The benchmark reports ladder depth for
-exactly this reason: a latency figure quoted without it cannot be
-interpreted.
+**The price ladder is a dense array with an occupancy bitmap, and it was a
+sorted linked list until measurement said otherwise.** Inserting a price
+not adjacent to the best walked from the head of the ladder, so
+book-update latency was proportional to ladder depth — 178x a touch
+insert at 3,200 levels, linear in depth *and* in distance. It is now a
+direct-indexed grid, `(price - floor) / tick`, with a per-side occupancy
+bitmap: the same measurement reads 1.01x at 1,000 levels and 0.93x at
+3,200, and the deepest row went from 28,324 to 155 ticks/op.
+
+The bitmap is load-bearing, not an optimisation. The pure-array variant
+gives O(1) adds but makes deletion of the last order at the touch O(M)
+unless the best level is tracked incrementally — the documented failure of
+the array approach. Best-bid is the highest set bit, best-ask the lowest,
+so the touch is found without scanning order nodes.
+
+It costs **2.5% on the average** and buys the entire tail. A real price
+process inserts near the touch most of the time, so the average walk was
+already short; eliminating a short walk saves little. What it guarantees is
+that the 178x case cannot happen at all. That is a tail optimisation, and
+whether you want one depends on whether your latency budget cares about
+p999. It is opt-in via `LadderConfig`, with the hash map and linked list
+retained as the out-of-band fallback, because a sparse instrument needs a
+price range it does not have. Numbers in
+[`results/OPTIMIZATION.md`](../results/OPTIMIZATION.md#the-dense-price-ladder-a-tail-fix-not-an-average-fix).
 
 ---
 
