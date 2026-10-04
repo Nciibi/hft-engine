@@ -266,7 +266,7 @@ one failure mode this file exists to prevent.
 Requires CMake, a C++20 compiler and `git`. Zero external dependencies.
 
 **GCC 16.2.0 and clang 23.1.2 both build the tree clean under the project's
-`-Werror` policy, and all 16 tests pass under each.** Two compilers is not
+`-Werror` policy, and all 23 tests pass under each.** Two compilers is not
 fastidiousness for its own sake: the twelve warnings GCC surfaced when it
 replaced clang, and the two clang surfaced when it was added, were both
 real defects. See the toolchain table below.
