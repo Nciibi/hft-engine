@@ -4,11 +4,13 @@ The tables live in [README.md](../README.md#results). This document is
 the reasoning behind them -- specifically the parts where a plausible
 explanation turned out to be wrong, which is the only reason any of it is
 worth reading.
-
-**No figures are published yet.** The ` [MEASURED] ` placeholders in the
-README are deliberate: the development host's clock has 100 ns granularity,
-which makes the fastest pipeline stage unresolvable rather than fast. See
-[esults/ENVIRONMENT.md](../results/ENVIRONMENT.md).
+**Not every figure in the README is published yet.** The `[MEASURED]`
+placeholders in the latency tables are deliberate: the development host's
+clock has 100 ns granularity, which makes the fastest pipeline stage
+unresolvable rather than fast. Throughput, ratios and counts *are*
+published, because a ratio cancels the clock overhead and a throughput is
+computed from total elapsed time. See
+[`results/ENVIRONMENT.md`](../results/ENVIRONMENT.md).
 
 ---
 
