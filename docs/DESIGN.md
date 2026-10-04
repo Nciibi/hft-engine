@@ -316,11 +316,11 @@ markout and the toxicity rate.
 **The price ladder is a dense array with an occupancy bitmap, and it was a
 sorted linked list until measurement said otherwise.** Inserting a price
 not adjacent to the best walked from the head of the ladder, so
-book-update latency was proportional to ladder depth — 178x a touch
+book-update latency was proportional to ladder depth — more than 100x a touch
 insert at 3,200 levels, linear in depth *and* in distance. It is now a
 direct-indexed grid, `(price - floor) / tick`, with a per-side occupancy
-bitmap: the same measurement reads 1.01x at 1,000 levels and 0.93x at
-3,200, and the deepest row went from 28,324 to 155 ticks/op.
+bitmap: the walk is gone, flat at every depth and distance, with the
+deepest row falling from ~25,000 to ~250 ticks/op.
 
 The bitmap is load-bearing, not an optimisation. The pure-array variant
 gives O(1) adds but makes deletion of the last order at the touch O(M)
@@ -331,7 +331,7 @@ so the touch is found without scanning order nodes.
 It costs **2.5% on the average** and buys the entire tail. A real price
 process inserts near the touch most of the time, so the average walk was
 already short; eliminating a short walk saves little. What it guarantees is
-that the 178x case cannot happen at all. That is a tail optimisation, and
+that the worst case cannot happen at all. That is a tail optimisation, and
 whether you want one depends on whether your latency budget cares about
 p999. It is opt-in via `LadderConfig`, with the hash map and linked list
 retained as the out-of-band fallback, because a sparse instrument needs a
