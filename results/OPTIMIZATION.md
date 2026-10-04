@@ -76,7 +76,12 @@ lowest.
 
 ### It removes the worst case completely
 
-`hft_ladder_bench` forces a walk of N levels by inserting at rank N:
+`hft_ladder_bench` forces a walk of N levels by inserting at rank N. The
+figures below are an earlier run; `docs/RESULTS.md` carries a later one
+(43.38x and 137.81x) from the same experiment once the tool could be told
+which ladder to measure. Both runs agree on the only claim that matters,
+which is that the sparse column is linear in depth and the dense one is
+flat.
 
 | depth | walk = depth | sparse | dense |
 |---|---|---|---|
