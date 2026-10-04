@@ -372,6 +372,15 @@ ratio against it, which is why these survive a 100 ns clock.
 
 Full-depth walk, as a multiple of the control:
 
+```mermaid
+xychart-beta
+    title "Full-depth ladder walk vs the no-walk control"
+    x-axis "ladder depth (price levels a side)" [10, 32, 100, 320, 1000, 3200]
+    y-axis "multiple of control" 0 --> 140
+    line "sparse: hash + linked list" [1.18, 2.12, 5.34, 14.82, 43.38, 137.81]
+    line "dense: grid + bitmap" [0.88, 1.00, 1.01, 1.00, 0.84, 1.52]
+```
+
 | Depth | Sparse (hash + list) | Dense (grid + bitmap) |
 |-------|----------------------|-----------------------|
 | 10    | 1.18x                | 0.88x                 |
