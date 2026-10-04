@@ -541,6 +541,50 @@ skips past a failed correctness run should not be able to.
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    cap["capture.itch<br/>MoldUDP64: hdr 20B = session 10 + seq 8 + count 2<br/>block = len 2 + ITCH body"]
+    cap --> reader["Capture reader<br/>packets to frames, truncation flagged"]
+    reader --> dec["ITCH decoder<br/>zero-copy, big-endian, 48-bit timestamp<br/>A E C X D U B P Q, rest skipped"]
+    dec --> soup["SOUP sequence<br/>gap + duplicate detection, 64-bit"]
+    soup --> apply["Apply layer<br/>single dispatch point: message to mutation"]
+    apply --> book["Order book<br/>price-time priority, fixed-point int64<br/>slab arena, integer handles"]
+    book --> csum["FNV-1a state checksum<br/>deterministic replay"]
+    book --> oms["Order management<br/>8-state machine, slot pool, reconcile counters"]
+    oms --> risk["Pre-trade risk<br/>position, gross, notional, band, rate, kill"]
+    risk --> mm["Market maker<br/>Avellaneda-Stoikov, tick-aware"]
+    mm --> adv["Adverse selection<br/>markout, toxicity, realised spread"]
+    adv --> pnl["PnL<br/>marked to market, inventory aware"]
+
+    subgraph thr["Optional: measured separately, checksum-matched"]
+        direction LR
+        tdec["decoder thread"] --> ring["SPSC ring<br/>one slot per batch"] --> tbook["book thread"]
+        tbook --> tcsum["FNV-1a checksum<br/>vs single-threaded book"]
+    end
+    cap -.-> tdec
+
+    subgraph meas["Measurement path - a component in its own right"]
+        direction LR
+        tsc["hft_tsc_bench"] --> tsclk["TsClock<br/>calibrated rdtsc, fences"]
+        tsclk --> sweep["Resolution sweep<br/>what this host can resolve"]
+        sweep --> drift["Drift<br/>threshold below which a ratio is noise"]
+    end
+    drift -.-> "every latency figure is read against this floor" .-> meas
+
+    classDef measbox fill:#f4f6f8,stroke:#8899aa,stroke-dasharray:4 3
+    class meas,tsc,tsclk,sweep,drift measbox
+```
+
+The measurement path is drawn as a component rather than a footnote
+because that is what it is: `hft_tsc_bench` establishes the floor below
+which no other tool's numbers mean anything, and it is asserted in CI
+because a host whose clock cannot be calibrated cannot produce a
+publishable latency table — that should stop the run rather than be
+discovered afterwards.
+
+Plain-text version of the same three paths, for reading the source without
+a renderer:
+
 ```
   capture.itch   MoldUDP64 packets: [hdr:20][block][block]...
       |          hdr = [session:10][seq:8][count:2]
