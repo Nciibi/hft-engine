@@ -139,7 +139,7 @@ end-to-end barely moves when the walk is eliminated (see below), because
 the average case was already dominated by the order-reference hash and the
 pool accesses.
 
-## The O(depth) walk: measured, then removed
+## The depth-proportional walk, measured and removed
 
 The fix is a **direct-indexed price ladder**: an array indexed by price
 offset from an anchor, with a per-side occupancy bitmap, making both "find
