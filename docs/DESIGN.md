@@ -22,6 +22,8 @@ batched and amortised outside the message loop. This is the same
 size-class and freelist reasoning that drives
 [allox](https://github.com/Nciibi/allox), my thread-cached allocator.
 
+## Protocol correctness
+
 **ITCH `X` and `D` are different operations.** `X` is a partial cancel:
 subtract cancelled shares from the original add. `D` removes the order
 entirely. Conflating them is the most common ITCH book bug, and the
