@@ -92,9 +92,10 @@ target_link_libraries(hft_market_maker PRIVATE hft_core)
 add_executable(hft_ring_bench src/bench/ring_bench.cpp)
 target_link_libraries(hft_ring_bench PRIVATE hft_core)
 
-# Per-stage latency at a shallow and a deep book. Shallow is 10 price
-# levels a side, deep is 1000, because the price ladder is a sorted
-# linked list and book-update cost is proportional to ladder depth.
+# Per-stage latency at a shallow and a deep book: shallow is 10 price
+# levels a side, deep is 1000. Reported separately because book-update
+# cost depends on ladder depth -- on the sparse fallback ladder it is
+# proportional to it, which is what the dense ladder removes.
 add_executable(hft_stage_bench src/bench/stage_bench.cpp)
 target_link_libraries(hft_stage_bench PRIVATE hft_core)
 
@@ -104,8 +105,9 @@ target_link_libraries(hft_stage_bench PRIVATE hft_core)
 add_executable(hft_pipeline_bench src/bench/pipeline_bench.cpp)
 target_link_libraries(hft_pipeline_bench PRIVATE hft_core)
 
-# Price ladder scaling: quantifies the O(depth) walk in the level list.
-# Reports ratios rather than absolute latency, because the ratio survives a
+# Price ladder scaling: quantifies the O(depth) walk in the sparse level
+# list, and the before/after of the dense ladder against it. Reports
+# ratios rather than absolute latency, because the ratio survives a
 # coarse clock and an absolute figure does not.
 add_executable(hft_ladder_bench src/bench/ladder_bench.cpp)
 target_link_libraries(hft_ladder_bench PRIVATE hft_core)
