@@ -224,6 +224,66 @@ terminal: a fill can arrive while a cancel is outstanding, and treating
 that as a completed cancel silently drops the residual order and leaks
 inventory.
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> pending_new : send
+    [*] --> rejected : pre-trade risk
+
+    pending_new --> working : ack
+    pending_new --> partially_filled : ack + fill, same batch
+    pending_new --> filled : full fill before ack
+    pending_new --> rejected : venue or risk
+    pending_new --> cancelled
+
+    working --> partially_filled : partial fill
+    working --> filled : full fill
+    working --> pending_cancel : cancel request
+    working --> pending_replace : modify request
+    working --> cancelled : cancel ack
+
+    pending_cancel --> partially_filled : fill arrives mid-cancel
+    pending_cancel --> filled : residual fills
+    pending_cancel --> cancelled : cancel ack
+    pending_cancel --> rejected
+
+    pending_replace --> working : venue rejects the modify
+    pending_replace --> partially_filled
+    pending_replace --> filled
+    pending_replace --> cancelled
+    pending_replace --> rejected
+
+    partially_filled --> partially_filled : further fills
+    partially_filled --> filled : complete
+    partially_filled --> pending_cancel : cancel remainder
+    partially_filled --> cancelled
+
+    filled --> [*]
+    cancelled --> [*]
+    rejected --> [*]
+
+    note right of pending_cancel
+        NOT terminal. A fill can
+        arrive while a cancel is
+        outstanding; treating it
+        as terminal drops the
+        residual and leaks
+        inventory.
+    end note
+```
+
+Two edges in that table are the entire argument for having one:
+
+- **`pending_cancel -> partially_filled`.** Systems that model "cancel
+  pending" as terminal silently drop the residual order.
+- **`pending_new -> filled`.** An order that fills completely in the same
+  batch that acknowledges it must go straight to `filled`, never to
+  `working`, or it sits in the working set forever.
+
+`filled`, `cancelled` and `rejected` return `false` from
+`can_transition` unconditionally, so a late message cannot resurrect a
+completed order.
+
 **The market maker quotes around the mid but is bounded by the touch.**
 The Avellaneda-Stoikov model wants a spread and a price, and the
 book is not centred on the mid the model is using. Each side is
