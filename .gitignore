@@ -65,6 +65,12 @@ crashes/
 *.swp
 *.swo
 *~
+
+# PowerShell artefact. A `Hashtable.Count` accidentally serialised into
+# the working directory produced a committed file literally named
+# "System.Collections.Hashtable". Nothing else should ever write to
+# the repository root.
+System.Collections.Hashtable
 .cache/
 compile_commands.json
 
