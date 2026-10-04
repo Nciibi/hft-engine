@@ -138,6 +138,24 @@ constexpr int kRepeats = 5;
 /// reachable and `distance` means what the column says.
 constexpr std::int64_t kStrideTicks = 2;
 
+/// Which ladder the sweep measures.
+///
+/// `sparse` is the hash map plus sorted linked list, where a full-depth
+/// walk is O(depth). `dense` is the direct-indexed grid with an occupancy
+/// bitmap, where it is O(1). Both are shipped -- `LadderConfig::dense`
+/// selects between them at runtime -- so both halves of the before/after
+/// are measurable with the same tool and the same clock.
+///
+/// This was a single hardcoded `true` until the README cited a sparse
+/// table (39.69x, 177.63x) that no committed binary could produce, because
+/// the tool measured only the dense path and the note at the end of every
+/// run still said the direct-indexed ladder "is NOT implemented here".
+/// A before/after whose before half cannot be re-derived is a story, not
+/// a measurement.
+enum class Ladder { sparse, dense };
+
+Ladder g_ladder = Ladder::dense;
+
 [[nodiscard]] OrderBook build(std::size_t depth, Price top) {
     const std::size_t cap = capacity_for(depth);
 
@@ -155,7 +173,7 @@ constexpr std::int64_t kStrideTicks = 2;
     const std::int64_t tick_raw = Price::kScale / 100;
 
     hft::lob::LadderConfig ladder;
-    ladder.dense = true;
+    ladder.dense = (g_ladder == Ladder::dense);
     // Two ticks of margin below the worst bid, and a band four ticks
     // longer than the span so the probe can land on either side.
     ladder.floor_price = Price::from_raw(top.raw() - (span_ticks + 2) * tick_raw);
@@ -167,10 +185,16 @@ constexpr std::int64_t kStrideTicks = 2;
     // Coverage assertion. Without this the tool would silently report the
     // sparse path's numbers under a dense heading, which is precisely the
     // failure this whole repository's bug catalogue is about.
-    const Price lowest = Price::from_raw(top.raw() - span_ticks * tick_raw);
-    if (book.dense_covers(lowest) != 1) {
-        std::printf("  WARNING: band does not cover the deepest price; rows below\n"
-                    "           would measure the sparse fallback, not the ladder.\n");
+    //
+    // The assertion is one-sided: it only applies when a band exists to
+    // fall out of, so it is skipped for the sparse path where the band is
+    // inert by construction.
+    if (g_ladder == Ladder::dense) {
+        const Price lowest = Price::from_raw(top.raw() - span_ticks * tick_raw);
+        if (book.dense_covers(lowest) != 1) {
+            std::printf("  WARNING: band does not cover the deepest price; rows below\n"
+                        "           would measure the sparse fallback, not the ladder.\n");
+        }
     }
     hft::OrderId id = 1;
     for (std::size_t i = 0; i < depth; ++i) {
