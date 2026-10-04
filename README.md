@@ -60,9 +60,9 @@ than the 8 MiB last-level cache:
 flowchart LR
     msg["one Add Order message"] --> h1["order_index_ probe<br/>26 MiB"]
     msg --> h2["level_index_ probe<br/>26 MiB"]
-    h1 --> l1["levels_[level]<br/>38 MiB"]
+    h1 --> l1["levels_ by level id<br/>38 MiB"]
     h2 --> l1
-    l1 --> tail["orders_[lv.tail].next<br/>38 MiB"]
+    l1 --> tail["orders_ tail next<br/>38 MiB"]
     classDef big fill:#fdecea,stroke:#c0392b
     class h1,h2,l1,tail big
 ```
@@ -619,11 +619,11 @@ flowchart TD
         tsc["hft_tsc_bench"] --> tsclk["TsClock<br/>calibrated rdtsc, fences"]
         tsclk --> sweep["Resolution sweep<br/>what this host can resolve"]
         sweep --> drift["Drift<br/>threshold below which a ratio is noise"]
+        sweep --> gate["Gate on every published number<br/>below the floor, a figure is unresolved"]
     end
-    drift -.-> "every latency figure is read against this floor" .-> meas
 
     classDef measbox fill:#f4f6f8,stroke:#8899aa,stroke-dasharray:4 3
-    class meas,tsc,tsclk,sweep,drift measbox
+    class tsc,tsclk,sweep,drift,gate measbox
 ```
 
 The measurement path is drawn as a component rather than a footnote
