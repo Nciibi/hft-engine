@@ -58,10 +58,16 @@ $suites = [ordered]@{
     'shards'      = 'hft_shards'
 }
 
+# Try the bare name and the .exe name rather than branching on the host.
+# `$IsWindows` is PowerShell 6+; under 5.1 it is simply undefined, so an
+# OS test written that way silently evaluates to false and appends no
+# extension -- which looks like every binary being missing rather than like
+# a version problem. Probing for both is shorter and cannot be wrong.
 function Find-Binary([string]$name) {
-    $ext = if ($IsWindows -or $env:OS -eq 'Windows_NT') { '.exe' } else { '' }
-    $p = Join-Path $BuildDir ($name + $ext)
-    if (Test-Path -LiteralPath $p) { return $p }
+    foreach ($candidate in @($name, ($name + '.exe'))) {
+        $p = Join-Path $BuildDir $candidate
+        if (Test-Path -LiteralPath $p) { return $p }
+    }
     return $null
 }
 
