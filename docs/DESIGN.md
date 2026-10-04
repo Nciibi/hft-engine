@@ -57,6 +57,22 @@ a skipped message is recoverable and wrong bytes are not. The rule was
 sound. The gap was that "cannot verify" had quietly become "assume it is
 not knowable", which is a different claim and a weaker one.
 
+**A MoldUDP64 Message Block is an ITCH frame, so the framing does not
+translate anything.** A block is `[2-byte length][body]` and an ITCH
+frame is `[2-byte length][body]`; `MessageBlocks::next()` returns the
+block *including* its prefix so it can be handed straight to `decode()`
+with no adjustment at either layer. The block length field excludes its
+own two bytes, so a block occupies `length + 2` — a detail worth stating
+because getting it backwards produces a packet that parses one block
+short and then reads the next packet's header as message data.
+
+Verified against the Nasdaq MoldUDP64 specification with a hand-built
+packet in `tests/test_units.cpp`, including two facts this repository had
+previously stated wrongly: the Sequence Number field is **eight** bytes
+and MoldUDP64 has **no checksum**. See "What this is not".
+
+## Measurement
+
 **A clock reading is not a duration, and a duration is not a number you
 may print without saying what it is in.** This repository made that
 mistake three times in one afternoon, in three different files, and each
