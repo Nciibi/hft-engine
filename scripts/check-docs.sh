@@ -23,6 +23,24 @@ FILES=(
 broken=0
 checked=0
 
+# Strip fenced code blocks. Mermaid is rendered by GitHub from a fenced
+# block, and its node shapes match the link pattern -- A[(label)] reads as
+# a link whose target is "label". Left alone, adding a diagram would
+# report phantom broken links and teach whoever added them to ignore this
+# check, which is the only thing making it worth having.
+#
+# awk, because this needs state (are we inside a fence?) and the fence
+# delimiter has to be remembered to require a matching close.
+strip_fences() {
+    awk '
+        /^(`{3,}|~{3,})/ {
+            if (!infence) { infence = 1; fence = substr($0, 1, 3); next }
+            else if (substr($0, 1, length(fence)) == fence) { infence = 0; next }
+        }
+        !infence { print }
+    ' "$1"
+}
+
 # GitHub's anchor rules: lowercase, drop punctuation except word
 # characters, spaces to hyphens.
 anchor_of() {
@@ -32,8 +50,10 @@ anchor_of() {
 }
 
 anchors_of() {
-    # Heading anchors in one file, one per line.
-    grep -E '^#{1,6} ' "$1" 2>/dev/null \
+    # Heading anchors in one file, one per line. Fences are stripped
+    # first: a "# comment" inside a code block is not a heading.
+    strip_fences "$1" \
+        | grep -E '^#{1,6} ' \
         | sed -E 's/^#{1,6}[[:space:]]+//' \
         | sed -E 's/[[:space:]]+$//' \
         | while IFS= read -r h; do anchor_of "$h"; done
