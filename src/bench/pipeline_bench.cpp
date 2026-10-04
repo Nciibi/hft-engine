@@ -834,6 +834,24 @@ int main(int argc, char** argv) {
     const RunResult all[] = {k1, k8, k32, k128};
     const char* names[] = {"K=1", "K=8", "K=32", "K=128"};
     bool any_mismatch = false;
+
+    // Best ratio across the sweep, kept so the conclusion below can be
+    // derived from this run instead of asserted from a previous one.
+    //
+    // The note at the end of this tool used to say "BREAK EVEN at every
+    // batch size" as a hardcoded string, while the table above it printed
+    // 1.10x-1.13x. A hardcoded conclusion cannot be refuted by the
+    // measurement printed directly above it, which is the exact failure
+    // this repository's bug catalogue exists to prevent -- and the reader
+    // has no way to tell which of the two is the finding.
+    double best_ratio = 0.0;
+    if (rate_of(baseline) > 0.0) {
+        for (const RunResult& r : all) {
+            const double ratio = rate_of(r) / rate_of(baseline);
+            if (ratio > best_ratio) { best_ratio = ratio; }
+        }
+    }
+
     for (std::size_t i = 0; i < 4; ++i) {
         if (all[i].checksum != baseline.checksum || all[i].records != baseline.records ||
             all[i].applied != baseline.applied) {
