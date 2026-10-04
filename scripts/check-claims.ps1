@@ -40,8 +40,12 @@ if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $ScriptDir
 }
 if (-not $BuildDir) { $BuildDir = Join-Path $RepoRoot 'build' }
-$BuildDir = (Resolve-Path -LiteralPath $BuildDir -ErrorAction SilentlyContinue)?.Path
-if (-not $BuildDir) { $BuildDir = Join-Path $RepoRoot 'build' }
+# Resolve if it exists, but do not fail here: a missing build directory is
+# reported below as a missing binary, which is a clearer diagnostic than an
+# exception from Resolve-Path. Written without ?. so it runs under
+# PowerShell 5.1, which is what `powershell.exe` on Windows is.
+$resolved = Resolve-Path -LiteralPath $BuildDir -ErrorAction SilentlyContinue
+if ($resolved) { $BuildDir = $resolved.Path }
 
 # The five suites that print a "N checks, M failures" summary line. The
 # differential suites are excluded on purpose: they assert correctness via
