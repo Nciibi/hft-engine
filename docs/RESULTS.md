@@ -185,8 +185,8 @@ instructive than the result:
    not a ladder walk — it was FlatMap probe length against a
    tombstone-saturated table (see the wedge bug above).
 2. **Second attempt: capacity sized generously, levels on consecutive
-   ticks.** Still flat. The \distance\ probes were landing on prices that
-   **already existed**, so \ind_level\ hit and no walk happened at all —
+   ticks.** Still flat. The `distance` probes were landing on prices that
+   **already existed**, so `find_level` hit and no walk happened at all —
    the tool was measuring an add to an existing level while labelling it a
    walk.
 3. **Third attempt: levels on a two-tick stride, leaving a gap at every
