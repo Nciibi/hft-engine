@@ -50,6 +50,10 @@ function Get-Anchor([string]$heading) {
 function Get-Anchors([string]$path) {
     $set = @{}
     $text = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+    # Fenced blocks first: a `# comment` inside a code fence is not a
+    # heading, and a Mermaid diagram is exactly the kind of place one
+    # appears. See the note on fences in the link scan below.
+    $text = [regex]::Replace($text, '(?ms)^(?<f>`{3,}|~{3,}).*?^(?<f>\k<f>)\s*$', '')
     foreach ($line in ($text -split "`r?`n")) {
         if ($line -match '^#{1,6}\s+(.*?)\s*$') {
             $set[(Get-Anchor $Matches[1])] = $true
