@@ -109,8 +109,8 @@ granularity, so an absolute add/remove latency here is a floor reading. A
 *ratio* survives that, because the clock-pair cost is a roughly constant
 additive term which inflates numerator and denominator alike and cancels in
 the quotient. Every figure below is therefore a **lower** bound: a ladder
-that looks 178x worse is at least 178x worse, and cannot look worse than it
-is.
+that looks N times worse is at least N times worse, and cannot look worse
+than it is.
 
 **The control is the point.** `distance = 1` walks a single node, so it
 measures all of add/remove except the ladder. It sits at 160-230 ticks
