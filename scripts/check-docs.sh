@@ -15,6 +15,7 @@ FILES=(
     README.md
     docs/BUGS.md
     docs/DESIGN.md
+    docs/HISTORY.md
     docs/RESULTS.md
     results/ENVIRONMENT.md
     results/OPTIMIZATION.md
