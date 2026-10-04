@@ -521,16 +521,12 @@ int main(int argc, char** argv) {
     }
 
     std::printf(
-        "\n  The fix is a direct-indexed price ladder: an array indexed by\n"
-        "  price offset from an anchor, which makes 'find the level at this\n"
-        "  price' and 'insert at the head' O(1) instead of O(depth).\n\n"
-        "  It is NOT implemented here, and the reason is stated rather than\n"
-        "  hidden: a change to the book's hot path is only worth making if\n"
-        "  its effect can be measured, and on this host it cannot be. The\n"
-        "  measurement belongs on the benchmark host, where the clock\n"
-        "  resolves single-digit nanoseconds and this sweep becomes the\n"
-        "  before half of a before-and-after. This table is that before\n"
-        "  half, taken now so it cannot later be taken from memory.\n");
+        "\n  The direct-indexed price ladder removes this walk: an array\n"
+        "  indexed by price offset from an anchor makes 'find the level\n"
+        "  at this price' and 'insert at the head' O(1) instead of O(depth).\n"
+        "  It is implemented, selected by `LadderConfig::dense`, and this\n"
+        "  tool measures both -- run it again with `sparse` to reproduce\n"
+        "  the column above, or `dense` for the same sweep on the grid.\n\n");
 
     bench::print_publication_notice();
     std::fflush(stdout);
