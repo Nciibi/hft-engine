@@ -1,5 +1,10 @@
 # HFT Engine
 
+[![CI](https://github.com/Nciibi/hft-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Nciibi/hft-engine/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![language](https://img.shields.io/badge/C%2B%2B-20-00599f.svg)
+![deps](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
+
 A from-scratch NASDAQ TotalView-ITCH 5.0 order book and market-making
 engine in C++20. Fixed-point, arena-backed, zero allocation on the hot
 path, deterministic replay, and a latency harness that measures its own
@@ -10,10 +15,23 @@ resolution floor before reporting anything.
 > [What is implemented](#what-is-implemented) and
 > [What this is not](#what-this-is-not).
 
-**Reading paths.** Five minutes: the bug below, then
+## At a glance
+
+| | |
+|---|---|
+| **What it is** | ITCH 5.0 decoder, price-time-priority limit order book, pre-trade risk, OMS, Avellaneda-Stoikov market maker, and adverse-selection measurement |
+| **Language** | C++20, zero external dependencies in the library target |
+| **Tests** | **1,815 checks** across **24 CTest suites**, 0 failures, under **two compilers** |
+| **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
+| **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
+| **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
+| **Not built, and named** | Multi-shard sequencing, clock sync, kernel bypass, persistence |
+
+**Reading paths.** Fifteen seconds: this table, then the diagram below.
+Five minutes: [the bug that mattered](#the-bug-that-mattered), then
 [What is implemented](#what-is-implemented), then
-[Quick start](#quick-start). Twenty minutes: all of it. Longer: the three
-documents below, which are where the actual argument lives.
+[Quick start](#quick-start). Twenty minutes: all of it. Longer: the four
+documents below, which is where the actual argument lives.
 
 | Document | What is in it |
 |---|---|
@@ -21,7 +39,21 @@ documents below, which are where the actual argument lives.
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Each design decision with the reasoning that made it deliberate, including the two places a documented justification turned out to be false. |
 | [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
 | [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md) | The optimisation log, **including the two changes that were measured, failed, and reverted**. |
-| [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why **no latency table is published yet**. |
+| [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why the **latency** table is withheld while throughput and ratios are published. |
+
+## Contents
+
+- [Three findings worth the reader's time](#three-findings-worth-the-readers-time)
+- [The bug that mattered](#the-bug-that-mattered)
+- [What is implemented](#what-is-implemented)
+- [Results](#results) — throughput, the ladder walk, correctness, concurrency
+- [Quick start](#quick-start)
+- [Architecture](#architecture)
+- [Design decisions](#design-decisions)
+- [Failure modes](#failure-modes)
+- [This maps to interview questions](#this-maps-to-interview-questions)
+- [What this is not](#what-this-is-not)
+- [Reference](#reference)
 
 ## Three findings worth the reader's time
 
