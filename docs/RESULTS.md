@@ -97,9 +97,8 @@ plausible mechanism is not a verified one.
 ## Price ladder: the O(depth) walk, measured
 
 The price ladder is a sorted doubly-linked list, so inserting a level that
-is not adjacent to the best walks from the head of the ladder. The
-README.md states this as a known weakness; hft_ladder_bench measures
-it, and the measurement is cleaner than expected.
+is not adjacent to the best walks from the head of the ladder. `hft_ladder_bench`
+measures that walk, and the measurement is cleaner than expected.
 
 ```
 hft_ladder_bench
