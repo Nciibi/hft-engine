@@ -36,6 +36,7 @@ documents below, which is where the actual argument lives.
 | Document | What is in it |
 |---|---|
 | [`docs/BUGS.md`](docs/BUGS.md) | Every defect found in this repository, grouped by **how it was found** — and why the two categories that found the worst bugs are the ones a test suite structurally cannot provide. |
+| [`docs/HISTORY.md`](docs/HISTORY.md) | The build arc in the order things were *learned*, because the sequence is the argument. Start here if the commit log looks like noise — it is. |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Each design decision with the reasoning that made it deliberate, including the two places a documented justification turned out to be false. |
 | [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
 | [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md) | The optimisation log, **including the two changes that were measured, failed, and reverted**. |
