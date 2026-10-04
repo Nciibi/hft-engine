@@ -513,7 +513,8 @@ because the *choice* is the interesting part and the prose is not.
 - **Wire layouts are asserted against the specification, not against each
   other.** A `static_assert` comparing two constants proves internal
   consistency, which is not the same as being right — and that distinction
-  is the entire reason the Add Order bug survived 512 green checks.
+  is the entire reason the Add Order bug survived 512 green checks at the
+  time.
 - **Skip rather than guess.** An unverified offset on a live feed yields a
   decoder that confidently misreads it; a skipped message is recoverable
   and wrong bytes are not.

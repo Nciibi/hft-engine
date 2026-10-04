@@ -41,7 +41,8 @@ other.** Every offset in `protocol.hpp` has a `static_assert` against its
 literal value from the published field table. The relationship asserts
 (`size == last offset + width`) only prove the table is internally
 consistent, which is not the same as being right — and that distinction
-is the entire reason the Add Order bug survived 512 green checks.
+is the entire reason the Add Order bug survived 512 green checks at the
+time.
 Internally-consistent-but-wrong is a real and underappreciated failure
 mode: it defeats differential testing, because both sides of the
 comparison share the error.

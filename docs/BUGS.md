@@ -13,10 +13,10 @@ the two that a reader has to see before trusting anything else.
 
 ## How to read this
 
-The entries are grouped by **how the bug was found**, because that is the
-transferable part. A defect found by a unit test is uninteresting on its
-own. A defect that survived 777 green checks teaches you something about
-the shape of the problem.
+The entries are grouped by **how the bug was found**, because that is
+the transferable part. A defect found by a unit test is uninteresting on its
+own. A defect that survived every green check this repository could produce
+teaches you something about the shape of the problem.
 
 | Found by | Entries | What it says |
 |---|---|---|
@@ -40,7 +40,8 @@ thing that ends a career if it reaches production, and both were invisible
 to everything this project had built up to that point.
 
 1. **The Add Order decoder read the share count as the price.**
-   [`README.md`](../README.md#the-bug-that-mattered) — 512 checks, a
+   [`README.md`](../README.md#the-bug-that-mattered) — 512 checks at the
+   time, a
    400,000-operation differential test and a determinism harness all
    passed, because the generator wrote the same wrong layout the decoder
    read. Both agreed with each other and both disagreed with Nasdaq's
