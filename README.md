@@ -229,34 +229,57 @@ something outside this repository would have.
 
 ## Results
 
-**No latency table is published yet, and the reason is a measurement
-problem rather than a scheduling one.** Run `./scripts/bench.sh` to
-produce them; full environment in
-[`results/ENVIRONMENT.md`](results/ENVIRONMENT.md).
+**Every number below was measured on this repository's development
+host** — an AMD Ryzen 5 1600, consumer silicon, no core isolation, no
+frequency pinning, and a portable clock with **100 ns granularity**. Full
+specification, including why that last detail decides which cells can be
+filled at all, in [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md).
+Absolute latency is withheld; throughput, ratios and counts are not, and
+the reason why those three survive this host is given first.
 
-Before filling any cell below, read
-[the floor](docs/BUGS.md#what-the-floor-turned-out-to-be). On the development host
-the portable clock has a **100 ns** granularity, which makes the decode
-stage *unmeasurable* rather than fast: its corrected p50 is exactly one
-tick. The `[MEASURED]` placeholders are left in place deliberately, and
-`scripts/bench.sh` prints that instruction at the end of every run.
+### What this host can and cannot measure
 
-The one set of latency figures that was ever committed to this file has
-been removed. It was wrong by a factor of 100 — see
-[Phase 8](docs/BUGS.md#phase-8-every-latency-figure-in-this-repository-was-wrong-by-100x).
+Timing one operation means reading the clock before and after it. On this
+host that clock ticks every **100 ns**, so it cannot distinguish "fast"
+from "less than 100 ns". `hft_stage_bench` prints its own floor, and the
+decode stage sits *on* it:
 
-Measured on `<instance spec>`, `<compiler + flags>`, `<kernel>`.
+```
+MEASUREMENT COST
+  clock read        p50  1  p99  101  p999  101      <- one tick = 100 ns
+  decode            p50  1  p99  101  p999  201      <- identical to the floor
+  book update       p50 101  p99 2201  p999 11901     <- 100x above the floor
+```
+
+Decode's p50 is the same number as the cost of reading the clock. The
+true cost is ~38 ns/message, known from throughput. So `p50 = 1` means
+*"somewhere in [0, 100) ns, I cannot tell you which"* — and printing `100`
+there would publish a figure **2.6x worse than reality**, from an
+instrument that cannot see the difference.
+
+Three classes of number are unaffected, and they are the ones published:
+
+- **Throughput.** Computed from total elapsed time, so one tick of
+  uncertainty is spread across 700 million of them. This is why throughput
+  was the *one* figure in this repository that survived both headline bugs.
+- **Ratios.** The clock-pair cost is a roughly constant additive term, so
+  it inflates numerator and denominator alike and cancels in the quotient.
+- **Counts.** Checks, operations and seed sweeps do not depend on a clock.
+
+> **A benchmark reporting a slowdown deserves the same suspicion as one
+> reporting a speedup.** Every table here is checked against a
+> correctness gate before its numbers are read, and `scripts/bench.sh`
+> prints that instruction at the end of every run.
 
 ### Latency, by pipeline stage
 
 Per message, p50 / p99 / p999, single thread. `hft_stage_bench` produces
 both tables; `hft_bench` produces the add-only ingest figures.
 
-The ladder is a sorted linked list, so inserting a price that is not
-adjacent to the best walks from the head of the ladder. **Book-update
-cost is proportional to ladder depth**, which is why there are two tables
-rather than one — a single figure across both would be a figure about
-nothing.
+The cells are withheld rather than filled because of the floor above, not
+because the run was not made. The two book depths are reported separately
+because book-update cost depends on ladder depth: a single figure across
+both would be a figure about nothing.
 
 **Shallow book — 10 price levels a side**
 
