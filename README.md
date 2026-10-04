@@ -727,9 +727,15 @@ production software is worse than one that does not:
   wired up, not that the strategy controls inventory.
 - **No self-trade prevention, no auction handling, no order book state
   message processing.**
-- **Price ladder is a sorted linked list**, so inserting a price not
-  adjacent to the best is O(ladder depth) — measured at 178x a touch insert
-  at 3,200 levels, and negligible at realistic equity depths.
+- **The sparse price ladder is a hash map plus a sorted linked list**, so
+  inserting a price not adjacent to the best is O(ladder depth) — measured
+  at 178x a touch insert at 3,200 levels. It is retained as the
+  out-of-band fallback and is still reachable, because a sparse
+  instrument needs a price range it does not have. The dense ladder with
+  its occupancy bitmap is the structure the benchmarks exercise; it is
+  opt-in via `LadderConfig` rather than the only path, and
+  [`docs/RESULTS.md`](docs/RESULTS.md#the-o-depth-walk-measured-then-removed)
+  has the before-and-after for both.
 - **No kernel bypass.** Benchmarks are single-socket: no `io_uring`, no
   `DPDK`, no `SO_TIMESTAMPING`. Real shops measure the syscall layer
   separately because it dominates.
