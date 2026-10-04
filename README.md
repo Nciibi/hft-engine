@@ -977,13 +977,12 @@ production software is worse than one that does not:
   with it.
 - **No order entry, because TotalView-ITCH has none.** An earlier revision
   claimed the missing encode stage was "ITCH Order Entry (`'B'`)", skipped
-  because its field table could not be verified. Both halves were wrong.
-  Section 1.1 says the feed "is an outbound market data feed only" and
-  "does not support order entry", and `'B'` is the 19-byte *inbound* Broken
-  Trade message — identical in Nasdaq's NQ, BX and PSX specifications. An
-  implementation encoding `'B'` as an order would put an eight-byte match
-  number where a venue expects an order. Nasdaq order entry is a separate
-  product (Basic, OU Clearsight, FIX) with its own specification.
+  because its field table could not be verified. Both halves were wrong, and
+  the full correction is under
+  [Encode is not applicable](#latency-by-pipeline-stage) above. Nasdaq order
+  entry is a separate product (Basic, OU Clearsight, FIX) with its own
+  specification; an implementation encoding `'B'` as an order would put an
+  eight-byte match number where a venue expects an order.
 - **Order Replace is decoded but the generator under-models it.** `'U'` is
   implemented and applied per spec §4.4.5, including the rule that a new
   reference number means new time priority. The generator does not track
