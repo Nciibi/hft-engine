@@ -105,7 +105,7 @@ for file in "${FILES[@]}"; do
                 broken=$((broken + 1))
             fi
         fi
-    done < <(grep -oE '\]\([^)]+\)' "$file" 2>/dev/null \
+    done < <(strip_fences "$file" | grep -oE '\]\([^)]+\)' 2>/dev/null \
              | sed -E 's/^\]\(//; s/\)$//')
 
     words=$(wc -w <"$file")
