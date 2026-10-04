@@ -197,11 +197,6 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bench-latest
-          path: bench_out/
-          retention-days: 30
 
       - name: Install toolchain
         run: |
