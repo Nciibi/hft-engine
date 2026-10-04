@@ -78,7 +78,20 @@ foreach ($file in $Files) {
     $own = Get-Anchors $abs
     $dir = Split-Path -Parent $abs
 
-    foreach ($line in ($text -split "`r?`n")) {
+    # Blank out fenced code blocks before scanning for links.
+    #
+    # Mermaid is rendered by GitHub from a fenced block, and its node
+    # shapes contain text that matches the link pattern -- A[(label)]
+    # reads as a link whose target is "label", and A[text](x) worse. Left
+    # alone, adding a diagram would report phantom broken links and train
+    # whoever added them to ignore this check, which is the only thing
+    # making it worth having.
+    #
+    # Fences are matched on ``` and ~~~ with the opening run's length, per
+    # CommonMark, so a longer inner fence cannot close an outer one.
+    $scan = [regex]::Replace($text, '(?ms)^(?<f>`{3,}|~{3,}).*?^(?<f>\k<f>)\s*$', '')
+
+    foreach ($line in ($scan -split "`r?`n")) {
         foreach ($m in [regex]::Matches($line, '\]\(([^)\s]+)\)')) {
             $target = $m.Groups[1].Value
             if ($target -match '^(?:https?|mailto):') { continue }
