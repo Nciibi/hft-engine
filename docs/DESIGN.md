@@ -117,8 +117,9 @@ itself at every level tried would have passed it. The harness was
 verified by injecting a level-dependent value and confirming it failed
 before the claim was left standing. Without that property no benchmark
 is reproducible and no bug is reproducible, and a latency number that
-cannot be re-derived is an
-anecdote.
+cannot be re-derived is an anecdote.
+
+## Concurrency
 
 **The ring's counters are monotonic, not masked and reused.** The obvious
 implementation keeps `head` and `tail` as indices that wrap at capacity,
