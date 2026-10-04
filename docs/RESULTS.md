@@ -131,12 +131,25 @@ quarters, halves, all), and linear in depth at fixed distance (full-depth
 walk: 5.7x, 17.0x, 39.7x, 177.6x for depths 100, 320, 1000, 3200). That is
 O(depth), confirmed rather than asserted.
 
+**Provenance, because these two tables in this repository disagree and
+both are real.** The table above is an earlier run. The figure published
+in the README — 43.38x at depth 1,000 and 137.81x at 3,200 — is a later
+run of the same experiment, taken after this tool gained a `sparse` mode
+so that the number could be re-derived on demand rather than quoted from
+memory. The deepest row differs by 22% between them; the *shape* does not
+differ at all, and the shape is the claim.
+
+`./build/hft_ladder_bench sparse` regenerates a table in this form. Read
+any single multiple as carrying this host's drift, and read the linear
+trend as the result.
+
 **So what?** At the depths a liquid US equity actually shows — tens of
 levels — the walk is a rounding error against the ~55 ns control. At 3200
-levels it is 178x the control, and it would dominate the book update
-entirely. That is a real cost, but on this workload it is not the cost:
-end-to-end barely moves when the walk is eliminated (see below), because
-the average case was already dominated by the order-reference hash and the
+levels it is more than a hundred times the control, and it would dominate
+the book update entirely. That is a real cost, but on this workload it is
+not the cost: end-to-end barely moves when the walk is eliminated (see
+below), because the average case was already dominated by the
+order-reference hash and the
 pool accesses.
 
 ## The depth-proportional walk, measured and removed
