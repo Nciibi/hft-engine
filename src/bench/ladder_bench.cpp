@@ -368,7 +368,50 @@ volatile std::uint64_t g_sink = 0;
 
 }  // namespace
 
-int main() {
+namespace {
+
+// hft_ladder_bench [sparse|dense]
+//
+// Defaults to dense, which is the structure the engine uses on a liquid
+// instrument. Pass `sparse` to reproduce the linked-list walk.
+[[nodiscard]] bool parse_mode(int argc, char** argv, Ladder& out, const char*& err) {
+    if (argc <= 1) {
+        return true;
+    }
+    if (argc > 2) {
+        err = "expected at most one argument: sparse or dense";
+        return false;
+    }
+    const std::string arg = argv[1];
+    if (arg == "sparse") {
+        out = Ladder::sparse;
+        return true;
+    }
+    if (arg == "dense") {
+        out = Ladder::dense;
+        return true;
+    }
+    err = "unrecognised mode; expected 'sparse' or 'dense'";
+    return false;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    const char* mode_err = nullptr;
+    if (!parse_mode(argc, argv, g_ladder, mode_err)) {
+        std::printf("hft_ladder_bench: %s\n", mode_err);
+        std::printf("usage: hft_ladder_bench [sparse|dense]\n");
+        return 2;
+    }
+
+    std::printf("HFT Engine - price ladder scaling: the O(depth) walk\n");
+    std::printf("=========================\n\n");
+    std::printf("ladder            %s%s\n",
+                (g_ladder == Ladder::dense) ? "dense" : "sparse",
+                (g_ladder == Ladder::dense)
+                    ? "  (direct-indexed grid + occupancy bitmap, O(1) walk)"
+                    : "  (hash map + sorted linked list, O(depth) walk)");
     bench::print_environment("price ladder scaling: the O(depth) walk");
     bench::print_clock_overhead(bench::measure_clock_overhead());
 
