@@ -763,16 +763,17 @@ because the *choice* is the interesting part and the prose is not.
   indices into a preallocated arena, never pointers.
 - **The price ladder was a sorted linked list; it is now a dense ladder.**
   Inserting a price not adjacent to the best used to walk from the head, so
-  book-update cost was O(depth) — measured at **178×** a touch insert at
-  3,200 levels. It is now a direct-indexed price grid (`(price − floor) /
-  tick`) with a per-side **occupancy bitmap**, so the walk is gone: the same
-  measurement reads **1.01×** at 1,000 levels and **0.93×** at 3,200, and the
-  deepest row went from 28,324 to 155 ticks/op. This is the structure
-  production engines converge on, and the bitmap is what makes deleting the
-  last order at the touch cheap — the documented failure of the pure-array
-  variant. Opt-in via `LadderConfig`, with the hash map retained as the
-  out-of-band fallback. Costs **2.5% on the average** and buys the whole
-  tail; see [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md).
+  book-update cost was O(depth) — measured at more than **100×** a touch
+  insert at 3,200 levels, and linear in both depth and distance. It is now a
+  direct-indexed price grid (`(price − floor) / tick`) with a per-side
+  **occupancy bitmap**, so the walk is gone: flat at every depth and every
+  distance, and the deepest row went from ~25,000 to ~250 ticks/op. This is
+  the structure production engines converge on, and the bitmap is what makes
+  deleting the last order at the touch cheap — the documented failure of the
+  pure-array variant. Opt-in via `LadderConfig`, with the hash map retained
+  as the out-of-band fallback. Costs **2.5% on the average** and buys the
+  whole tail; the [ladder table](#price-ladder-the-odepth-walk-measured-and-removed)
+  has the numbers and both halves are reproducible from one tool.
 
 **Protocol correctness**
 
@@ -1011,7 +1012,7 @@ production software is worse than one that does not:
   message processing.**
 - **The sparse price ladder is a hash map plus a sorted linked list**, so
   inserting a price not adjacent to the best is O(ladder depth) — measured
-  at 178x a touch insert at 3,200 levels. It is retained as the
+  at over 100x a touch insert at 3,200 levels. It is retained as the
   out-of-band fallback and is still reachable, because a sparse
   instrument needs a price range it does not have. The dense ladder with
   its occupancy bitmap is the structure the benchmarks exercise; it is
