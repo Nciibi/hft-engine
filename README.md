@@ -178,16 +178,21 @@ when any of it drifts from what the binaries actually print. If you add a
 test, this block and the sentence above it both have to change, and
 forgetting is a red build rather than a stale README.
 
+Note the small recursion: this block is checked by a CTest suite, so
+adding that suite changed ctest_tests from 23 to 24, which is itself a
+value this block has to carry. The count below is the number *after* the
+check was added.
+
 checks_unit: 1412
 checks_risk_oms: 156
 checks_strategy: 47
 checks_concurrent: 149
 checks_shards: 51
 checks_total: 1815
-ctest_tests: 23
+ctest_tests: 24
 -->
 
-**Verified: 1,815 checks across 23 CTest suites** — 1,412 unit + 156
+**Verified: 1,815 checks across 24 CTest suites** — 1,412 unit + 156
 risk/OMS + 47 strategy + 149 concurrency + 51 sharding, zero failures,
 under **two compilers**. Every number in that sentence is asserted by
 `ctest`, and `scripts/check-claims.sh` fails the build if it drifts from
