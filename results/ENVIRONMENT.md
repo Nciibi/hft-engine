@@ -3,10 +3,12 @@
 A latency number without the machine it came from is an anecdote. This
 file is the record that makes the table in `README.md` checkable.
 
-## Status: NO PUBLISHED BENCHMARK NUMBERS YET
+## Status: latency table withheld, everything else published
 
-**The `[MEASURED]` placeholders in `README.md` are unfilled, deliberately.**
-This file records why, and what has to happen first.
+**The `[MEASURED]` placeholders in `README.md` are unfilled, deliberately.
+The throughput, ratio and count tables beside them are filled.** This
+file records why the split falls where it does, and what has to happen
+before the withheld half can be published.
 
 The blocker is not scheduling. It is that this development host's clock
 has **100 ns granularity**, which makes the fastest pipeline stage
@@ -14,7 +16,22 @@ unmeasurable rather than fast. Filling the latency table from this machine
 would produce a table of floor readings dressed up as results — the exact
 failure this repository documents everywhere else.
 
-Three things must happen before any figure is published:
+The split is not a compromise. Three classes of measurement are immune to
+a coarse clock, and all three are published:
+
+| Published here | Why the 100 ns clock cannot corrupt it |
+|---|---|
+| **Throughput** | Computed from total elapsed time. One tick of uncertainty spread across ~700 million is 0.0000002%. This is the only figure that survived both headline bugs in this repository, precisely because it is the only one with an independent quantity to check against. |
+| **Ratios** | The clock-pair cost is a roughly constant additive term, so it inflates numerator and denominator alike and cancels in the quotient. A ladder that reads 137x worse is *at least* 137x worse. |
+| **Counts** | Checks, differential operations and seed sweeps do not read a clock at all. |
+
+And one class is not, which is why the p50/p99/p999 cells stay empty:
+
+| Withheld | Why |
+|---|---|
+| **Per-stage latency** | One decode is timed by reading the clock twice. `hft_stage_bench` prints both: `clock read p50 = 1 tick` and `decode p50 = 1 tick`. Identical. The true cost is ~38 ns, so a reported `100` would be **2.6x worse than reality** — from an instrument that cannot see the difference. |
+
+Two things must happen before the withheld half is published:
 
 1. **Run on the rented bare-metal host** (`c7i.metal`), which has a
    TSC-backed clock at nanosecond granularity.
@@ -22,10 +39,11 @@ Three things must happen before any figure is published:
    on cross-optimisation determinism first, then prints the environment
    block, then the clock characterisation, then the benchmarks — in that
    order.
-3. **Paste the environment block into the host table below** and fill the
-   `README.md` placeholders from the script's own output. Do not hand-edit
-   a number in without the matching environment record; that is the one
-   failure mode this file exists to prevent.
+
+Then paste the environment block into the host table below and fill the
+`README.md` placeholders from the script's own output. Do not hand-edit
+a number in without the matching environment record; that is the one
+failure mode this file exists to prevent.
 
 The figures in the sections below are development-machine baselines,
 recorded so the change is legible and so the host comparison has
