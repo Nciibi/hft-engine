@@ -807,6 +807,16 @@ here — not because the bugs are impressive, but because the catalogue is
 grouped by *how each one was found*, and two of those categories are the
 whole argument for how this project is built:
 
+```mermaid
+pie showData
+    title "26 defects by how they were found"
+    "Unit or differential test" : 14
+    "Reading this repo's own output critically" : 5
+    "Compared against the specification" : 4
+    "A second compiler" : 2
+    "Code review before running" : 1
+```
+
 - **The worst bug here was a permanent wedge, and every test missed it.**
   `FlatMap::insert` reused a tombstone only when it also found an *empty*
   slot in the same probe run. The order book erases from its indexes on
