@@ -1,0 +1,260 @@
+# Continuous integration.
+#
+# Why this exists, in the repository's own terms: the two headline bugs in
+# docs/BUGS.md survived a fully green local test suite. Nothing was wrong
+# with the tests. What was missing was a second, independent execution of
+# the same claim -- a second compiler, a second optimisation level, a
+# second source of truth. CI is the cheapest place to get all three, and
+# its real value is not "does it still build" but "does the claim still
+# hold when something other than my machine checks it".
+#
+# So the matrix is deliberately two compilers wide, and the interesting
+# jobs are the ones that can fail without a single line of code changing:
+#   - cross-optimisation determinism (rebuilds at -O0/-O1/-O2/-O3/-Os/-Oz)
+#   - the doc-link check
+#   - the claim check (does the README still state what the binaries print?)
+#
+# Benchmark numbers are produced but never asserted. Consumer silicon and a
+# shared runner cannot support a latency claim, and this repository does not
+# pretend otherwise; see results/ENVIRONMENT.md. Uploading the raw output
+# keeps the artefacts available without making CI a source of published
+# figures.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_TYPE: Release
+
+jobs:
+  # ---- Linux, GCC: the primary gate -----------------------------------
+  build-linux-gcc:
+    name: Linux / GCC ${{ matrix.gcc }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        gcc: ['13', '14']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake + ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            build/CMakeCache.txt
+            build/CMakeFiles
+          key: ${{ runner.os }}-gcc-${{ matrix.gcc }}-${{ hashFiles('src/**', 'include/**', 'CMakeLists.txt') }}
+          restore-keys: ${{ runner.os }}-gcc-${{ matrix.gcc }}-
+
+      - name: Install ccache
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_COMPILER=g++-${{ matrix.gcc }}
+          -DCMAKE_C_COMPILER=gcc-${{ matrix.gcc }}
+          -DCMAKE_CXX_FLAGS="-Wno-unused-command-line-argument"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # The -Werror policy means a new warning fails the build here rather
+      # than becoming a wall of yellow text nobody reads.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 900
+
+  # ---- Linux, clang: the second compiler ------------------------------
+  #
+  # Both of the real defects the second compiler ever found in this
+  # repository were invisible to the first, and one of them was a
+  # correctness bug in symbol handling. A project that compiles clean
+  # under one compiler has finished reading that compiler's warnings, not
+  # its own.
+  build-linux-clang:
+    name: Linux / clang ${{ matrix.clang }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        clang: ['18', '19']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_COMPILER=clang++-${{ matrix.clang }}
+          -DCMAKE_C_COMPILER=clang-${{ matrix.clang }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 900
+
+  # ---- Windows: the platform this was developed on --------------------
+  build-windows:
+    name: Windows / MSVC
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -B build -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_COMPILER=cl
+
+      - name: Build
+        run: cmake --build build --parallel --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 900
+
+  # ---- Cross-optimisation determinism ---------------------------------
+  #
+  # The same capture replayed at six optimisation levels must produce one
+  # book checksum. This is the test that would catch an uninitialised read
+  # in book state, an iteration-order dependence, or a pointer value
+  # leaking into a comparison -- and it is the reason every latency figure
+  # in this repository means anything, because the thing being measured is
+  # then provably the same program at every level.
+  #
+  # It rebuilds the replay tool six times, so it runs once, not per
+  # compiler.
+  determinism:
+    name: Determinism across optimisation levels
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Run
+        run: ./scripts/determinism.sh
+
+  # ---- Documentation and claim consistency ---------------------------
+  #
+  # Two cheap checks that together catch the failure mode this repository
+  # has actually hit: documentation that contradicts itself, and
+  # documentation that states numbers nothing verifies.
+  docs:
+    name: Docs and claims
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Doc link and anchor check
+        run: ./scripts/check-docs.sh
+
+      - name: Configure and build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      # Fails the build when the counts published in the README drift from
+      # what the test binaries print. This exists because the README
+      # asserted "783 checks" while the binaries printed 1,412, and every
+      # other check was green.
+      - name: Claim check
+        run: ./scripts/check-claims.sh build
+
+  # ---- Benchmarks: produced, never asserted ---------------------------
+  #
+  # A shared runner cannot support a publishable latency number, and this
+  # repository's position is that a number without its environment is an
+  # anecdote. So nothing here gates the build; the raw output is uploaded
+  # so a reviewer can see the tools run, and the environment block travels
+  # with it so nobody can quote a figure without the machine it came from.
+  benchmarks:
+    name: Benchmarks (informational)
+    runs-on: ubuntu-24.04
+    needs: build-linux-gcc
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-latest
+          path: bench_out/
+          retention-days: 30
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Clock characterisation
+        run: ./build/hft_tsc_bench
+
+      - name: Per-stage latency, shallow vs deep
+        run: ./build/hft_stage_bench 500000
+
+      - name: Price ladder, both structures
+        run: |
+          ./build/hft_ladder_bench sparse
+          ./build/hft_ladder_bench dense
+
+      - name: Pipeline and sharding
+        run: ./build/hft_pipeline_bench 500000
+
+      - name: Ring against mutex baseline
+        run: ./build/hft_ring_bench
+
+      - name: Collect output
+        if: always()
+        run: |
+          mkdir -p bench_out
+          {
+            echo "=== environment ==="
+            date -u '+%Y-%m-%dT%H:%M:%SZ'
+            uname -srmo
+            nproc
+            awk -F: '/model name/ {print $2; exit}' /proc/cpuinfo
+            g++ --version | head -n1
+            echo
+            echo "=== hft_tsc_bench ===";        ./build/hft_tsc_bench        2>&1 || true
+            echo "=== hft_stage_bench ===";      ./build/hft_stage_bench 500000 2>&1 || true
+            echo "=== ladder sparse ===";        ./build/hft_ladder_bench sparse 2>&1 || true
+            echo "=== ladder dense ===";         ./build/hft_ladder_bench dense  2>&1 || true
+            echo "=== hft_pipeline_bench ===";   ./build/hft_pipeline_bench 500000 2>&1 || true
+            echo "=== hft_ring_bench ===";       ./build/hft_ring_bench      2>&1 || true
+            echo "=== hft_bench throughput ==="; ./build/hft_bench 500000 throughput 2>&1 || true
+          } | tee bench_out/bench.txt
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ github.sha }}
+          path: bench_out/
+          retention-days: 30
