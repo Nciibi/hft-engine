@@ -327,16 +327,19 @@ differently.
 
 ### Throughput
 
-| Condition             | msgs/sec        | Depth |
-|-----------------------|-----------------|-------|
-| Shallow book (10 lvl) | `[MEASURED]`    | 10    |
-| Deep book (1k lvl)    | `[MEASURED]`    | 1000  |
+`hft_stage_bench 2000000`, bounded book, sparse ladder, single thread.
+These are whole-run elapsed times, so they are valid on this host.
+
+| Condition             | msgs/sec        | Mid repriced | Depth |
+|-----------------------|-----------------|--------------|-------|
+| Shallow book (10 lvl) | **2,949,865**   | 130,270 / 2,000,000 (6.51%) | 10 |
+| Deep book (1k lvl)    | **2,845,108**   | 17,367 / 2,000,000 (0.87%)  | 1000 |
 
 Shallow-book throughput is reported separately because it is
 meaningless on its own: real books are deep, and a number from an empty
 book is a number about your loop, not your engine. Reported together,
-the ratio between them is the cost of the linked-list ladder and is the
-single most load-bearing measurement in this repository.
+the 3.6% gap between them is the cost of depth, and the ladder table below
+is where that cost is explained rather than merely reported.
 
 **A benchmark of a book that does not reprice measures nothing.** For a
 while that was exactly what the deep shape was: over 2,000,000 records at
@@ -345,12 +348,54 @@ timing quoting arithmetic against a frozen mid. The deep shape now moves
 the mid **17,367 times in 2,000,000 records, 0.87% of observations** — and
 the tool prints that rate on every run, because a benchmark that cannot
 distinguish a repricing book from a static one is measuring the wrong
-thing quietly.
+thing quietly. The `Mid repriced` column above is that check, published.
+
+**A note on which instrument to believe.** `hft_bench` sizes its pools
+from the message count and never removes an order, so its book grows
+without bound and its cost per message never converges — it reads 1615 ns
+at 50,000 messages and 156 ns at 3,200,000, on identical work. The table
+above uses `hft_stage_bench`, which caps live orders at the level count
+and reports flat throughput across a 16x size range. Both tools are
+committed; only one of them is an instrument.
 
 **Four fixes were tried, and three of them made it worse**, which is the
 more useful half of the result. Full account, including the two
 documented justifications that measurement disproved, in
 [`docs/RESULTS.md`](docs/RESULTS.md#throughput-four-fixes-three-of-which-made-it-worse).
+
+### Price ladder: the O(depth) walk, measured and removed
+
+`hft_ladder_bench` sweeps both ladders with the same clock and the same
+workload. `distance = 1` is the control — it walks no levels, so it
+measures all of add/remove *except* the ladder — and every figure is a
+ratio against it, which is why these survive a 100 ns clock.
+
+Full-depth walk, as a multiple of the control:
+
+| Depth | Sparse (hash + list) | Dense (grid + bitmap) |
+|-------|----------------------|-----------------------|
+| 10    | 1.18x                | 0.88x                 |
+| 32    | 2.12x                | 1.00x                 |
+| 100   | 5.34x                | 1.01x                 |
+| 320   | 14.82x               | 1.00x                 |
+| 1000  | 43.38x               | 0.84x                 |
+| 3200  | **137.81x**          | **1.52x**             |
+
+Linear in distance *and* in depth on the sparse ladder — that is O(depth),
+confirmed rather than asserted — and flat on the dense one at every depth
+and every distance. In absolute terms the deepest row went from 24,652 to
+250 ticks/op.
+
+Reproduce either column: `./build/hft_ladder_bench sparse`, then
+`dense`. Both halves coming from one committed tool is the point; the
+earlier version of this table cited a sparse figure that no binary in the
+repository could produce, because the tool hardcoded the dense path.
+
+Individual multiples carry this host's documented run-to-run drift, so
+the reproducible claim is **the shape** — linear versus flat — not any
+single ratio. Full method, including the two failed attempts to measure
+it at all, in
+[`docs/RESULTS.md`](docs/RESULTS.md#the-depth-proportional-walk-measured-and-removed).
 
 ### Correctness
 
