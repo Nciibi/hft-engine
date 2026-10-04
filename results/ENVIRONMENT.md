@@ -71,35 +71,45 @@ is now enforced by two compilers, which is the point of having it.
 
 ### Concurrency reference run (dev machine, 1,000,000 messages)
 
-Recorded to show the *shape* of the concurrency tables, not to be quoted.
-See the caveats below and `hft_pipeline_bench`'s own output, which prints
-the run-to-run noise floor that governs how these ratios may be read.
+Recorded to show the *shape* of the concurrency tables. These are the
+figures published in the README, so there is one set of numbers in this
+repository rather than two that disagree; re-run
+`hft_pipeline_bench 1000000` to regenerate them. See the caveats below and
+the tool's own output, which prints the run-to-run noise floor that
+governs how these ratios may be read.
 
 ```
-lock-free ring, 1024 slots      26.4 M msg/s   (vs 431 K msg/s mutex baseline)
+1 thread, decode + apply         752 926 msg/s   1.00x  (baseline)
+2 threads, ring, K=1             740 635 msg/s   0.98x  checksum match
+2 threads, ring, K=8             805 387 msg/s   1.07x  checksum match
+2 threads, ring, K=32            816 973 msg/s   1.09x  checksum match
+2 threads, ring, K=128           793 071 msg/s   1.05x  checksum match
+measured drift                   -0.81%
 ```
 
-Splitting decode from apply through one ring is **break even** at every
-batch size from 1 to 128 — within the measured noise floor, which on this
-host is under one percent. An earlier revision of `hft_pipeline_bench`
-reported 0.81x–0.91x here and blamed load imbalance. That was a bug:
-messages queued at shutdown were never applied, so the run did less work
-and timed as slower. The load-imbalance story was a rationalisation that
-fit the symptom and was wrong about the cause.
+Splitting decode from apply through one ring is **break even**: the ratios
+straddle 1.00x, and across repeated runs K=1 has been observed at both
+0.98x and 1.10x, so the sign is not stable. An earlier revision of
+`hft_pipeline_bench` reported 0.81x–0.91x here and blamed load imbalance.
+That was a bug: messages queued at shutdown were never applied, so the
+run did less work and timed as slower. The load-imbalance story was a
+rationalisation that fit the symptom and was wrong about the cause.
 
 Sharding the same work by symbol across 64 books:
 
 ```
-1 thread, fused, 64 books       3.40 M msg/s   (baseline)
-dispatcher + 2 workers          6.85 M msg/s   2.01x   books identical
-dispatcher + 3 workers          6.42 M msg/s   1.89x   books identical
-dispatcher + 5 workers          6.05 M msg/s   1.78x   books identical
+1 thread, fused, 64 books       2 829 609 msg/s   1.00x  (baseline)
+dispatcher + 2 workers          5 229 936 msg/s   1.85x  books identical
+dispatcher + 3 workers          5 216 391 msg/s   1.84x  books identical
+dispatcher + 5 workers          4 787 692 msg/s   1.69x  books identical
 ```
 
-Ratios flatten past two workers because the dispatcher decodes and routes
-every message and is therefore a serial floor. On a machine with more
-cores that floor moves; on a bare-metal host the numbers should be
-re-measured rather than extrapolated.
+Ratios flatten past two workers and 5 workers is slower than 3, because
+the dispatcher decodes and routes every message and is therefore a serial
+floor. That floor — roughly 1.8x — is the number to quote for a design
+like this, not the worker count. On a machine with more cores the
+individual numbers move; the shape is the portable result and the ratios
+should be re-measured rather than extrapolated.
 
 Every sharded row is checked to have produced books byte-identical to the
 single-threaded baseline. That check is not a formality — it is what
