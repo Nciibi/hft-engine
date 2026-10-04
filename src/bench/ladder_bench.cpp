@@ -405,14 +405,14 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    std::printf("HFT Engine - price ladder scaling: the O(depth) walk\n");
-    std::printf("=========================\n\n");
-    std::printf("ladder            %s%s\n",
+    // print_environment prints the tool title; the mode line goes directly
+    // beneath it rather than ahead of it, so there is one title on the page.
+    bench::print_environment("price ladder scaling: the O(depth) walk");
+    std::printf("ladder              %s%s\n\n",
                 (g_ladder == Ladder::dense) ? "dense" : "sparse",
                 (g_ladder == Ladder::dense)
-                    ? "  (direct-indexed grid + occupancy bitmap, O(1) walk)"
-                    : "  (hash map + sorted linked list, O(depth) walk)");
-    bench::print_environment("price ladder scaling: the O(depth) walk");
+                    ? "  -- direct-indexed grid + occupancy bitmap, O(1) walk"
+                    : "  -- hash map + sorted linked list, O(depth) walk");
     bench::print_clock_overhead(bench::measure_clock_overhead());
 
     const TsClock clk;
