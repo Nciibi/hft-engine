@@ -163,7 +163,7 @@ struct TraceRecord {
     /// The message tag byte, when the decoder reached it.
     std::uint8_t type = 0;
     /// False when the decoder stopped before the tag was readable.
-    has_type = false;
+    bool has_type = false;
     /// Declared body length, excluding the two-byte length prefix.
     std::uint16_t length = 0;
     /// Field values, fixed-width lowercase hex, in wire order. Empty

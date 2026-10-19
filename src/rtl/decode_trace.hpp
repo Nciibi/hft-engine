@@ -205,7 +205,7 @@ private:
     switch (result.status) {
         case hft::itch::DecodeStatus::ok:
             out.status = TraceStatus::decoded;
-            out.type = result.message.type();
+            out.type = static_cast<std::uint8_t>(result.message.type());
             out.has_type = true;
             break;
         case hft::itch::DecodeStatus::unknown_type:
