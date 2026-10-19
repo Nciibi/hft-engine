@@ -560,7 +560,7 @@ begin
                             if levels(walk_level - 1).tail = 0 then
                                 levels(walk_level - 1).head := work_order;
                             else
-                                orders(levels(walk_level - 1).tail - 1).next := work_order;
+                                orders(levels(walk_level - 1).tail - 1).q_next := work_order;
                             end if;
                             levels(walk_level - 1).tail := work_order;
                             levels(walk_level - 1).order_count :=
@@ -645,12 +645,12 @@ begin
                         if orders(work_order - 1).q_prev = 0 then
                             levels(work_level - 1).head := orders(work_order - 1).q_next;
                         else
-                            orders(orders(work_order - 1).q_prev - 1).next := orders(work_order - 1).q_next;
+                            orders(orders(work_order - 1).q_prev - 1).q_next := orders(work_order - 1).q_next;
                         end if;
                         if orders(work_order - 1).q_next = 0 then
                             levels(work_level - 1).tail := orders(work_order - 1).q_prev;
                         else
-                            orders(orders(work_order - 1).q_next - 1).prev := orders(work_order - 1).q_prev;
+                            orders(orders(work_order - 1).q_next - 1).q_prev := orders(work_order - 1).q_prev;
                         end if;
 
                         levels(work_level - 1).aggregate :=
@@ -668,10 +668,10 @@ begin
                                     ask_head := levels(work_level - 1).l_next;
                                 end if;
                             else
-                                levels(levels(work_level - 1).l_prev - 1).next := levels(work_level - 1).l_next;
+                                levels(levels(work_level - 1).l_prev - 1).l_next := levels(work_level - 1).l_next;
                             end if;
                             if levels(work_level - 1).l_next /= 0 then
-                                levels(levels(work_level - 1).l_next - 1).prev := levels(work_level - 1).l_prev;
+                                levels(levels(work_level - 1).l_next - 1).l_prev := levels(work_level - 1).l_prev;
                             end if;
                             levels(work_level - 1).live := '0';
                             levels(work_level - 1).l_next := level_free;
@@ -758,5 +758,6 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
