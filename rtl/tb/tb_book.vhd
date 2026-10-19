@@ -38,7 +38,7 @@ use work.hft_book_pkg.all;
 use work.hft_trace_fmt.all;
 
 use std.textio.all;
-use std.textio.textio;
+use std.textio;
 
 entity tb_book is
     generic (
@@ -348,6 +348,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
