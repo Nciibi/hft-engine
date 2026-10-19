@@ -20,6 +20,7 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 package hft_book_pkg is
 
@@ -105,3 +106,4 @@ package body hft_book_pkg is
     end function;
 
 end package body hft_book_pkg;
+

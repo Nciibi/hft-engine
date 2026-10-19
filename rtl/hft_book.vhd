@@ -123,8 +123,8 @@ architecture rtl of hft_book is
         state : order_state_t;
         side  : std_logic;
         level : natural range 0 to MAX_LEVELS;   -- handle + 1
-        prev  : natural range 0 to MAX_ORDERS;   -- handle + 1, within the level's queue
-        next  : natural range 0 to MAX_ORDERS;   -- handle + 1, within the level's queue
+        q_prev : natural range 0 to MAX_ORDERS;  -- handle + 1, within the level's queue
+        q_next : natural range 0 to MAX_ORDERS;  -- handle + 1, within the level's queue
         live  : std_logic;
     end record;
 
@@ -134,8 +134,8 @@ architecture rtl of hft_book is
         tail        : natural range 0 to MAX_ORDERS;  -- handle + 1
         order_count : natural range 0 to 2 ** 31 - 1;
         aggregate   : std_logic_vector(63 downto 0);
-        prev        : natural range 0 to MAX_LEVELS;  -- handle + 1
-        next        : natural range 0 to MAX_LEVELS;  -- handle + 1
+        l_prev      : natural range 0 to MAX_LEVELS;  -- handle + 1
+        l_next      : natural range 0 to MAX_LEVELS;  -- handle + 1
         side        : std_logic;
         live        : std_logic;
     end record;
@@ -301,18 +301,18 @@ begin
                 -- one, so that zero means "none" and a real handle of
                 -- zero is representable.
                 for i in 0 to MAX_ORDERS - 2 loop
-                    orders(i).next := i + 2;
+                    orders(i).q_next := i + 2;
                     orders(i).live := '0';
                 end loop;
-                orders(MAX_ORDERS - 1).next := 0;
+                orders(MAX_ORDERS - 1).q_next := 0;
                 orders(MAX_ORDERS - 1).live := '0';
                 order_free := 1;
 
                 for i in 0 to MAX_LEVELS - 2 loop
-                    levels(i).next := i + 2;
+                    levels(i).l_next := i + 2;
                     levels(i).live := '0';
                 end loop;
-                levels(MAX_LEVELS - 1).next := 0;
+                levels(MAX_LEVELS - 1).l_next := 0;
                 levels(MAX_LEVELS - 1).live := '0';
                 level_free := 1;
 
@@ -484,7 +484,7 @@ begin
                             state := st_new_level;
                         elsif is_better(msg_side, levels(walk_cur - 1).price, msg_price) then
                             walk_prev := walk_cur;
-                            walk_cur := levels(walk_cur - 1).next;
+                            walk_cur := levels(walk_cur - 1).l_next;
                             state := st_walk;
                         elsif levels(walk_cur - 1).price = msg_price then
                             -- The level exists.
@@ -504,15 +504,15 @@ begin
                             state := st_finish;
                         else
                             walk_level := level_free;
-                            level_free := levels(walk_level - 1).next;
+                            level_free := levels(walk_level - 1).l_next;
 
                             levels(walk_level - 1).price := msg_price;
                             levels(walk_level - 1).head := 0;
                             levels(walk_level - 1).tail := 0;
                             levels(walk_level - 1).order_count := 0;
                             levels(walk_level - 1).aggregate := (others => '0');
-                            levels(walk_level - 1).prev := walk_prev;
-                            levels(walk_level - 1).next := walk_cur;
+                            levels(walk_level - 1).l_prev := walk_prev;
+                            levels(walk_level - 1).l_next := walk_cur;
                             levels(walk_level - 1).side := msg_side;
                             levels(walk_level - 1).live := '1';
 
@@ -523,10 +523,10 @@ begin
                                     ask_head := walk_level;
                                 end if;
                             else
-                                levels(walk_prev - 1).next := walk_level;
+                                levels(walk_prev - 1).l_next := walk_level;
                             end if;
                             if walk_cur /= 0 then
-                                levels(walk_cur - 1).prev := walk_level;
+                                levels(walk_cur - 1).l_prev := walk_level;
                             end if;
 
                             state := st_new_order;
@@ -545,7 +545,7 @@ begin
                             state := st_finish;
                         else
                             work_order := order_free;
-                            order_free := orders(work_order - 1).next;
+                            order_free := orders(work_order - 1).q_next;
 
                             orders(work_order - 1).id := msg_id;
                             orders(work_order - 1).price := msg_price;
@@ -553,8 +553,8 @@ begin
                             orders(work_order - 1).state := st_resting;
                             orders(work_order - 1).side := msg_side;
                             orders(work_order - 1).level := walk_level;
-                            orders(work_order - 1).prev := levels(walk_level - 1).tail;
-                            orders(work_order - 1).next := 0;
+                            orders(work_order - 1).q_prev := levels(walk_level - 1).tail;
+                            orders(work_order - 1).q_next := 0;
                             orders(work_order - 1).live := '1';
 
                             if levels(walk_level - 1).tail = 0 then
@@ -642,15 +642,15 @@ begin
                         -- if the level is now empty, unlink the level
                         -- too. A level with no orders behind it must
                         -- not be reported as the best price.
-                        if orders(work_order - 1).prev = 0 then
-                            levels(work_level - 1).head := orders(work_order - 1).next;
+                        if orders(work_order - 1).q_prev = 0 then
+                            levels(work_level - 1).head := orders(work_order - 1).q_next;
                         else
-                            orders(orders(work_order - 1).prev - 1).next := orders(work_order - 1).next;
+                            orders(orders(work_order - 1).q_prev - 1).next := orders(work_order - 1).q_next;
                         end if;
-                        if orders(work_order - 1).next = 0 then
-                            levels(work_level - 1).tail := orders(work_order - 1).prev;
+                        if orders(work_order - 1).q_next = 0 then
+                            levels(work_level - 1).tail := orders(work_order - 1).q_prev;
                         else
-                            orders(orders(work_order - 1).next - 1).prev := orders(work_order - 1).prev;
+                            orders(orders(work_order - 1).q_next - 1).prev := orders(work_order - 1).q_prev;
                         end if;
 
                         levels(work_level - 1).aggregate :=
@@ -661,20 +661,20 @@ begin
 
                         if levels(work_level - 1).order_count = 0 then
                             -- The level is empty: unlink it.
-                            if levels(work_level - 1).prev = 0 then
+                            if levels(work_level - 1).l_prev = 0 then
                                 if levels(work_level - 1).side = '1' then
-                                    bid_head := levels(work_level - 1).next;
+                                    bid_head := levels(work_level - 1).l_next;
                                 else
-                                    ask_head := levels(work_level - 1).next;
+                                    ask_head := levels(work_level - 1).l_next;
                                 end if;
                             else
-                                levels(levels(work_level - 1).prev - 1).next := levels(work_level - 1).next;
+                                levels(levels(work_level - 1).l_prev - 1).next := levels(work_level - 1).l_next;
                             end if;
-                            if levels(work_level - 1).next /= 0 then
-                                levels(levels(work_level - 1).next - 1).prev := levels(work_level - 1).prev;
+                            if levels(work_level - 1).l_next /= 0 then
+                                levels(levels(work_level - 1).l_next - 1).prev := levels(work_level - 1).l_prev;
                             end if;
                             levels(work_level - 1).live := '0';
-                            levels(work_level - 1).next := level_free;
+                            levels(work_level - 1).l_next := level_free;
                             level_free := work_level;
                         end if;
 
@@ -687,7 +687,7 @@ begin
 
                         -- And the order goes back on the free list.
                         orders(work_order - 1).live := '0';
-                        orders(work_order - 1).next := order_free;
+                        orders(work_order - 1).q_next := order_free;
                         order_free := work_order;
 
                         if op = op_replace then
@@ -736,7 +736,7 @@ begin
 
                     when st_dump_order =>
                         if dump_cur_order = 0 then
-                            dump_cur_level := levels(dump_cur_level - 1).next;
+                            dump_cur_level := levels(dump_cur_level - 1).l_next;
                             state := st_dump_level;
                         else
                             o_dump_valid := '1';
@@ -748,7 +748,7 @@ begin
                             o_dump_state := orders(dump_cur_order - 1).state;
                             o_dump_pos := dump_position;
                             dump_position := dump_position + 1;
-                            dump_cur_order := orders(dump_cur_order - 1).next;
+                            dump_cur_order := orders(dump_cur_order - 1).q_next;
                             state := st_dump_order;
                         end if;
 
@@ -758,4 +758,5 @@ begin
     end process;
 
 end architecture rtl;
+
 
