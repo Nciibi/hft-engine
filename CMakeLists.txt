@@ -398,7 +398,8 @@ if(GHDL)
                      -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
                      -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_real_work
                      -DRAW=${CMAKE_CURRENT_BINARY_DIR}/rtl_real_work/raw.itch
-                     "-DFETCH=${FETCH_SCRIPT}"
+                     "-DFETCH_SCRIPT="
+                     "-DFETCH_POWERSHELL="
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/real_data_differential.cmake")
     set_tests_properties(rtl_real_data_differential PROPERTIES TIMEOUT 3600)
 
@@ -501,4 +502,5 @@ message(STATUS "hft_engine ${PROJECT_VERSION}")
 message(STATUS "  build type ....... ${CMAKE_BUILD_TYPE}")
 message(STATUS "  native arch ...... ${HFT_NATIVE_ARCH}")
 message(STATUS "  C++ standard ..... ${CMAKE_CXX_STANDARD}")
+
 
