@@ -89,7 +89,10 @@ package body hft_book_pkg is
         for i in 0 to 7 loop
             byte := value(i * 8 + 7 downto i * 8);
             h := h xor std_logic_vector(resize(unsigned(byte), 64));
-            h := std_logic_vector(unsigned(h) * unsigned(kFnvPrime));
+            -- The multiply is wider than the result and is truncated
+            -- back to 64 bits, which is what FNV-1a does: it is
+            -- defined modulo 2^64.
+            h := std_logic_vector(resize(unsigned(h) * unsigned(kFnvPrime), 64));
         end loop;
         return h;
     end function;
