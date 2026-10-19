@@ -32,7 +32,7 @@
 // third framing in two implementations is a third thing to get right.
 //
 // Usage:
-//   hft_itch_convert <raw.itch> <capture.itch> [--session NAME] [--packets N]
+//   hft_itch_convert <raw.itch> <capture.itch> [--session NAME]
 
 #include <cstdio>
 #include <cstdlib>
@@ -98,8 +98,7 @@ int main(int argc, char** argv) {
         };
         if (arg == "--session") {
             session = next("--session");
-        } else if (arg == "--packets") {
-            packets_per_capture = static_cast<std::size_t>(std::strtoull(next("--packets"), nullptr, 10));
+
         } else if (!arg.empty() && arg[0] == '-') {
             std::printf("unknown option %s\n", arg.c_str());
             return 2;
@@ -207,9 +206,7 @@ int main(int argc, char** argv) {
     std::printf("blocks per packet %zu\n", kBlocksPerPacket);
     std::printf("capture bytes     %zu\n", out.size());
     std::printf("session           %s\n", session.c_str());
-    if (packets_per_capture > 0) {
-        std::printf("(note: --packets is not used; packets are fixed at %zu blocks)\n",
-                    kBlocksPerPacket);
-    }
+
     return 0;
 }
+
