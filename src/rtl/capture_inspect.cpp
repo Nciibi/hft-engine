@@ -251,6 +251,10 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    if (static_cast<std::size_t>(mismatches) > max_report) {
+        std::printf("(only the first %zu mismatches are shown)\n", max_report);
+    }
+
     std::printf("\nFAILED: %llu message types disagree with the field table.\n",
                 static_cast<unsigned long long>(mismatches));
     std::printf(
@@ -259,3 +263,4 @@ int main(int argc, char** argv) {
         "live feed nothing complains: the book is simply wrong.\n");
     return 1;
 }
+

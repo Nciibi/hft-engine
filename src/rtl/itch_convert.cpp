@@ -85,7 +85,6 @@ int main(int argc, char** argv) {
     std::string raw_path;
     std::string capture_path;
     std::string session = "SAMPLE000";
-    std::size_t packets_per_capture = 0;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -209,4 +208,5 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
 
