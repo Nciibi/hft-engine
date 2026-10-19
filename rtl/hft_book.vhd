@@ -226,8 +226,13 @@ architecture rtl of hft_book is
     begin
         -- The multiply is wider than the result and is truncated back
         -- to 32 bits, which is what a 32-bit mixer does anyway.
+        --
+        -- And the result is narrowed to 31 bits before the conversion,
+        -- because a 32-bit unsigned can be 4,294,967,295 and a VHDL
+        -- integer stops at 2,147,483,647. `to_integer` on a value that
+        -- does not fit is an overflow, not a wrap.
         mixed := resize(unsigned(key(31 downto 0)) * kHashMix, 32);
-        return to_integer(mixed) mod TABLE_SLOTS;
+        return to_integer(resize(mixed, 31)) mod TABLE_SLOTS;
     end function;
 
 begin
