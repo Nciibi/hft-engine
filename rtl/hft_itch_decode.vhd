@@ -193,9 +193,13 @@ begin
 
                         if type_idx /= kUnknownType and
                            fld_idx < kFieldCount(type_idx) then
+                            -- The end offset is tabulated rather than
+                            -- computed: `off < start + width` puts an
+                            -- adder in front of a comparator, and the
+                            -- first synthesis run said the adder was
+                            -- the decoder's critical path.
                             if off >= kFieldOffset(type_idx, fld_idx) and
-                               off < kFieldOffset(type_idx, fld_idx) +
-                                    kFieldWidth(type_idx, fld_idx) then
+                               off < kFieldEnd(type_idx, fld_idx) then
                                 if in_field = 0 then
                                     acc := (others => '0');
                                 end if;
