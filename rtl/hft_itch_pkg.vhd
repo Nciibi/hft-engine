@@ -230,6 +230,22 @@ package hft_itch_pkg is
     -- must surface rather than be coerced into a default side.
     function side_is_valid(v : std_logic_vector(63 downto 0)) return boolean;
 
+    -- Check the field tables against each other.
+    --
+    -- Every type's declared count is checked against the number of
+    -- fields its width table describes, and every field's end offset
+    -- is checked against its start and width. A table that disagrees
+    -- with itself is a table that agrees with the other side while
+    -- both are wrong, which is the failure mode this repository exists
+    -- to catch.
+    --
+    -- It is a FUNCTION and not an elaboration-time assertion because
+    -- GHDL does not implement a package body's statement part at all:
+    -- a package body with a `begin` section is rejected with "'end' is
+    -- expected instead of 'begin'", even though the language allows
+    -- one. The testbenches call it instead.
+    function tables_are_consistent return boolean;
+
 end package hft_itch_pkg;
 
 package body hft_itch_pkg is
