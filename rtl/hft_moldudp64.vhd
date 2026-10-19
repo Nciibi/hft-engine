@@ -95,8 +95,8 @@ architecture rtl of hft_moldudp64 is
     -- to be held.
     signal len_hi : natural range 0 to 255 := 0;
     -- Which byte of the length prefix has been read. A separate flag
-    -- rather than a test on len_lo, because a length of zero and a
-    -- length prefix not yet started look the same otherwise.
+    -- rather than a test on the length itself, because a length of
+    -- zero and a length prefix not yet started look the same otherwise.
     signal len_pos : natural range 0 to 1 := 0;
     -- Body bytes still to come for the block in flight.
     signal body_left : natural range 0 to 65535 := 0;
@@ -152,7 +152,6 @@ begin
                                 -- Message Count, and the end of the
                                 -- header.
                                 count_value := len_hi * 256 + to_integer(unsigned(in_byte));
-                                count <= count_value;
                                 hdr_pos <= 0;
                                 if count_value = 65535 then
                                     -- End of session.
