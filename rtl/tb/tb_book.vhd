@@ -92,6 +92,7 @@ architecture sim of tb_book is
 
     -- The book's result.
     signal apply_start : std_logic := '0';
+    signal dump_start : std_logic := '0';
     signal apply_type : std_logic_vector(7 downto 0) := (others => '0');
     signal apply_fields : field_array_t := (others => (others => '0'));
     signal apply_done : std_logic := '0';
@@ -212,7 +213,7 @@ begin
         variable dump_index : natural := 0;
         variable apply_cycles : natural := 0;
         variable l : line;
-        variable dump_start : std_logic := '0';
+
         variable stop_pending : boolean := false;
         variable issued : boolean := false;
         file book_file : text open write_mode is OUT_PATH;
@@ -261,8 +262,8 @@ begin
                 issued := false;
                 apply_start <= '0';
             elsif not issued then
-                apply_type := msgs(apply_index).msg_type;
-                apply_fields := msgs(apply_index).fields;
+                apply_type <= msgs(apply_index).msg_type;
+                apply_fields <= msgs(apply_index).fields;
                 apply_start <= '1';
                 issued := true;
             else
@@ -346,5 +347,6 @@ begin
     end process;
 
 end architecture sim;
+
 
 
