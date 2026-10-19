@@ -120,9 +120,13 @@ foreach(top IN LISTS TOP)
         COMMAND "${NEXTPNR}" --json "${top}.json" --textcfg "${top}.config"
                 --25k --package CABGA381 --freq 200 --seed 1 --out-of-context
         WORKING_DIRECTORY "${WORK}"
-        OUTPUT_VARIABLE pnr_output
-        ERROR_VARIABLE error_text
+        OUTPUT_VARIABLE pnr_stdout
+        ERROR_VARIABLE pnr_stderr
         RESULT_VARIABLE status)
+
+    # nextpnr writes its log to STDERR, so both streams have to be
+    # searched for the timing line.
+    set(pnr_output "${pnr_stdout}${pnr_stderr}")
 
     set(fmax "—")
     if(pnr_output MATCHES "Max frequency for clock 'clk': ([0-9.]+) MHz")
