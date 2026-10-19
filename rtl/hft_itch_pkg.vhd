@@ -300,25 +300,24 @@ package body hft_itch_pkg is
         end loop;
     end procedure;
 
-    function tables_are_consistent return boolean is
-        variable ok : boolean := true;
+    function inconsistent_type return integer is
     begin
         for t in type_index_t loop
             if described_field_count(t) /= kFieldCount(t) then
-                ok := false;
+                return t;
             end if;
             for i in field_index_t loop
                 if i < kFieldCount(t) then
                     if kFieldWidth(t, i) = 0 then
-                        ok := false;
+                        return t;
                     end if;
                     if kFieldEnd(t, i) /= kFieldOffset(t, i) + kFieldWidth(t, i) then
-                        ok := false;
+                        return t;
                     end if;
                 end if;
             end loop;
         end loop;
-        return ok;
+        return -1;
     end function;
 
     function type_index_of(tag : std_logic_vector(7 downto 0)) return type_index_t is
