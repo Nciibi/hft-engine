@@ -277,7 +277,7 @@ checks_concurrent: 149
 checks_shards: 51
 checks_rtl_trace: 85
 checks_total: 1907
-ctest_tests: 30
+ctest_tests: 31
 -->
 
 **Verified: 1,907 checks across 30 CTest suites** — 1,419 unit + 156
@@ -704,7 +704,7 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure   # 30 suites, ~80s
+ctest --test-dir build --output-on-failure   # 31 suites, ~80s
 ```
 
 That is the whole verification story. The individual binaries, if you want
@@ -1198,6 +1198,7 @@ an order book needs to exist at all, so they were worth checking against
 the document. Everything else is skipped rather than guessed, because a
 decoder that reads a plausible field table confidently is worse than one
 that declines to read it.
+
 
 
 

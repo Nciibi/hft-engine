@@ -243,7 +243,7 @@ reliably than any spread-derived threshold answers the second, so both are
 reported. `IMPROVEMENT -- direction significant, size inside noise` is a
 real result, not a hedge.
 
-Invariants checked after every change: 30/30 CTest, 1,907 unit checks plus
+Invariants checked after every change: 31/31 CTest, 1,907 unit checks plus
 risk/OMS/strategy/concurrency/sharding/RTL-trace, and the deterministic book
 checksum unchanged at `90ef6cd725f4dc11` across all six optimisation
 levels.
@@ -424,5 +424,6 @@ scripts/ab.ps1 -Label x -List
 ```
 
 Not for publication. See [`ENVIRONMENT.md`](ENVIRONMENT.md).
+
 
 
