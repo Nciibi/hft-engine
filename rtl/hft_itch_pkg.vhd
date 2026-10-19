@@ -189,7 +189,7 @@ package hft_itch_pkg is
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- How many fields each type carries.
-    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 7, 0);
+    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 8, 0);
 
     -- The body length each type requires, in bytes. A frame whose
     -- declared length disagrees with this is a BAD LENGTH, not a
@@ -374,6 +374,7 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
 
 
 
