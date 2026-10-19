@@ -339,10 +339,28 @@ share count as the price.
 Two tools implement the C++ side today — `hft_rtl_trace` writes a trace,
 `hft_rtl_check` compares two of them — and the harness is tested by
 asserting that the comparator **rejects** a trace that differs, because a
-comparison that cannot fail is not a comparison. The RTL model itself is
-the next phase and is listed as not started above, deliberately: the
-harness exists first so that there is something to disagree with before
-there is something disagreeing.
+comparison that cannot fail is not a comparison.
+
+**The RTL side exists.** It is a VHDL model of the same market data path:
+MoldUDP64 framing, a single-pass streaming ITCH decoder, and a trace
+writer, sharing no code with the C++ side. Its field tables are a second
+transcription of the published field tables. It is written against
+VHDL-2008 and simulated with GHDL, which is free and needs no licence.
+
+**The two agree, field by field, on 2,000 messages.** The C++ engine and
+the RTL model produce byte-identical traces — every field of every
+record — and they agree again on a capture cut in the middle of a
+message, where both have to decide what a short frame is and how much of
+it was missing. That is a claim no other check in this repository can
+make, because every other check compares the engine against something
+inside the repository.
+
+The RTL also produces a number the C++ side cannot: **one clock cycle
+per byte of message body, exactly.** The decode of 2,000 messages took
+63,444 cycles — a mean of 31.7 cycles per message — and that figure is a
+property of the design rather than of the machine, so it reproduces on
+any simulator and in CI. It is the first half of the second reason this
+directory exists.
 
 ## Results
 
