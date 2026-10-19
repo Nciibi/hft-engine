@@ -226,6 +226,17 @@ jobs:
       - name: RTL differential
         run: ctest --test-dir build -R "rtl" --output-on-failure --timeout 1800
 
+      # The same differentials over REAL Nasdaq market data, fetched from
+      # the exchange's own archive. This is the check that found the
+      # Order Executed field table bug -- a message the table said was
+      # 32 bytes when it is 31 -- and the bug in the RTL index probe
+      # that a generated capture structurally could not trigger.
+      #
+      # It skips itself when the network is not there, because a missing
+      # network is not a wrong answer.
+      - name: Real market data
+        run: ctest --test-dir build -R "rtl_real" --output-on-failure --timeout 3600
+
       - name: Explain a skip
         if: failure()
         run: |
