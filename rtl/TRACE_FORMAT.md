@@ -184,7 +184,7 @@ record carries any.
 | type | fields (name, bytes on the wire) |
 |---|---|
 | `A` Add Order | locate 2, tracking 2, timestamp 6, id 8, side 1, shares 4, stock 8, price 4 |
-| `E` Order Executed | locate 2, tracking 2, timestamp 6, id 8, shares 4, match 8, printable 1 |
+| `E` Order Executed | locate 2, tracking 2, timestamp 6, id 8, shares 4, match 8 |
 | `C` Order Executed At Price | locate 2, tracking 2, timestamp 6, id 8, shares 4, match 8, printable 1, execution_price 4 |
 | `X` Order Cancel | locate 2, tracking 2, timestamp 6, id 8, shares 4 |
 | `D` Order Delete | locate 2, tracking 2, timestamp 6, id 8 |
