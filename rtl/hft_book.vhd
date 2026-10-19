@@ -221,11 +221,13 @@ architecture rtl of hft_book is
     -- ITCH references are sequential -- across the table instead of
     -- colliding on every one of them.
     function hash_slot(key : std_logic_vector(63 downto 0)) return natural is
-        constant kHashMix : std_logic_vector(63 downto 0) := x"9E3779B97F4A7C15";
-        variable mixed : std_logic_vector(63 downto 0);
+        constant kHashMix : unsigned(31 downto 0) := to_unsigned(16#9E3779B9#, 32);
+        variable mixed : unsigned(31 downto 0);
     begin
-        mixed := std_logic_vector(unsigned(key) * unsigned(kHashMix));
-        return to_integer(unsigned(mixed(31 downto 0))) mod TABLE_SLOTS;
+        -- The multiply is wider than the result and is truncated back
+        -- to 32 bits, which is what a 32-bit mixer does anyway.
+        mixed := resize(unsigned(key(31 downto 0)) * kHashMix, 32);
+        return to_integer(mixed) mod TABLE_SLOTS;
     end function;
 
 begin
