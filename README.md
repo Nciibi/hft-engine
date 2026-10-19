@@ -230,6 +230,10 @@ Three things are now true that were not:
 | `FlatMap` tombstone reclamation (fixed a permanent wedge) | done |
 | **Dense price ladder + occupancy bitmap** (removed the O(depth) walk) | done |
 | Price-ladder O(depth) walk, quantified | done |
+| **Decode trace format**, specified in prose, two implementations | done — [`rtl/TRACE_FORMAT.md`](rtl/TRACE_FORMAT.md) |
+| **Trace generator, comparator, and reference capture walk** | done |
+| Trace format, comparator and bridge, tested | done — 85 checks |
+| **RTL model of the market data path** (VHDL) | not started |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
