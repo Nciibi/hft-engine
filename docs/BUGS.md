@@ -92,6 +92,94 @@ nothing in the repository was external to the mistake.
 
 ---
 
+### The Order Executed field table had a byte the message does not have
+
+**The Order Executed ('E') message is 31 bytes. The field table said 32,
+and every 'E' message on the wire was being rejected as a bad length.**
+
+The table was transcribed as Locate, Tracking, Timestamp, Reference,
+Shares, Match, **Printable** -- 32 bytes -- and the Printable byte came
+from Order Executed **With Price** ('C'), which genuinely has one, at
+offset 31, followed by the execution price.
+
+The real message ends at the match number. The evidence is three
+consecutive samples from a Nasdaq TotalView-ITCH 5.0 feed, whose match
+numbers are 0x440D, 0x440E and 0x440F -- the last three bytes of each
+message, with nothing after them:
+
+```
+45 21 7d 00 02 0d 18 c9 b2 92 6c 00 00 00 00 00   'E' locate
+00 00 00 e0 00 00 00 51 00 00 00 00 00 00 44 0d     ref, shares, match
+```
+
+and 'C' from the same feed, which does have the byte:
+
+```
+43 1a 85 00 01 1c 8c 63 dd 59 fd 00 00 00 00 00
+53 11 97 00 00 00 64 00 00 00 00 00 00 b9 e7 4e     ref, shares, match, printable
+00 0a d7 64                                          execution price
+```
+
+The byte at offset 31 in 'C' is 0x59 or 0x4E -- 'Y' or 'N' -- which is
+what a Printable flag is. There is no such byte in 'E'.
+
+**Why every check missed it.** The generator wrote the same 32 bytes the
+decoder read. 1,419 unit checks, a 900,000-operation differential test
+against a naive reference model, a determinism harness and the entire
+RTL differential all agreed, because they all shared the assumption.
+
+**Why it is worth more than the Add Order misdecode.** The Add Order
+bug was in the field table for the message that carries the price, and
+the repository had already fixed it. This one was in a message that had
+**never been pinned by a hand-built frame** -- and the repo's own
+methodology says the messages that are not pinned by hand are the ones
+that are wrong. The 'E' table was the one order message without a
+hand-built, byte-exact frame in `tests/test_units.cpp`.
+
+It is pinned now. The test builds the frame from the field table and
+nowhere else, so the next mistake in it is a failed check rather than a
+silent disagreement.
+
+**The consequence on a live feed** is that every execution is dropped.
+The order keeps its full resting size, the aggregates never come down,
+and nothing complains: a message that is rejected as a bad length looks
+exactly like a message that is not there.
+
+**What it took to find it** was one slice of the exchange's own archive,
+which is free, needs no registration, and can be fetched with a Range
+request. `scripts/fetch-itch.sh` does it.
+
+### The RTL index probe used a slot it had not examined
+
+**The RTL order book's index probe advanced to the next slot on a
+collision and then fell straight through to using that slot as the
+result.** A lookup that collided read a slot that had never been
+examined and took an order handle from it that was not the order's.
+
+The probe and the USE of its result are separate steps, and they have to
+be: the probe has to look at a slot, decide it is not the one, move on,
+and look at the next. The version here did the first three and then
+acted on the third.
+
+**Why every check missed it.** The generator's order references are
+sequential, and the index hash is a multiply by the golden ratio, so
+consecutive references land far apart: a collision needs two references
+that differ by a multiple of the table size. Over the 1,000 messages of
+a generated capture that never happens. The exchange assigns its
+references, and they are not sequential, and it happened on the first
+real capture -- a lookup whose handle came back as zero, and an index of
+minus one.
+
+**Why it is worth recording.** It is a defect that a differential test
+over generated data structurally cannot find, because the generated data
+never triggers it. It took the exchange's bytes and a fixed probe to
+surface.
+
+Both of these were found by the same act: reading the specification's
+data instead of a generator's.
+
+---
+
 ### A third bug class: the dense ladder's own two
 
 The dense price ladder is the first thing in this repository implemented
