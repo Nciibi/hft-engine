@@ -284,7 +284,7 @@ begin
                 report "rtl trace records " & integer'image(index);
                 report "rtl decoded      " & integer'image(n_ok);
                 report "rtl skipped      " & integer'image(n_skipped);
-                report "rtl bad length   & integer'image(n_bad_length);
+                report "rtl bad length   " & integer'image(n_bad_length);
                 report "rtl malformed    " & integer'image(n_malformed);
                 report "rtl truncated    " & integer'image(n_truncated);
                 report "rtl decode cycles" & integer'image(total_cycles);
