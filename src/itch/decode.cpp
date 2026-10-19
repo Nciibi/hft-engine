@@ -203,7 +203,8 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             e.id = header.id;
             e.shares = Quantity::from_raw(read_be32(body + off::order_executed_shares));
             e.match_number = read_be64(body + off::order_executed_match);
-            e.printable = body[off::order_executed_printable];
+            // No Printable byte: the message ends at the match number.
+            // See the note on kOrderExecutedSize in protocol.hpp.
             r.status = DecodeStatus::ok;
             r.message.body = e;
             return r;
