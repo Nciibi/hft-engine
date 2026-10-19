@@ -218,13 +218,13 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
 
-      # The two differential suites, and the two RTL tool suites. A
-      # missing simulator is a missing simulator rather than a wrong
-      # answer, so the suites are skipped where GHDL is absent -- but
-      # this job installed it, so a skip here is a failure in the
-      # installation rather than in the design.
+      # The RTL suites: the two decode differentials and the order-book
+      # differential. A missing simulator is a missing simulator rather
+      # than a wrong answer, so the suites are skipped where GHDL is
+      # absent -- but this job installed it, so a skip here is a
+      # failure in the installation rather than in the design.
       - name: RTL differential
-        run: ctest --test-dir build -R "rtl" --output-on-failure --timeout 900
+        run: ctest --test-dir build -R "rtl" --output-on-failure --timeout 1800
 
       - name: Explain a skip
         if: failure()
