@@ -94,6 +94,18 @@ package hft_itch_pkg is
     subtype type_index_t is natural range 0 to 9;
     constant kUnknownType : type_index_t := 9;
 
+    -- The field tables are sixteen entries wide, not nine.
+    --
+    -- The row STRIDE is what matters, and it is a power of two on
+    -- purpose. A two-dimensional constant array is addressed as
+    -- `row * stride + column`, and with a stride of nine that address
+    -- is a MULTIPLICATION -- which the first synthesis run put
+    -- straight onto the decoder's critical path, as an 18x18
+    -- multiplier, for no reason a hardware engineer would accept.
+    --
+    -- With a stride of sixteen the address is a shift, and the decoder
+    -- gets a cycle back. The unused slots cost nothing: the table is
+    -- constants.
     subtype field_index_t is natural range 0 to 15;
     constant kMaxFields : natural := 9;
 
