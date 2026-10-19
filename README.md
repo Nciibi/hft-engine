@@ -981,13 +981,20 @@ whole argument for how this project is built:
 
 ```mermaid
 pie showData
-    title "26 defects by how they were found"
+    title "28 defects by how they were found"
     "Unit or differential test" : 14
     "Reading this repo's own output critically" : 5
     "Compared against the specification" : 4
+    "Compared against real market data" : 2
     "A second compiler" : 2
     "Code review before running" : 1
 ```
+
+The fourth row is new, and it is the one worth noticing. Every other
+check in this repository compares the engine against something the
+repository also produced. The exchange's own bytes are the only thing
+here that is not, and the first two defects they found are both ones
+that no amount of generated data could have surfaced.
 
 - **The worst bug here was a permanent wedge, and every test missed it.**
   `FlatMap::insert` reused a tombstone only when it also found an *empty*
