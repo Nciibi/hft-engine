@@ -33,6 +33,17 @@
 //
 // Usage:
 //   hft_itch_convert <raw.itch> <capture.itch> [--session NAME]
+//                    [--skip-to TYPE] [--max-bytes N]
+//
+//   --skip-to TYPE  start at the first message of that type, and skip
+//                   everything before it. A real session opens with a
+//                   few megabytes of directory and system messages
+//                   before any order is added, and a capture of only
+//                   those exercises nothing. The type is a single
+//                   character, 'A' for Add Order.
+//   --max-bytes N   stop after N bytes of output. A capture that ends
+//                   mid-message is not a capture, so the last complete
+//                   message is the last one.
 
 #include <cstdio>
 #include <cstdlib>
@@ -85,6 +96,8 @@ int main(int argc, char** argv) {
     std::string raw_path;
     std::string capture_path;
     std::string session = "SAMPLE0000";
+    char skip_to = '\0';
+    std::size_t max_bytes = 0;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -159,8 +172,24 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> out;
     out.reserve(raw.size() + raw.size() / 32 + 64);
 
+    // Skip to the first message of the requested type, if one was
+    // asked for. The frames are already frame-aligned -- the walk
+    // starts at a frame boundary and every frame's length is known --
+    // so the result is a capture that begins at a message boundary.
+    std::size_t first_frame = 0;
+    if (skip_to != '\0') {
+        while (first_frame < frames.size() &&
+               raw[frames[first_frame].offset + 2] != static_cast<std::uint8_t>(skip_to)) {
+            ++first_frame;
+        }
+        if (first_frame >= frames.size()) {
+            std::printf("no message of type '%c' in %s\n", skip_to, raw_path.c_str());
+            return 2;
+        }
+    }
+
     std::size_t packet = 0;
-    std::size_t index = 0;
+    std::size_t index = first_frame;
     while (index < frames.size()) {
         const std::size_t first = index;
         std::size_t count = 0;
@@ -173,6 +202,9 @@ int main(int argc, char** argv) {
         put_be64(out, static_cast<std::uint64_t>(first));
         put_be16(out, static_cast<std::uint16_t>(count));
         for (std::size_t i = first; i < index; ++i) {
+            if (max_bytes > 0 && out.size() >= max_bytes) {
+                break;
+            }
             // A MoldUDP64 Message Block is byte-identical to an ITCH
             // frame: the same two-byte length in front of the same
             // body. So the frame is copied whole.
@@ -181,6 +213,9 @@ int main(int argc, char** argv) {
                            frames[i].length);
         }
         ++packet;
+        if (max_bytes > 0 && out.size() >= max_bytes) {
+            break;
+        }
     }
 
     std::FILE* f = std::fopen(capture_path.c_str(), "wb");
@@ -208,6 +243,7 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
 
 
 
