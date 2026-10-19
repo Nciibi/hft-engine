@@ -161,6 +161,18 @@ target_link_libraries(hft_book_dump PRIVATE hft_core)
 add_executable(hft_book_check src/rtl/book_check.cpp)
 target_link_libraries(hft_book_check PRIVATE hft_core)
 
+# The capture inspector: what is on the wire, and does the field table
+# agree with it? This is the tool that found the Order Executed length
+# bug, and it is the check that would have found it the day it was
+# written.
+add_executable(hft_capture_inspect src/rtl/capture_inspect.cpp)
+target_link_libraries(hft_capture_inspect PRIVATE hft_core)
+
+# The raw-ITCH to MoldUDP64 converter: the exchange sends a raw SOUP
+# stream, and this repository's readers take the transport envelope.
+add_executable(hft_itch_convert src/rtl/itch_convert.cpp)
+target_link_libraries(hft_itch_convert PRIVATE hft_core)
+
 add_executable(hft_rtl_test tests/test_rtl_trace.cpp)
 target_link_libraries(hft_rtl_test PRIVATE hft_core)
 
