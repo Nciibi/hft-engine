@@ -316,6 +316,49 @@ regressed:
 None of that would have found a field offset. Only comparing against
 something outside this repository would have.
 
+## The bug that real data found
+
+**The Order Executed field table carried a Printable byte that the
+message does not have.** The table said the message is 32 bytes; on the
+wire it is 31. Every 'E' message on a live feed was being rejected as a
+bad length, so every execution was dropped and the book's resting sizes
+never came down.
+
+Nothing in this repository could see it. The generator wrote the same 32
+bytes the decoder read, so 1,419 unit checks, a 900,000-operation
+differential test, a determinism harness and the entire RTL differential
+all agreed -- because they all shared the assumption. The one order
+message that had never been pinned by a hand-built, byte-exact frame was
+the one that was wrong, which is exactly what this repository's own
+methodology predicts.
+
+**It took one slice of the exchange's own archive**, which is free, needs
+no registration, and can be fetched with a Range request. Two defects
+came out of it: that one, and a bug in the RTL index probe that the
+generated capture structurally could not trigger. Full accounts in
+[docs/BUGS.md](docs/BUGS.md).
+
+The check is now a test, and it is in CI:
+
+- **hft_capture_inspect** walks a capture and compares every message's
+  declared length against the length the field table says its type must
+  have. It is the check that would have found the Order Executed bug on
+  the day it was written.
+- **tl_real_data_differential** fetches a slice of the real archive,
+  frames it, checks the field tables against the wire, and runs BOTH
+  differentials over it -- the decoder and the order book. It skips
+  itself when the network is not there, because a missing network is not
+  a wrong answer.
+
+`
+$ ctest --test-dir build -R rtl_real -V
+  real data ........ fetching 4194304 compressed bytes from the Nasdaq ITCH archive
+  field tables ..... every decoded type has the length the table says
+  rtl decode ....... rtl trace records 70208
+  differential ...... the two decoders agree on every field of every real message
+  differential ...... the two books agree on every order, level and field
+`
+
 ## The hardware path
 
 **A second implementation of the market data path, in VHDL, differentially
@@ -1148,6 +1191,7 @@ an order book needs to exist at all, so they were worth checking against
 the document. Everything else is skipped rather than guessed, because a
 decoder that reads a plausible field table confidently is worse than one
 that declines to read it.
+
 
 
 
