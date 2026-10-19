@@ -158,7 +158,20 @@ package body hft_trace_fmt is
                 nibble := 0;
                 for b in 0 to 3 loop
                     bit_index := 63 - 8 * (i - 1) - (k * 4 + b);
-                    nibble := nibble * 2 + bitval(v(bit_index));
+                    case v(bit_index) is
+                        when '0' =>
+                            nibble := nibble * 2;
+                        when '1' =>
+                            nibble := nibble * 2 + 1;
+                        when others =>
+                            -- An unknown bit. The trace format has no
+                            -- way to spell one, and the decoder never
+                            -- produces one, so this is a hard failure
+                            -- rather than a silent zero.
+                            assert false
+                                report "hex_field: a field bit is neither '0' nor '1'"
+                                severity failure;
+                    end case;
                 end loop;
                 if k = 0 then
                     s(2 * i - 1) := hex_digit(nibble);
