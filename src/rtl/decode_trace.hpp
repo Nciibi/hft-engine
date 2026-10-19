@@ -118,7 +118,6 @@ private:
                 builder.add_u64(payload.id, 8, "id");
                 builder.add_u64(payload.shares.raw(), 4, "shares");
                 builder.add_u64(payload.match_number, 8, "match");
-                builder.add_u64(payload.printable, 1, "printable");
             } else if constexpr (std::is_same_v<T, hft::itch::OrderExecutedAtPrice>) {
                 builder.add_u64(payload.stock_locate, 2, "locate");
                 builder.add_u64(payload.tracking, 2, "tracking");
