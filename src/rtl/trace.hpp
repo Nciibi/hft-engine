@@ -221,6 +221,13 @@ struct TraceDifference {
 }
 
 /// Render one record as a line, without the newline.
+///
+/// The index is a plain decimal and the length is a zero-padded
+/// four-digit decimal. The length is padded so that a change in its
+/// WIDTH cannot change the line's shape: a reader that splits on
+/// whitespace sees the same tokens in the same places whatever the
+/// length is, and a length that grew from 9 to 10 does not shift every
+/// following field along by one character.
 [[nodiscard]] inline std::string format_record(const TraceRecord& record) {
     std::string out;
     out.reserve(48U);
@@ -230,7 +237,9 @@ struct TraceDifference {
     out.push_back(' ');
     out.append(type_token(record));
     out.push_back(' ');
-    out.append(std::to_string(record.length));
+    const std::string length = std::to_string(record.length);
+    out.append(length.size() < 4U ? std::string(4U - length.size(), '0') : std::string{});
+    out.append(length);
     for (const std::string& field : record.fields) {
         out.push_back(' ');
         out.append(field);

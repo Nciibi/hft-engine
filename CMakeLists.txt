@@ -139,6 +139,23 @@ target_link_libraries(hft_differential PRIVATE hft_core)
 add_executable(hft_concurrent tests/test_concurrent.cpp)
 target_link_libraries(hft_concurrent PRIVATE hft_core)
 
+# ---- RTL differential harness ---------------------------------------
+# The trace format is the contract between the C++ decoder and the RTL
+# model. The format is header-only, so these three targets need no
+# extra sources.
+#
+# hft_rtl_trace   a capture, read frame by frame, written as a trace
+# hft_rtl_check   two traces, compared
+# hft_rtl_test    the format, the comparator, and the bridge, in process
+add_executable(hft_rtl_trace src/rtl/rtl_trace.cpp)
+target_link_libraries(hft_rtl_trace PRIVATE hft_core)
+
+add_executable(hft_rtl_check src/rtl/rtl_check.cpp)
+target_link_libraries(hft_rtl_check PRIVATE hft_core)
+
+add_executable(hft_rtl_test tests/test_rtl_trace.cpp)
+target_link_libraries(hft_rtl_test PRIVATE hft_core)
+
 # ---- CTest ----------------------------------------------------------
 enable_testing()
 
@@ -212,6 +229,17 @@ set_tests_properties(replay_clean PROPERTIES
 add_executable(hft_shards tests/test_shards.cpp)
 target_link_libraries(hft_shards PRIVATE hft_core)
 add_test(NAME shards COMMAND hft_shards)
+
+# The RTL trace: the format, the comparator, and the bridge from the
+# engine's decoder to a trace record.
+#
+# This suite exists because a comparison that cannot fail is not a
+# comparison. Every test in it builds a trace, and several of them build
+# a CORRUPTED copy and assert that the comparator notices -- because the
+# whole purpose of the harness is to catch a disagreement between two
+# implementations, and a comparator that silently reported agreement
+# would make every future differential result meaningless.
+add_test(NAME rtl_trace COMMAND hft_rtl_test)
 
 # The threaded pipeline must build the same book as the single-threaded
 # one from the same feed. That is a correctness property, not a speed
