@@ -237,7 +237,10 @@ Three things are now true that were not:
 | **RTL against C++, field by field, 2,000 messages** | done — 0 differences |
 | RTL against C++, over a capture cut mid-message | done — 0 differences |
 | Cycle-exact decode cost | done — one cycle per body byte, measured |
-| The order book in RTL | not started |
+| **RTL order book** | done — order pool, price ladder, per-level queue, reference index |
+| **RTL book against the C++ book**, every order and every field | done — 0 differences |
+| Cycle-exact book cost | done — 40.75 cycles per message, exact |
+| Synthesis, area and timing | not started |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
