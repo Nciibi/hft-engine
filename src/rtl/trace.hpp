@@ -86,7 +86,7 @@ inline constexpr FieldSpec kFieldsAddOrder[] = {
 
 inline constexpr FieldSpec kFieldsExecuted[] = {
     {"locate", 2}, {"tracking", 2}, {"timestamp", 6}, {"id", 8},
-    {"shares", 4}, {"match", 8},    {"printable", 1},
+    {"shares", 4}, {"match", 8},
 };
 
 inline constexpr FieldSpec kFieldsExecutedAtPrice[] = {
@@ -483,3 +483,4 @@ inline bool compare_traces(const std::vector<TraceRecord>& expected,
 }
 
 }  // namespace hft::rtl
+

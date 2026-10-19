@@ -88,7 +88,9 @@ struct OrderExecuted {
     OrderId id = kInvalidOrderId;
     Quantity shares{};
     std::uint64_t match_number = 0;
-    std::uint8_t printable = 0;
+    // No Printable byte. The message ends at the match number; see the
+    // note on kOrderExecutedSize in protocol.hpp. It was here until
+    // real market data showed it was never on the wire.
 };
 
 /// ITCH 'C'. As 'E', but the fill happened at a price other than the
@@ -318,3 +320,4 @@ struct DecodeResult {
 }
 
 }  // namespace hft::itch
+

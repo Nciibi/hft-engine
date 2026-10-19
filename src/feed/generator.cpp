@@ -243,7 +243,7 @@ void append_order_executed(std::vector<std::uint8_t>& out, hft::OrderId id, hft:
     write_be64(out, id);
     write_be32(out, static_cast<std::uint32_t>(shares.raw()));
     write_be64(out, match_number);
-    out.push_back('Y');  // printable
+    // No Printable byte: the real message is 31 bytes and ends here.
 }
 
 void append_order_executed_at_price(std::vector<std::uint8_t>& out, hft::OrderId id,
@@ -722,3 +722,4 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
 }
 
 }  // namespace hft::feed
+
