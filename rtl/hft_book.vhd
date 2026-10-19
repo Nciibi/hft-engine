@@ -606,7 +606,16 @@ begin
                         -- reference. Reducing it by the replacement's
                         -- share count would be inventing a quantity
                         -- that is on neither message.
-                        if op = op_replace then
+                        --
+                        -- And a delete is not a reduce either. It
+                        -- removes the order outright and discards
+                        -- whatever is left of it, and it carries no
+                        -- quantity at all -- which is exactly why
+                        -- letting it fall through to the reduce path
+                        -- would apply a STALE share count to it. The
+                        -- order would survive, and so would the level
+                        -- it was the last order behind.
+                        if op = op_replace or op = op_remove then
                             orders(work_order - 1).state := st_cancelled;
                             state := st_detach;
                         elsif unsigned(msg_size) > unsigned(orders(work_order - 1).size) then
