@@ -56,6 +56,7 @@
 #include "feed/generator.hpp"
 #include "hft/itch/decode.hpp"
 #include "hft/itch/moldudp64.hpp"
+#include "rtl/capture_walk.hpp"
 #include "rtl/decode_trace.hpp"
 #include "rtl/trace.hpp"
 
