@@ -130,6 +130,20 @@ inline constexpr FieldSpec kFieldsTrade[] = {
 // comparison would fail. What is not covered is an implementation that
 // skipped the wrong number of bytes AND happened to produce the same
 // price -- which is not a thing a decoder can do.
+// 'Q' Cross Trade carries SEVEN fields, not eight.
+//
+// The layout is locate, tracking, timestamp, SHARES (EIGHT bytes --
+// unlike every other message), stock symbol, price, match number, cross
+// type. The stock symbol at offsets 19..26 is skipped, so the field
+// list is: locate 2, tracking 2, timestamp 6, shares 8, price 4,
+// match 8, cross type 1.
+//
+// It was EIGHT fields, with an "id" between the timestamp and the
+// shares that the message does not have. The decoder never extracted
+// it, so the two sides agreed on the VALUES and disagreed on how many
+// there were -- and a cross trade appears in neither the generated
+// capture nor the trading slice of the real feed, so nothing ever
+// noticed. See docs/BUGS.md.
 inline constexpr FieldSpec kFieldsCrossTrade[] = {
     {"locate", 2}, {"tracking", 2}, {"timestamp", 6}, {"shares", 8},
     {"price", 4},  {"match", 8},    {"cross_type", 1},
