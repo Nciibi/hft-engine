@@ -196,6 +196,26 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    // The capture itself, written out so that a second tool can read
+    // the same bytes. The order-book differential needs one capture
+    // that both sides see, and the hex sidecar is not something the
+    // C++ side can read.
+    if (!capture_out.empty()) {
+        std::FILE* f = std::fopen(capture_out.c_str(), "wb");
+        if (f == nullptr) {
+            std::printf("cannot write %s\n", capture_out.c_str());
+            return 2;
+        }
+        const std::size_t written =
+            capture.empty() ? 0 : std::fwrite(capture.data(), 1, capture.size(), f);
+        std::fclose(f);
+        if (written != capture.size()) {
+            std::printf("short write on %s\n", capture_out.c_str());
+            return 2;
+        }
+        std::printf("capture file      %s\n", capture_out.c_str());
+    }
+
     std::ofstream out(trace_path, std::ios::binary);
     if (!out) {
         std::printf("cannot write %s\n", trace_path.c_str());
