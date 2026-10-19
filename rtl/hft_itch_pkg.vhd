@@ -20,11 +20,16 @@
 --    19  1  Buy/Sell Indicator   20  4  Shares
 --    24  8  Stock                32  4  Price                 -> 36 bytes
 --
---   'E' Order Executed (1.4.1)
+--   'E' Order Executed
 --     1  2  Stock Locate          5  6  Timestamp
 --     3  2  Tracking Number      11  8  Order Reference Number
---    19  4  Shares               23  8  Match Number
---    31  1  Printable                                        -> 32 bytes
+--    19  4  Shares               23  8  Match Number      -> 31 bytes
+--
+--   NO Printable byte. The message ends at the match number, and a
+--   decoder that read a Printable byte there would read the next
+--   message's length prefix as a flag. This was found on real market
+--   data, after the table had been wrong here and in the C++ engine
+--   for the whole life of the project; see docs/BUGS.md.
 --
 --   'C' Order Executed With Price (1.4.2)
 --     as 'E', plus 32  4  Execution Price                   -> 36 bytes
