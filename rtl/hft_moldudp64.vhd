@@ -57,7 +57,14 @@ entity hft_moldudp64 is
         rst           : in  std_logic;
 
         -- Byte stream in.
+        --
+        -- `in_eof` says the source has no more bytes to give. It is
+        -- separate from `in_valid` on purpose: a stream that has not
+        -- started yet looks exactly like a stream that has finished,
+        -- and telling those apart by `in_valid` alone would end the
+        -- capture before it began.
         in_valid      : in  std_logic;
+        in_eof        : in  std_logic;
         in_byte       : in  std_logic_vector(7 downto 0);
 
         -- Frame body bytes out.
