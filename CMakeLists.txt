@@ -403,6 +403,35 @@ if(GHDL)
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/real_data_differential.cmake")
     set_tests_properties(rtl_real_data_differential PROPERTIES TIMEOUT 3600)
 
+    # ---- Synthesis -----------------------------------------------------
+    #
+    # Area and timing for the RTL, through the open flow: ghdl --synth,
+    # yosys, nextpnr. No licence and no board.
+    #
+    # GHDL is the only hard dependency here and it is already required
+    # for the differential above. yosys and nextpnr come from the OSS CAD
+    # Suite, which is not installed everywhere, so the test SKIPS rather
+    # than fails when they are missing -- the same rule the doc check
+    # follows. Set YOSYS and NEXTPNR to point at them.
+    find_program(YOSYS yosys)
+    find_program(NEXTPNR nextpnr-ecp5)
+    if(GHDL AND YOSYS AND NEXTPNR)
+        add_test(NAME rtl_synthesis
+                 COMMAND "${CMAKE_COMMAND}"
+                         -DGHDL=${GHDL}
+                         -DYOSYS=${YOSYS}
+                         -DNEXTPNR=${NEXTPNR}
+                         -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
+                         -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_synth_work
+                         -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/rtl_synth_work/synthesis.md
+                         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/synth.cmake")
+        set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 1800)
+        message(STATUS "  yosys ............. ${YOSYS}")
+        message(STATUS "  nextpnr ............ ${NEXTPNR}")
+    else()
+        message(STATUS "  yosys/nextpnr ...... not found, the synthesis test is skipped")
+    endif()
+
     message(STATUS "  ghdl .............. ${GHDL}")
 else()
     message(STATUS "  ghdl .............. not found, the RTL differential is skipped")
