@@ -108,12 +108,30 @@ inline constexpr std::size_t kStockSymbolSize = 8;
 inline constexpr std::size_t add_order_price = 32;    ///< 4
 inline constexpr std::size_t kAddOrderSize = add_order_price + kPriceSize;
 
-// ---- Order Executed, tag 'E' ----
-inline constexpr std::size_t order_executed_id = 11;    ///< 8
-inline constexpr std::size_t order_executed_shares = 19;  ///< 4
-inline constexpr std::size_t order_executed_match = 23;   ///< 8
-inline constexpr std::size_t order_executed_printable = 31;  ///< 1
-inline constexpr std::size_t kOrderExecutedSize = 32;
+    // ---- Order Executed, tag 'E' ----
+    //
+    // VERIFIED AGAINST REAL MARKET DATA, and the verification found a
+    // bug: **this message has no Printable byte.**
+    //
+    // The field table used to be transcribed as Locate, Tracking,
+    // Timestamp, Reference, Shares, Match, Printable -- 32 bytes. Every
+    // test in this repository agreed with it, because the generator
+    // wrote the same 32 bytes the decoder read, and the two agreed
+    // perfectly and both disagreed with the exchange.
+    //
+    // On a real Nasdaq TotalView-ITCH 5.0 feed the message is 31 bytes
+    // and ends at the match number. The bytes after it are the NEXT
+    // message's, and a decoder that read a Printable byte there would
+    // read the next message's length prefix as a flag.
+    //
+    // Order Executed With Price ('C') DOES have a Printable byte, at
+    // offset 31, followed by the execution price. It was 'C''s table
+    // that the 'E' table was derived from, and the Printable byte came
+    // with it. Full account in docs/BUGS.md.
+    inline constexpr std::size_t order_executed_id = 11;    ///< 8
+    inline constexpr std::size_t order_executed_shares = 19;  ///< 4
+    inline constexpr std::size_t order_executed_match = 23;   ///< 8
+    inline constexpr std::size_t kOrderExecutedSize = 31;
 
 // ---- Order Executed With Price, tag 'C' ----
 // Identical to 'E' with a 4-byte execution price appended.
