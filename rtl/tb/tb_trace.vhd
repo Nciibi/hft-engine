@@ -23,8 +23,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 library work;
-use work.all;
-use work.all;
+use work.hft_itch_pkg.all;
+use work.hft_trace_fmt.all;
 
 use std.textio.all;
 
@@ -275,4 +275,5 @@ begin
     end process;
 
 end architecture sim;
+
 

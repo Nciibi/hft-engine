@@ -51,7 +51,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
-use work.all;
+use work.hft_itch_pkg.all;
 
 entity hft_itch_decode is
     port (
@@ -267,5 +267,6 @@ begin
     end process;
 
 end architecture rtl;
+
 
 

@@ -21,7 +21,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
-use work.all;
+use work.hft_itch_pkg.all;
 
 package hft_trace_fmt is
 
@@ -179,5 +179,6 @@ package body hft_trace_fmt is
     end function;
 
 end package body hft_trace_fmt;
+
 
 
