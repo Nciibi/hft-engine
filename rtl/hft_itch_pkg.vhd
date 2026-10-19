@@ -95,6 +95,10 @@ package hft_itch_pkg is
     -- The extracted fields, each up to eight bytes wide.
     type field_array_t is array (field_index_t) of std_logic_vector(63 downto 0);
 
+    -- The first line of a trace file. A comment, so a reader can skip
+    -- it and a human can recognise the file.
+    constant kTraceHeader : string := "# hft-rtl-trace v1";
+
     type offset_table_t is array (type_index_t, field_index_t) of natural range 0 to 64;
     type width_table_t is array (type_index_t, field_index_t) of natural range 0 to 8;
     type count_table_t is array (type_index_t) of natural range 0 to 9;

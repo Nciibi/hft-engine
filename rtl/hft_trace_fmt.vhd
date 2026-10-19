@@ -19,7 +19,14 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
+library work;
+use work.hft_itch_pkg.all;
+
 package hft_trace_fmt is
+
+    -- The value of one hex character, 0..15. Used by the testbench to
+    -- read the hex sidecar.
+    function hex_val(c : character) return natural;
 
     -- The status character the format uses.
     function status_char(s : hft_itch_pkg.decode_status_t) return character;
@@ -49,6 +56,16 @@ package hft_trace_fmt is
 end package hft_trace_fmt;
 
 package body hft_trace_fmt is
+
+    function hex_val(c : character) return natural is
+    begin
+        case c is
+            when '0' to '9' => return character'pos(c) - character'pos('0');
+            when 'a' to 'f' => return 10 + character'pos(c) - character'pos('a');
+            when 'A' to 'F' => return 10 + character'pos(c) - character'pos('A');
+            when others => return 0;
+        end case;
+    end function;
 
     function hex_digit(n : natural) return character is
     begin
