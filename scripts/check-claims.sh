@@ -71,10 +71,12 @@ fi
 # block and stale in the README is still a wrong README.
 block_total=""
 block_ctest=""
+declare -A block_suite
 while IFS= read -r line; do
     case "$line" in
         checks_total:*) block_total="${line#*:}" ;;
         ctest_tests:*)   block_ctest="${line#*:}" ;;
+        checks_*)       block_suite["${line%%:*}"]="${line#*:}" ;;
     esac
 done < <(sed -n '/<!--[[:space:]]*claims/,/-->/p' "$ROOT/README.md")
 
@@ -87,6 +89,22 @@ else
     if [[ "$block_total" -ne "$total" ]]; then
         problems+=("README claims $block_total checks; the binaries print $total")
     fi
+
+    # Each suite's own count, so a drift in one suite cannot hide inside
+    # the total. The per-suite lines are the ones a reader is most
+    # likely to quote, and they are the ones a compiler cannot check.
+    for key in "${!actual[@]}"; do
+        claimed="${block_suite[checks_${key}]:-}"
+        if [[ -z "$claimed" ]]; then
+            problems+=("README claims block has no checks_${key} line")
+            continue
+        fi
+        claimed="$(printf '%s' "$claimed" | tr -d '[:space:]')"
+        if [[ "$claimed" -ne "${actual[$key]}" ]]; then
+            problems+=("README claims checks_${key} = $claimed; the binary prints ${actual[$key]}")
+        fi
+    done
+
     if [[ -n "$block_ctest" && "$ctest_count" -gt 0 ]]; then
         block_ctest="$(printf '%s' "$block_ctest" | tr -d '[:space:]')"
         if [[ "$block_ctest" -ne "$ctest_count" ]]; then
