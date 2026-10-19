@@ -234,6 +234,31 @@ end package hft_itch_pkg;
 
 package body hft_itch_pkg is
 
+    -- The number of fields a type's width table actually describes.
+    --
+    -- This exists because a count that disagrees with the widths is a
+    -- mistake that HIDES. When the Order Executed message lost its
+    -- Printable byte, the width row was updated and the count was not,
+    -- and the two sides still agreed -- because the extra field
+    -- rendered as an EMPTY STRING, the trace's tokeniser dropped it,
+    -- and a record with six fields passed a check that expected six.
+    --
+    -- The count is therefore derived from the widths and compared with
+    -- the declared count, at elaboration, so a table that disagrees
+    -- with itself stops the build instead of quietly agreeing with the
+    -- other side.
+    function described_field_count(t : type_index_t) return natural is
+        variable n : natural := 0;
+    begin
+        for i in field_index_t loop
+            if kFieldWidth(t, i) = 0 then
+                return n;
+            end if;
+            n := n + 1;
+        end loop;
+        return n;
+    end function;
+
     function type_index_of(tag : std_logic_vector(7 downto 0)) return type_index_t is
     begin
         case tag is
