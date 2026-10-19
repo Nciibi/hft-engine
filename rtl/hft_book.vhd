@@ -102,7 +102,7 @@ entity hft_book is
         dump_start : in std_logic;
         dump_valid : out std_logic;
         dump_kind  : out std_logic;           -- 'L' for a level, 'O' for an order
-        dump_side  : out std_logic;           -- 'B' for the bid side, 'A' for the ask
+        dump_side  : out std_logic_vector(7 downto 0);  -- x"42" for the bid side, x"41" for the ask
         dump_a     : out std_logic_vector(63 downto 0);  -- level: price      order: id
         dump_b     : out std_logic_vector(63 downto 0);  -- level: aggregate  order: price
         dump_c     : out std_logic_vector(63 downto 0);  -- level: order count order: size
@@ -173,7 +173,7 @@ architecture rtl of hft_book is
     signal o_status : book_status_t := bs_ok;
     signal o_dump_valid : std_logic := '0';
     signal o_dump_kind : std_logic := 'L';
-    signal o_dump_side : std_logic := B"01000010";
+    signal o_dump_side : std_logic_vector(7 downto 0) := x"42";
     signal o_dump_a : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_b : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_c : std_logic_vector(63 downto 0) := (others => '0');
@@ -759,6 +759,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
