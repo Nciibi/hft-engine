@@ -110,8 +110,9 @@ package hft_itch_pkg is
     constant kFieldOffset : offset_table_t := (
         -- 'A' Add Order
         0 => (1, 3, 5, 11, 19, 20, 24, 32, 0),
-        -- 'E' Order Executed
-        1 => (1, 3, 5, 11, 19, 23, 31, 0, 0),
+        -- 'E' Order Executed.  No Printable byte: the message ends at
+        -- the match number.  See the note on kBodyLength below.
+        1 => (1, 3, 5, 11, 19, 23, 0, 0, 0),
         -- 'C' Order Executed With Price
         2 => (1, 3, 5, 11, 19, 23, 31, 32, 0),
         -- 'X' Order Cancel
@@ -132,7 +133,7 @@ package hft_itch_pkg is
     -- Width of each field, in bytes.
     constant kFieldWidth : width_table_t := (
         0 => (2, 2, 6, 8, 1, 4, 8, 4, 0),
-        1 => (2, 2, 6, 8, 4, 8, 1, 0, 0),
+        1 => (2, 2, 6, 8, 4, 8, 0, 0, 0),
         2 => (2, 2, 6, 8, 4, 8, 1, 4, 0),
         3 => (2, 2, 6, 8, 4, 0, 0, 0, 0),
         4 => (2, 2, 6, 8, 0, 0, 0, 0, 0),
@@ -148,7 +149,7 @@ package hft_itch_pkg is
     -- The body length each type requires, in bytes. A frame whose
     -- declared length disagrees with this is a BAD LENGTH, not a
     -- message with different fields.
-    constant kBodyLength : length_table_t := (36, 32, 36, 23, 19, 35, 19, 44, 40, 0);
+    constant kBodyLength : length_table_t := (36, 31, 36, 23, 19, 35, 19, 44, 40, 0);
 
     -- Whether the message is keyed on an order reference, and a
     -- reference of zero is therefore malformed.
@@ -246,3 +247,4 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
