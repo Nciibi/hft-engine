@@ -43,6 +43,10 @@ package hft_trace_fmt is
     -- One byte as two lowercase hex characters.
     function hex_byte(b : std_logic_vector(7 downto 0)) return string;
 
+    -- A 64-bit value as sixteen lowercase hex characters, most
+    -- significant first.
+    function hex_u64(v : std_logic_vector(63 downto 0)) return string;
+
     -- A field value, rendered at its wire width.
     --
     -- The value is left-aligned in the 64-bit vector: the field's bytes
