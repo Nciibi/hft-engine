@@ -124,6 +124,7 @@ int main(int argc, char** argv) {
     std::string capture_path;
     std::string trace_path;
     std::string hex_path;
+    std::string capture_out;
     std::size_t record_limit = 0;
     std::size_t truncate_at = 0;
     bool truncate = false;
