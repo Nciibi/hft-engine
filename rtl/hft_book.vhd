@@ -329,7 +329,11 @@ begin
                                 when x"41" =>            -- 'A' Add Order
                                     op := op_add;
                                     msg_id := apply_fields(3);
-                                    msg_side := '1' when side_is_bid(apply_fields(4)) else '0';
+                                    if side_is_bid(apply_fields(4)) then
+                                        msg_side := '1';
+                                    else
+                                        msg_side := '0';
+                                    end if;
                                     msg_size := apply_fields(5);
                                     msg_price := apply_fields(7);
                                 when x"45" | x"43" =>  -- 'E' / 'C' executed
@@ -364,9 +368,7 @@ begin
                                 -- The hash is a mix of the key; it does
                                 -- not have to match the C++'s, because
                                 -- only the RESULT has to match.
-                                probe_slot := std_logic_vector'(
-                                    unsigned(msg_id * x"9E3779B97F4A7C15") and
-                                    to_unsigned(TABLE_SLOTS - 1, 64))(63 downto 0);
+                                probe_slot := hash_slot(msg_id);
                                 probe_steps := 0;
                                 state := st_probe;
                             end if;
@@ -406,7 +408,7 @@ begin
                                     -- The reference zero is reserved.
                                     o_status := bs_duplicate_order;
                                     state := st_finish;
-                                elsif msg_size = 0 then
+                                elsif msg_size = x"0000000000000000" then
                                     -- Zero size rests no liquidity. The
                                     -- venue drops these.
                                     o_status := bs_zero_size;
@@ -556,7 +558,17 @@ begin
 
                     when st_reduce =>
                         -- Consume or cancel shares.
-                        if msg_size > orders(work_order - 1).size then
+                        --
+                        -- A replace is not a reduce: the specification
+                        -- supersedes the original outright, whatever
+                        -- its remaining size, and issues a NEW
+                        -- reference. Reducing it by the replacement's
+                        -- share count would be inventing a quantity
+                        -- that is on neither message.
+                        if op = op_replace then
+                            orders(work_order - 1).state := st_cancelled;
+                            state := st_detach;
+                        elsif unsigned(msg_size) > unsigned(orders(work_order - 1).size) then
                             -- A reduce that would drive the remaining
                             -- size below zero is a protocol violation.
                             o_status := bs_over_reduce;
@@ -661,9 +673,7 @@ begin
                             -- and therefore NEW time priority.
                             op := op_add;
                             msg_id := msg_new_id;
-                            probe_slot := std_logic_vector'(
-                                unsigned(msg_new_id * x"9E3779B97F4A7C15") and
-                                to_unsigned(TABLE_SLOTS - 1, 64))(63 downto 0);
+                            probe_slot := hash_slot(msg_new_id);
                             probe_steps := 0;
                             state := st_probe;
                         else
@@ -689,7 +699,7 @@ begin
                         else
                             o_dump_valid := '1';
                             o_dump_kind := 'L';
-                            o_dump_side := levels(dump_cur_level - 1).side;
+                            o_dump_side := side_char(levels(dump_cur_level - 1).side);
                             o_dump_a := levels(dump_cur_level - 1).price;
                             o_dump_b := levels(dump_cur_level - 1).aggregate;
                             o_dump_c := std_logic_vector(
@@ -706,7 +716,7 @@ begin
                         else
                             o_dump_valid := '1';
                             o_dump_kind := 'O';
-                            o_dump_side := orders(dump_cur_order - 1).side;
+                            o_dump_side := side_char(orders(dump_cur_order - 1).side);
                             o_dump_a := orders(dump_cur_order - 1).id;
                             o_dump_b := orders(dump_cur_order - 1).price;
                             o_dump_c := orders(dump_cur_order - 1).size;
@@ -723,3 +733,4 @@ begin
     end process;
 
 end architecture rtl;
+
