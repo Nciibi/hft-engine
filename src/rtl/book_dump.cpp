@@ -137,27 +137,59 @@ int main(int argc, char** argv) {
         }
     }
 
-    // The dump, in the book's priority order.
+    // The dump, in the book's priority order: the bid side first, and
+    // within a side the levels in price order -- highest first for the
+    // bid, lowest first for the ask -- and within a level the queue
+    // order.
+    //
+    // Two record kinds, and both matter. The order records are what
+    // the checksum folds, so they are the book state. The level
+    // records are the aggregate and the order count, which the
+    // checksum does NOT cover: a book can have the right orders in the
+    // right order and still have an inflated aggregate, and that is a
+    // bug the checksum would not report.
     std::vector<std::string> lines;
     std::uint64_t checksum = hft::replay::fnv1a_offset_basis;
     std::size_t index = 0;
 
     for (const Side side : {Side::bid, Side::ask}) {
-        for (const hft::lob::OrderSnapshot& o : book.orders(side)) {
-            checksum = hft::replay::fnv1a_u64(checksum, o.id);
-            checksum = hft::replay::fnv1a_u64(
-                checksum, static_cast<std::uint64_t>(o.price.raw()));
-            checksum = hft::replay::fnv1a_u64(checksum, o.size.raw());
-            checksum = hft::replay::fnv1a_u64(
-                checksum, static_cast<std::uint64_t>(o.state));
+        const std::vector<hft::lob::OrderSnapshot> orders = book.orders(side);
+        const std::vector<hft::lob::LevelSnapshot> levels = book.levels(side);
 
-            char buf[128];
-            std::snprintf(buf, sizeof(buf), "%zu %c %s %s %s %s", index,
-                          side == Side::bid ? 'B' : 'A', hex64(o.id).c_str(),
-                          hex64(static_cast<std::uint64_t>(o.price.raw())).c_str(),
-                          hex64(o.size.raw()).c_str(), state_name(o.state));
+        std::size_t order_cursor = 0;
+        for (const hft::lob::LevelSnapshot& level : levels) {
+            char buf[192];
+            std::snprintf(buf, sizeof(buf), "%zu L %c %s %u %s", index,
+                          side == Side::bid ? 'B' : 'A',
+                          hex64(static_cast<std::uint64_t>(level.price.raw())).c_str(),
+                          level.order_count,
+                          hex64(level.aggregate_size.raw()).c_str());
             lines.emplace_back(buf);
             ++index;
+
+            // The orders of this level, in queue order. The flat order
+            // list is grouped by level in price order, so the boundary
+            // is where the price changes.
+            std::size_t position = 0;
+            while (order_cursor < orders.size() &&
+                   orders[order_cursor].price.raw() == level.price.raw()) {
+                const hft::lob::OrderSnapshot& o = orders[order_cursor];
+                checksum = hft::replay::fnv1a_u64(checksum, o.id);
+                checksum = hft::replay::fnv1a_u64(
+                    checksum, static_cast<std::uint64_t>(o.price.raw()));
+                checksum = hft::replay::fnv1a_u64(checksum, o.size.raw());
+                checksum = hft::replay::fnv1a_u64(
+                    checksum, static_cast<std::uint64_t>(o.state));
+
+                std::snprintf(buf, sizeof(buf), "%zu O %c %s %s %s %s %zu", index,
+                              side == Side::bid ? 'B' : 'A', hex64(o.id).c_str(),
+                              hex64(static_cast<std::uint64_t>(o.price.raw())).c_str(),
+                              hex64(o.size.raw()).c_str(), state_name(o.state), position);
+                lines.emplace_back(buf);
+                ++index;
+                ++position;
+                ++order_cursor;
+            }
         }
     }
 
