@@ -21,7 +21,7 @@ resolution floor before reporting anything.
 |---|---|
 | **What it is** | ITCH 5.0 decoder, price-time-priority limit order book, pre-trade risk, OMS, Avellaneda-Stoikov market maker, and adverse-selection measurement |
 | **Language** | C++20, zero external dependencies in the library target |
-| **Tests** | **1,815 checks** across **24 CTest suites**, 0 failures, under **two compilers** |
+| **Tests** | **1,900 checks** across **26 CTest suites**, 0 failures, under **two compilers** |
 | **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
 | **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
 | **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
@@ -263,16 +263,18 @@ checks_risk_oms: 156
 checks_strategy: 47
 checks_concurrent: 149
 checks_shards: 51
-checks_total: 1815
-ctest_tests: 24
+checks_rtl_trace: 85
+checks_total: 1900
+ctest_tests: 26
 -->
 
-**Verified: 1,815 checks across 24 CTest suites** — 1,412 unit + 156
-risk/OMS + 47 strategy + 149 concurrency + 51 sharding, zero failures,
-under **two compilers**. Every number in that sentence is asserted by
-`ctest`, and `scripts/check-claims.sh` fails the build if it drifts from
-what the binaries actually print. The argument is not the count; it is
-that each of these would fail if the thing it guards regressed:
+**Verified: 1,900 checks across 26 CTest suites** — 1,412 unit + 156
+risk/OMS + 47 strategy + 149 concurrency + 51 sharding + 85 RTL trace,
+zero failures, under **two compilers**. Every number in that sentence is
+asserted by `ctest`, and `scripts/check-claims.sh` fails the build if it
+drifts from what the binaries actually print. The argument is not the
+count; it is that each of these would fail if the thing it guards
+regressed:
 
 - **One hand-built, byte-exact Add Order frame**, assembled from the field
   table and decoded without going near the generator. Self-consistency
@@ -489,7 +491,7 @@ it at all, in
 | Fast book vs naive model, **dense** ladder | **450,000 ops** (200,000 default + 5 seeds × 50,000) | 0 mismatches |
 | Symbol routing, open-addressed index vs `std::map` oracle | **60,000 records**, 12 symbols | 0 misroutes |
 | Randomised OMS operations vs independent invariant tally | **60,000 ops** | 0 violations |
-| Unit + risk/OMS + strategy + concurrency + sharding checks | **1,815 checks** | 0 failures |
+| Unit + risk/OMS + strategy + concurrency + sharding + RTL trace checks | **1,900 checks** | 0 failures |
 
 The two differential suites are separate on purpose. The dense ladder is
 a different implementation of level lookup and price ordering — an array
@@ -586,7 +588,7 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure   # 24 suites, ~60s
+ctest --test-dir build --output-on-failure   # 26 suites, ~70s
 ```
 
 That is the whole verification story. The individual binaries, if you want
