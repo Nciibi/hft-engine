@@ -398,8 +398,8 @@ if(GHDL)
                      -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
                      -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_real_work
                      -DRAW=${CMAKE_CURRENT_BINARY_DIR}/rtl_real_work/raw.itch
-                     "-DFETCH_SCRIPT="
-                     "-DFETCH_POWERSHELL="
+                     "-DFETCH_SCRIPT=${FETCH_SCRIPT}"
+                     "-DFETCH_POWERSHELL=${FETCH_POWERSHELL}"
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/real_data_differential.cmake")
     set_tests_properties(rtl_real_data_differential PROPERTIES TIMEOUT 3600)
 
