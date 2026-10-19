@@ -188,7 +188,7 @@ package body hft_trace_fmt is
             for k in 0 to 1 loop
                 nibble := 0;
                 for b in 0 to 3 loop
-                    bit_index := 63 - 8 * (i - 1) - (k * 4 + b);
+                    bit_index := 8 * (width - i + 1) - 1 - (k * 4 + b);
                     case v(bit_index) is
                         when '0' =>
                             nibble := nibble * 2;
@@ -223,6 +223,7 @@ package body hft_trace_fmt is
     end function;
 
 end package body hft_trace_fmt;
+
 
 
 
