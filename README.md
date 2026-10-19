@@ -309,6 +309,37 @@ regressed:
 None of that would have found a field offset. Only comparing against
 something outside this repository would have.
 
+## The hardware path
+
+**A second implementation of the market data path, in VHDL, differentially
+verified against the engine above.** The contract is
+[`rtl/TRACE_FORMAT.md`](rtl/TRACE_FORMAT.md) and the state of it is
+[`rtl/README.md`](rtl/README.md).
+
+The reason is the one above. Every check in this repository compares the
+engine against something inside the repository — the generator, a naive
+reference model, another build of the same code. The Add Order misdecode
+survived all of them, because the generator wrote the same wrong layout
+the decoder read. A second implementation written from the published
+field tables is the check that cannot share an assumption with the thing
+under test, and when the two disagree the specification says which is
+wrong.
+
+The trace is the artefact they are compared through: one record per
+frame, holding the decode status and the value of every extracted field.
+A trace that echoed the raw body bytes would agree no matter how wrong
+either side was, because both would be reading the same buffer; a trace
+that records *extracted values* disagrees the moment one side reads the
+share count as the price.
+
+Two tools implement the C++ side today — `hft_rtl_trace` writes a trace,
+`hft_rtl_check` compares two of them — and the harness is tested by
+asserting that the comparator **rejects** a trace that differs, because a
+comparison that cannot fail is not a comparison. The RTL model itself is
+the next phase and is listed as not started above, deliberately: the
+harness exists first so that there is something to disagree with before
+there is something disagreeing.
+
 ## Results
 
 **Every number below was measured on this repository's development
