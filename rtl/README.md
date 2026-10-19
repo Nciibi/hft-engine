@@ -138,6 +138,35 @@ levels — and a ratio is a statement about a machine rather than about a
 design. Here the same number is a cycle count, and it says the dense
 grid is worth exactly `depth` cycles per add.
 
+## The same differential, over real market data
+
+```
+$ ctest --test-dir build -R rtl_real -V
+  real data ........ fetching 4194304 compressed bytes from the Nasdaq ITCH archive
+  field tables ..... every decoded type has the length the table says
+  rtl decode ....... rtl trace records 70208
+  rtl decode cycles1934929
+  differential ...... the two decoders agree on every field of every real message
+  rtl book .......... rtl messages     3776
+  rtl book cycles  862519
+  differential ...... the two books agree on every order, level and field
+```
+
+**70,208 real messages from the exchange**, and the RTL model and the
+C++ engine agree on every field of every one of them, and on the book
+they build.
+
+This is the test that found two defects that generated data could not:
+the Order Executed field table had a byte the message does not have, and
+the RTL index probe used a slot it had not examined. Both are written up
+in [`../docs/BUGS.md`](../docs/BUGS.md).
+
+The data is fetched, not committed: the exchange's files are several
+gigabytes and are the exchange's property.
+[`../scripts/fetch-itch.sh`](../scripts/fetch-itch.sh) fetches a slice
+with an HTTP Range request, and the test skips itself when the network
+is not there.
+
 ## The order book
 
 The RTL book models the C++ book exactly: an order pool, a level pool,
