@@ -215,7 +215,7 @@ begin
         variable dump_start : std_logic := '0';
         variable stop_pending : boolean := false;
         variable issued : boolean := false;
-        variable book_file : text;
+        file book_file : text open write_mode is OUT_PATH;
     begin
         -- Phase 1: decode.
         loop
@@ -279,7 +279,6 @@ begin
         wait until falling_edge(clk);
         dump_start <= '0';
 
-        book_file := open(write_mode, OUT_PATH);
         write(l, "# hft-book-dump v1");
         writeline(book_file, l);
 
@@ -347,4 +346,5 @@ begin
     end process;
 
 end architecture sim;
+
 

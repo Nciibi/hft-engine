@@ -31,6 +31,8 @@ use ieee.numeric_std.all;
 library work;
 use work.hft_trace_fmt.all;
 
+use std.textio.all;
+
 entity hft_hex_reader is
     generic (
         PATH : string := "capture.hex"
@@ -102,3 +104,4 @@ begin
     end process;
 
 end architecture rtl;
+
