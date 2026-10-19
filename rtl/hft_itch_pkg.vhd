@@ -144,7 +144,7 @@ package hft_itch_pkg is
         -- 'A' Add Order
         0 => (1, 3, 5, 11, 19, 20, 24, 32, 0, 0, 0, 0, 0, 0, 0, 0),
         -- 'E' Order Executed
-        1 => (1, 3, 5, 11, 19, 23, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        1 => (1, 3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         -- 'C' Order Executed At Price
         2 => (1, 3, 5, 11, 19, 23, 31, 32, 0, 0, 0, 0, 0, 0, 0, 0),
         -- 'X' Order Cancel
@@ -165,7 +165,7 @@ package hft_itch_pkg is
     -- Width of each field, in bytes.
     constant kFieldWidth : width_table_t := (
         0 => (2, 2, 6, 8, 1, 4, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0),
-        1 => (2, 2, 6, 8, 4, 8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        1 => (2, 2, 6, 8, 4, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         2 => (2, 2, 6, 8, 4, 8, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0),
         3 => (2, 2, 6, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         4 => (2, 2, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
@@ -178,7 +178,7 @@ package hft_itch_pkg is
     -- The end offset of each field: the offset of the byte after it.
     constant kFieldEnd : end_table_t := (
         0 => (3, 5, 11, 19, 20, 24, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0),
-        1 => (3, 5, 11, 19, 23, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        1 => (3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         2 => (3, 5, 11, 19, 23, 31, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0),
         3 => (3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         4 => (3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
@@ -189,7 +189,7 @@ package hft_itch_pkg is
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- How many fields each type carries.
-    constant kFieldCount : count_table_t := (8, 7, 8, 5, 4, 7, 4, 8, 7, 0);
+    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 7, 0);
 
     -- The body length each type requires, in bytes. A frame whose
     -- declared length disagrees with this is a BAD LENGTH, not a
@@ -292,6 +292,7 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
 
 
 
