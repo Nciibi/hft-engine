@@ -181,7 +181,7 @@ package hft_itch_pkg is
         -- 'B' Broken Trade
         6 => (3, 5, 11, 19, 0, 0, 0, 0, 0),
         -- 'P' Trade
-        7 => (3, 5, 11, 19, 20, 24, 32, 40, 0),
+        7 => (3, 5, 11, 19, 20, 24, 36, 44, 0),
         -- 'Q' Cross Trade
         8 => (3, 5, 11, 19, 27, 31, 39, 40, 0),
         -- not a type this build decodes
