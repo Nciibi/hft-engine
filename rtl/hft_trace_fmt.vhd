@@ -21,7 +21,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
-use work.hft_itch_pkg.all;
+use work.all;
 
 package hft_trace_fmt is
 
@@ -30,7 +30,7 @@ package hft_trace_fmt is
     function hex_val(c : character) return natural;
 
     -- The status character the format uses.
-    function status_char(s : hft_itch_pkg.decode_status_t) return character;
+    function status_char(s : decode_status_t) return character;
 
     -- A decimal, with no leading space. `integer'image` gives one, and
     -- this removes the space it puts in front of a non-negative value.
@@ -90,14 +90,14 @@ package body hft_trace_fmt is
         end case;
     end function;
 
-    function status_char(s : hft_itch_pkg.decode_status_t) return character is
+    function status_char(s : decode_status_t) return character is
     begin
         case s is
-            when hft_itch_pkg.st_ok => return 'D';
-            when hft_itch_pkg.st_skipped => return 'S';
-            when hft_itch_pkg.st_bad_length => return 'L';
-            when hft_itch_pkg.st_malformed => return 'M';
-            when hft_itch_pkg.st_truncated => return 'T';
+            when st_ok => return 'D';
+            when st_skipped => return 'S';
+            when st_bad_length => return 'L';
+            when st_malformed => return 'M';
+            when st_truncated => return 'T';
         end case;
     end function;
 
@@ -179,4 +179,5 @@ package body hft_trace_fmt is
     end function;
 
 end package body hft_trace_fmt;
+
 

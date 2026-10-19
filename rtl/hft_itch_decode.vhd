@@ -51,7 +51,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
-use work.hft_itch_pkg.all;
+use work.all;
 
 entity hft_itch_decode is
     port (
@@ -70,12 +70,12 @@ entity hft_itch_decode is
 
         -- The result.
         done          : out std_logic;
-        status        : out hft_itch_pkg.decode_status_t;
+        status        : out decode_status_t;
         type_byte     : out std_logic_vector(7 downto 0);
         has_type      : out std_logic;
         declared_len  : out natural range 0 to 65535;
         field_count   : out natural range 0 to 9;
-        fields        : out hft_itch_pkg.field_array_t;
+        fields        : out field_array_t;
         cycles        : out natural range 0 to 65535
     );
 end entity hft_itch_decode;
@@ -85,12 +85,12 @@ architecture rtl of hft_itch_decode is
     signal busy : std_logic := '0';
 
     signal r_done : std_logic := '0';
-    signal r_status : hft_itch_pkg.decode_status_t := hft_itch_pkg.st_truncated;
+    signal r_status : decode_status_t := st_truncated;
     signal r_type : std_logic_vector(7 downto 0) := (others => '0');
     signal r_has_type : std_logic := '0';
     signal r_declared : natural range 0 to 65535 := 0;
     signal r_field_count : natural range 0 to 9 := 0;
-    signal r_fields : hft_itch_pkg.field_array_t := (others => (others => '0'));
+    signal r_fields : field_array_t := (others => (others => '0'));
     signal r_cycles : natural range 0 to 65535 := 0;
 
 begin
@@ -107,21 +107,21 @@ begin
     process (clk)
         -- The parser's own state. These are registers, held between
         -- clock edges like any other.
-        variable type_idx : hft_itch_pkg.type_index_t := hft_itch_pkg.kUnknownType;
+        variable type_idx : type_index_t := kUnknownType;
         variable fld_idx : natural range 0 to 9 := 0;
         variable in_field : natural range 0 to 8 := 0;
         variable acc : std_logic_vector(63 downto 0) := (others => '0');
         variable off : natural range 0 to 65535 := 0;
         variable remaining : natural range 0 to 65535 := 0;
         variable declared : natural range 0 to 65535 := 0;
-        variable flds : hft_itch_pkg.field_array_t := (others => (others => '0'));
+        variable flds : field_array_t := (others => (others => '0'));
         variable cyc : natural range 0 to 65535 := 0;
     begin
         if rising_edge(clk) then
             if rst = '1' then
                 busy <= '0';
                 r_done <= '0';
-                r_status <= hft_itch_pkg.st_truncated;
+                r_status <= st_truncated;
                 r_type <= (others => '0');
                 r_has_type <= '0';
                 r_declared <= 0;
@@ -138,7 +138,7 @@ begin
                     in_field := 0;
                     acc := (others => '0');
                     flds := (others => (others => '0'));
-                    type_idx := hft_itch_pkg.kUnknownType;
+                    type_idx := kUnknownType;
                     declared := frame_len;
                     r_declared <= frame_len;
 
@@ -147,7 +147,7 @@ begin
                         -- The frame is truncated at length zero, with
                         -- no type: there is no tag byte on the wire.
                         busy <= '0';
-                        r_status <= hft_itch_pkg.st_truncated;
+                        r_status <= st_truncated;
                         r_type <= (others => '0');
                         r_has_type <= '0';
                         r_field_count <= 0;
@@ -159,7 +159,7 @@ begin
                         -- BAD LENGTH, not a truncation: the frame
                         -- declared a length and it was wrong.
                         busy <= '0';
-                        r_status <= hft_itch_pkg.st_bad_length;
+                        r_status <= st_bad_length;
                         r_type <= (others => '0');
                         r_has_type <= '0';
                         r_field_count <= 0;
@@ -177,7 +177,7 @@ begin
                         -- The body ran short. The frame is truncated at
                         -- its declared length, with no type.
                         busy <= '0';
-                        r_status <= hft_itch_pkg.st_truncated;
+                        r_status <= st_truncated;
                         r_type <= (others => '0');
                         r_has_type <= '0';
                         r_field_count <= 0;
@@ -188,20 +188,20 @@ begin
                         if off = 0 then
                             r_type <= byte_in;
                             r_has_type <= '1';
-                            type_idx := hft_itch_pkg.type_index_of(byte_in);
+                            type_idx := type_index_of(byte_in);
                         end if;
 
-                        if type_idx /= hft_itch_pkg.kUnknownType and
-                           fld_idx < hft_itch_pkg.kFieldCount(type_idx) then
-                            if off >= hft_itch_pkg.kFieldOffset(type_idx, fld_idx) and
-                               off < hft_itch_pkg.kFieldOffset(type_idx, fld_idx) +
-                                    hft_itch_pkg.kFieldWidth(type_idx, fld_idx) then
+                        if type_idx /= kUnknownType and
+                           fld_idx < kFieldCount(type_idx) then
+                            if off >= kFieldOffset(type_idx, fld_idx) and
+                               off < kFieldOffset(type_idx, fld_idx) +
+                                    kFieldWidth(type_idx, fld_idx) then
                                 if in_field = 0 then
                                     acc := (others => '0');
                                 end if;
                                 acc := acc(55 downto 0) & byte_in;
                                 in_field := in_field + 1;
-                                if in_field = hft_itch_pkg.kFieldWidth(type_idx, fld_idx) then
+                                if in_field = kFieldWidth(type_idx, fld_idx) then
                                     flds(fld_idx) := acc;
                                     fld_idx := fld_idx + 1;
                                     in_field := 0;
@@ -215,43 +215,43 @@ begin
                             busy <= '0';
                             r_cycles <= cyc;
 
-                            if type_idx = hft_itch_pkg.kUnknownType then
+                            if type_idx = kUnknownType then
                                 -- A well-formed frame of a type this
                                 -- build does not decode. The type is
                                 -- recorded, because a handler that
                                 -- skipped a frame needs to know what it
                                 -- skipped.
-                                r_status <= hft_itch_pkg.st_skipped;
+                                r_status <= st_skipped;
                                 r_has_type <= '1';
                                 r_field_count <= 0;
-                            elsif declared /= hft_itch_pkg.kBodyLength(type_idx) then
+                            elsif declared /= kBodyLength(type_idx) then
                                 -- The declared length disagrees with the
                                 -- type. The frame is not read as though
                                 -- its fields were laid out differently.
-                                r_status <= hft_itch_pkg.st_bad_length;
+                                r_status <= st_bad_length;
                                 r_has_type <= '1';
                                 r_field_count <= 0;
-                            elsif hft_itch_pkg.kOrderKeyed(type_idx) and
+                            elsif kOrderKeyed(type_idx) and
                                   flds(3) = x"0000000000000000" then
                                 -- The message is keyed on an order
                                 -- reference and the reference is the
                                 -- reserved zero.
-                                r_status <= hft_itch_pkg.st_malformed;
+                                r_status <= st_malformed;
                                 r_has_type <= '1';
                                 r_field_count <= 0;
-                            elsif type_idx = 0 and not hft_itch_pkg.side_is_valid(flds(4)) then
+                            elsif type_idx = 0 and not side_is_valid(flds(4)) then
                                 -- An Add Order whose side byte is
                                 -- neither 'B' nor 'S'. Silently reading
                                 -- an unknown side as a bid corrupts the
                                 -- book in a way no downstream test would
                                 -- catch.
-                                r_status <= hft_itch_pkg.st_malformed;
+                                r_status <= st_malformed;
                                 r_has_type <= '1';
                                 r_field_count <= 0;
                             else
-                                r_status <= hft_itch_pkg.st_ok;
+                                r_status <= st_ok;
                                 r_has_type <= '1';
-                                r_field_count <= hft_itch_pkg.kFieldCount(type_idx);
+                                r_field_count <= kFieldCount(type_idx);
                                 r_fields <= flds;
                             end if;
 
@@ -267,4 +267,5 @@ begin
     end process;
 
 end architecture rtl;
+
 

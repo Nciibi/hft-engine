@@ -23,8 +23,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 library work;
-use work.hft_itch_pkg.all;
-use work.hft_trace_fmt.all;
+use work.all;
+use work.all;
 
 use std.textio.all;
 
@@ -58,12 +58,12 @@ architecture sim of tb_trace is
 
     -- Decoder result.
     signal done : std_logic := '0';
-    signal status : hft_itch_pkg.decode_status_t := hft_itch_pkg.st_truncated;
+    signal status : decode_status_t := st_truncated;
     signal type_byte : std_logic_vector(7 downto 0) := (others => '0');
     signal has_type : std_logic := '0';
     signal declared_len : natural range 0 to 65535 := 0;
     signal field_count : natural range 0 to 9 := 0;
-    signal fields : hft_itch_pkg.field_array_t := (others => (others => '0'));
+    signal fields : field_array_t := (others => (others => '0'));
     signal cycles : natural range 0 to 65535 := 0;
 
     -- The width of one field of the message that was decoded. The
@@ -72,19 +72,19 @@ architecture sim of tb_trace is
     function field_width(t : std_logic_vector(7 downto 0);
                           type_known : boolean;
                           idx : natural) return natural is
-        variable ti : hft_itch_pkg.type_index_t;
+        variable ti : type_index_t;
     begin
         if not type_known then
             return 0;
         end if;
-        ti := hft_itch_pkg.type_index_of(t);
-        if ti = hft_itch_pkg.kUnknownType then
+        ti := type_index_of(t);
+        if ti = kUnknownType then
             return 0;
         end if;
-        if idx >= hft_itch_pkg.kFieldCount(ti) then
+        if idx >= kFieldCount(ti) then
             return 0;
         end if;
-        return hft_itch_pkg.kFieldWidth(ti, idx);
+        return kFieldWidth(ti, idx);
     end function;
 
 begin
@@ -185,8 +185,8 @@ begin
                 line_pos := 0;
             end loop;
 
-            hi := hft_trace_fmt.hex_val(l.all(line_pos + 1));
-            lo := hft_trace_fmt.hex_val(l.all(line_pos + 2));
+            hi := hex_val(l.all(line_pos + 1));
+            lo := hex_val(l.all(line_pos + 2));
             line_pos := line_pos + 2;
             out_b := std_logic_vector(to_unsigned(hi * 16 + lo, 8));
         end procedure;
@@ -228,32 +228,32 @@ begin
         variable n_truncated : natural := 0;
         variable total_cycles : natural := 0;
     begin
-        write(l, hft_itch_pkg.kTraceHeader);
+        write(l, kTraceHeader);
         writeline(trace_file, l);
 
         while sim_done = '0' loop
             wait until falling_edge(clk);
 
             if done = '1' then
-                write(l, hft_trace_fmt.dec(index));
+                write(l, dec(index));
                 write(l, ' ');
-                write(l, hft_trace_fmt.status_char(status));
+                write(l, status_char(status));
                 write(l, ' ');
-                write(l, hft_trace_fmt.type_token(type_byte, has_type));
+                write(l, type_token(type_byte, has_type));
                 write(l, ' ');
-                write(l, hft_trace_fmt.dec4(declared_len));
+                write(l, dec4(declared_len));
                 for i in 0 to field_count - 1 loop
                     write(l, ' ');
-                    write(l, hft_trace_fmt.hex_field(fields(i), field_width(type_byte, has_type, i)));
+                    write(l, hex_field(fields(i), field_width(type_byte, has_type, i)));
                 end loop;
                 writeline(trace_file, l);
 
                 case status is
-                    when hft_itch_pkg.st_ok => n_ok := n_ok + 1;
-                    when hft_itch_pkg.st_skipped => n_skipped := n_skipped + 1;
-                    when hft_itch_pkg.st_bad_length => n_bad_length := n_bad_length + 1;
-                    when hft_itch_pkg.st_malformed => n_malformed := n_malformed + 1;
-                    when hft_itch_pkg.st_truncated => n_truncated := n_truncated + 1;
+                    when st_ok => n_ok := n_ok + 1;
+                    when st_skipped => n_skipped := n_skipped + 1;
+                    when st_bad_length => n_bad_length := n_bad_length + 1;
+                    when st_malformed => n_malformed := n_malformed + 1;
+                    when st_truncated => n_truncated := n_truncated + 1;
                 end case;
                 total_cycles := total_cycles + cycles;
                 index := index + 1;
@@ -275,3 +275,4 @@ begin
     end process;
 
 end architecture sim;
+
