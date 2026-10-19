@@ -533,6 +533,7 @@ void test_walk_agrees_with_the_engine_reader() {
         }
     }
     check(saw_truncation, "a cut capture produces a truncated frame");
+    check(cut_frames > 0, "a cut capture still yields the frames before the cut");
 }
 
 void test_trace_over_a_generated_capture() {
