@@ -97,6 +97,14 @@ entity hft_book is
 
         apply_done   : out std_logic;
         apply_status : out book_status_t;
+        -- The clock cycles this apply took, from the message being
+        -- presented to the result being ready.
+        --
+        -- A property of the DESIGN, not of the machine: the same
+        -- number on any simulator, on any host, for ever. The C++ can
+        -- only report the same thing as a ratio, and a ratio is a
+        -- statement about a machine rather than about a design.
+        apply_cycles : out natural range 0 to natural'high;
 
         -- Dump the book, in priority order.
         dump_start : in std_logic;
@@ -171,6 +179,7 @@ architecture rtl of hft_book is
 
     signal o_done : std_logic := '0';
     signal o_status : book_status_t := bs_ok;
+    signal o_cycles : natural range 0 to natural'high := 0;
     signal o_dump_valid : std_logic := '0';
     signal o_dump_kind : std_logic_vector(7 downto 0) := x"4C";
     signal o_dump_side : std_logic_vector(7 downto 0) := x"42";
@@ -247,6 +256,7 @@ begin
 
     apply_done <= o_done;
     apply_status <= o_status;
+    apply_cycles <= o_cycles;
     dump_valid <= o_dump_valid;
     dump_kind <= o_dump_kind;
     dump_side <= o_dump_side;
@@ -277,6 +287,12 @@ begin
         variable ask_head : natural range 0 to MAX_LEVELS := 0;
 
         variable state : book_state_t := st_idle;
+
+        -- The clock cycles the current apply has taken. The state
+        -- machine is not idle while a message is being applied, so
+        -- this is simply the number of cycles it has been out of
+        -- st_idle.
+        variable cycle_count : natural range 0 to natural'high := 0;
 
         -- The message being applied.
         variable op : op_t := op_none;
@@ -360,6 +376,7 @@ begin
                             dump_position := 0;
                             state := st_dump_level;
                         elsif apply_start = '1' then
+                            cycle_count := 0;
                             -- Dispatch on the tag.
                             --
                             -- The field indices are the ones the trace
@@ -783,6 +800,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
