@@ -56,6 +56,7 @@ $suites = [ordered]@{
     'strategy'    = 'hft_strategy'
     'concurrent'  = 'hft_concurrent'
     'shards'      = 'hft_shards'
+    'rtl_trace'   = 'hft_rtl_test'
 }
 
 # Try the bare name and the .exe name rather than branching on the host.

@@ -16,10 +16,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname -- "$SCRIPT_DIR")"
 BUILD="${1:-$ROOT/build}"
 
-# The five suites that print an "N checks, M failures" summary line. The
+# The suites that print an "N checks, M failures" summary line. The
 # differential suites assert correctness via exit status and are already
 # covered by ctest.
-SUITES="unit:hft_test risk_oms:hft_risk_oms strategy:hft_strategy concurrent:hft_concurrent shards:hft_shards"
+SUITES="unit:hft_test risk_oms:hft_risk_oms strategy:hft_strategy concurrent:hft_concurrent shards:hft_shards rtl_trace:hft_rtl_test"
 
 echo "claim check"
 echo "  build ......... $BUILD"
