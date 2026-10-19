@@ -193,18 +193,26 @@ int main(int argc, char** argv) {
     while (index < frames.size()) {
         const std::size_t first = index;
         std::size_t count = 0;
+        // The block count is decided BEFORE the header is written, so
+        // the count in the header always matches the number of blocks
+        // that follow it. A header that claims more blocks than it
+        // carries is a truncated packet, and the reader would report it
+        // as one.
         while (index < frames.size() && count < kBlocksPerPacket) {
+            if (max_bytes > 0 && out.size() + 2 + frames[index].length > max_bytes) {
+                break;
+            }
             ++index;
             ++count;
+        }
+        if (count == 0) {
+            break;
         }
 
         out.insert(out.end(), session.begin(), session.end());
         put_be64(out, static_cast<std::uint64_t>(first));
         put_be16(out, static_cast<std::uint16_t>(count));
-        for (std::size_t i = first; i < index; ++i) {
-            if (max_bytes > 0 && out.size() >= max_bytes) {
-                break;
-            }
+        for (std::size_t i = first; i < first + count; ++i) {
             // A MoldUDP64 Message Block is byte-identical to an ITCH
             // frame: the same two-byte length in front of the same
             // body. So the frame is copied whole.
@@ -213,9 +221,6 @@ int main(int argc, char** argv) {
                            frames[i].length);
         }
         ++packet;
-        if (max_bytes > 0 && out.size() >= max_bytes) {
-            break;
-        }
     }
 
     std::FILE* f = std::fopen(capture_path.c_str(), "wb");
