@@ -22,9 +22,9 @@
 -- 'P' and 'Q' -- belongs to no field and is discarded.
 --
 -- The parser takes one byte per cycle, so a message costs as many
--- cycles as it has bytes. That is the cycle count P3 will publish, and
--- it is exact: a property of the design, not of the machine running
--- it.
+-- cycles as it has bytes. That is the cycle count the measurement
+-- phase will publish, and it is exact: a property of the design, not
+-- of the machine running it.
 --
 -- ---- The decisions, in order ------------------------------------------
 --
@@ -72,6 +72,7 @@ entity hft_itch_decode is
         status        : out hft_itch_pkg.decode_status_t;
         type_byte     : out std_logic_vector(7 downto 0);
         has_type      : out std_logic;
+        declared_len  : out natural range 0 to 65535;
         field_count   : out natural range 0 to 9;
         fields        : out hft_itch_pkg.field_array_t;
         cycles        : out natural range 0 to 65535
@@ -82,19 +83,22 @@ architecture rtl of hft_itch_decode is
 
     signal busy : std_logic := '0';
 
+    signal r_done : std_logic := '0';
     signal r_status : hft_itch_pkg.decode_status_t := hft_itch_pkg.st_truncated;
     signal r_type : std_logic_vector(7 downto 0) := (others => '0');
     signal r_has_type : std_logic := '0';
+    signal r_declared : natural range 0 to 65535 := 0;
     signal r_field_count : natural range 0 to 9 := 0;
     signal r_fields : hft_itch_pkg.field_array_t := (others => (others => '0'));
     signal r_cycles : natural range 0 to 65535 := 0;
 
 begin
 
-    done <= '1' when busy = '0' and r_done_pending = '1' else '0';
+    done <= r_done;
     status <= r_status;
     type_byte <= r_type;
     has_type <= r_has_type;
+    declared_len <= r_declared;
     field_count <= r_field_count;
     fields <= r_fields;
     cycles <= r_cycles;
@@ -108,21 +112,23 @@ begin
         variable acc : std_logic_vector(63 downto 0) := (others => '0');
         variable off : natural range 0 to 65535 := 0;
         variable remaining : natural range 0 to 65535 := 0;
+        variable declared : natural range 0 to 65535 := 0;
         variable flds : hft_itch_pkg.field_array_t := (others => (others => '0'));
         variable cyc : natural range 0 to 65535 := 0;
     begin
         if rising_edge(clk) then
             if rst = '1' then
                 busy <= '0';
-                r_done_pending <= '0';
+                r_done <= '0';
                 r_status <= hft_itch_pkg.st_truncated;
                 r_type <= (others => '0');
                 r_has_type <= '0';
+                r_declared <= 0;
                 r_field_count <= 0;
                 r_fields <= (others => (others => '0'));
                 r_cycles <= 0;
             else
-                r_done_pending <= '0';
+                r_done <= '0';
 
                 if frame_start = '1' then
                     cyc := 0;
@@ -132,6 +138,8 @@ begin
                     acc := (others => '0');
                     flds := (others => (others => '0'));
                     type_idx := hft_itch_pkg.kUnknownType;
+                    declared := frame_len;
+                    r_declared <= frame_len;
 
                     if frame_has_len = '0' then
                         -- The length prefix could not be read at all.
@@ -139,12 +147,11 @@ begin
                         -- no type: there is no tag byte on the wire.
                         busy <= '0';
                         r_status <= hft_itch_pkg.st_truncated;
-                        r_len <= 0;
                         r_type <= (others => '0');
                         r_has_type <= '0';
                         r_field_count <= 0;
                         r_cycles <= 0;
-                        r_done_pending <= '1';
+                        r_done <= '1';
                     elsif frame_len = 0 then
                         -- A body of zero bytes. The decoder stops before
                         -- the tag, so there is no type -- but this is a
@@ -152,12 +159,11 @@ begin
                         -- declared a length and it was wrong.
                         busy <= '0';
                         r_status <= hft_itch_pkg.st_bad_length;
-                        r_len <= 0;
                         r_type <= (others => '0');
                         r_has_type <= '0';
                         r_field_count <= 0;
                         r_cycles <= 0;
-                        r_done_pending <= '1';
+                        r_done <= '1';
                     else
                         busy <= '1';
                         remaining := frame_len;
@@ -171,12 +177,11 @@ begin
                         -- its declared length, with no type.
                         busy <= '0';
                         r_status <= hft_itch_pkg.st_truncated;
-                        r_len <= frame_len;
                         r_type <= (others => '0');
                         r_has_type <= '0';
                         r_field_count <= 0;
                         r_cycles <= cyc;
-                        r_done_pending <= '1';
+                        r_done <= '1';
 
                     elsif byte_valid = '1' then
                         if off = 0 then
@@ -203,9 +208,6 @@ begin
                             end if;
                         end if;
 
-                        off := off + 1;
-                        remaining := remaining - 1;
-
                         if remaining = 1 then
                             -- The last body byte. The body is complete,
                             -- and the type is now known.
@@ -221,7 +223,7 @@ begin
                                 r_status <= hft_itch_pkg.st_skipped;
                                 r_has_type <= '1';
                                 r_field_count <= 0;
-                            elsif frame_len /= hft_itch_pkg.kBodyLength(type_idx) then
+                            elsif declared /= hft_itch_pkg.kBodyLength(type_idx) then
                                 -- The declared length disagrees with the
                                 -- type. The frame is not read as though
                                 -- its fields were laid out differently.
@@ -252,8 +254,11 @@ begin
                                 r_fields <= flds;
                             end if;
 
-                            r_done_pending <= '1';
+                            r_done <= '1';
                         end if;
+
+                        off := off + 1;
+                        remaining := remaining - 1;
                     end if;
                 end if;
             end if;

@@ -86,6 +86,10 @@ architecture rtl of hft_moldudp64 is
     -- The block length, assembled from its two bytes.
     signal len_hi : natural range 0 to 255 := 0;
     signal len_lo : natural range 0 to 255 := 0;
+    -- Which byte of the length prefix has been read. A separate flag
+    -- rather than a test on len_lo, because a length of zero and a
+    -- length prefix not yet started look the same otherwise.
+    signal len_pos : natural range 0 to 1 := 0;
     -- Body bytes still to come for the block in flight.
     signal body_left : natural range 0 to 65535 := 0;
 
@@ -159,18 +163,15 @@ begin
                             end if;
 
                         when st_block_len =>
-                            if len_hi = 0 and len_lo = 0 and blocks_left = blocks_left then
-                                null;
-                            end if;
-                            if len_lo = 0 and len_hi = 0 then
-                                -- first byte of the length prefix
+                            if len_pos = 0 then
                                 len_hi <= to_integer(unsigned(in_byte));
+                                len_pos <= 1;
                             else
-                                len_lo <= to_integer(unsigned(in_byte));
                                 o_len <= len_hi * 256 + to_integer(unsigned(in_byte));
                                 o_has_len <= '1';
                                 o_start <= '1';
                                 body_left <= len_hi * 256 + to_integer(unsigned(in_byte));
+                                len_pos <= 0;
                                 state <= st_body;
                             end if;
 
@@ -188,6 +189,7 @@ begin
                                     blocks_left <= blocks_left - 1;
                                     len_hi <= 0;
                                     len_lo <= 0;
+                                    len_pos <= 0;
                                     state <= st_block_len;
                                 end if;
                             else
