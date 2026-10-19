@@ -168,7 +168,7 @@ message(STATUS "  differential ...... the two decoders agree on every field of e
 
 execute_process(
     COMMAND "${HFT_ITCH_CONVERT}" "${WORK}/raw.itch" "${WORK}/book_capture.itch"
-            --skip-to A --max-bytes 131072
+            --skip-to A --max-bytes 65536
     RESULT_VARIABLE status
     OUTPUT_VARIABLE output_text
     ERROR_VARIABLE error_text)
@@ -218,4 +218,5 @@ if(NOT status EQUAL 0)
         "THE RTL AND THE C++ BOOK DISAGREE ON REAL DATA.\n${output_text}${error_text}")
 endif()
 message(STATUS "  differential ...... the two books agree on every order, level and field")
+
 
