@@ -365,6 +365,42 @@ if(GHDL)
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_book_differential.cmake")
     set_tests_properties(rtl_book_differential PROPERTIES TIMEOUT 1800)
 
+    # The real-data differential: the same two comparisons, over REAL
+    # Nasdaq market data rather than a generated capture.
+    #
+    # The generated captures are a limitation with a name: a generator
+    # and a decoder that share a mistake agree with each other and are
+    # both wrong. The Order Executed field table is the proof -- it
+    # carried a Printable byte the message does not have, and every
+    # test in this repository agreed with it. The first real message
+    # from the exchange disagreed with both.
+    #
+    # The data is fetched, not committed: the exchange's files are
+    # several gigabytes and are the exchange's property. When the
+    # network is not there the test SKIPS rather than fails, because a
+    # missing network is not a wrong answer.
+    if(WIN32)
+        set(FETCH_SCRIPT powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch-itch.ps1")
+    else()
+        set(FETCH_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch-itch.sh")
+    endif()
+    add_test(NAME rtl_real_data_differential
+             COMMAND "${CMAKE_COMMAND}"
+                     -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
+                     -DHFT_RTL_CHECK=$<TARGET_FILE:hft_rtl_check>
+                     -DHFT_BOOK_DUMP=$<TARGET_FILE:hft_book_dump>
+                     -DHFT_BOOK_CHECK=$<TARGET_FILE:hft_book_check>
+                     -DHFT_CAPTURE_INSPECT=$<TARGET_FILE:hft_capture_inspect>
+                     -DHFT_ITCH_CONVERT=$<TARGET_FILE:hft_itch_convert>
+                     -DGHDL=${GHDL}
+                     -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
+                     -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_real_work
+                     -DRAW=${CMAKE_CURRENT_BINARY_DIR}/rtl_real_work/raw.itch
+                     "-DFETCH=${FETCH_SCRIPT}"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/real_data_differential.cmake")
+    set_tests_properties(rtl_real_data_differential PROPERTIES TIMEOUT 3600)
+
     message(STATUS "  ghdl .............. ${GHDL}")
 else()
     message(STATUS "  ghdl .............. not found, the RTL differential is skipped")
