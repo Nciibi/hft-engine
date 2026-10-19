@@ -1,0 +1,47 @@
+# The RTL model, as a project for chronam.
+#
+# chronam is a VHDL development toolkit for the terminal: it wraps GHDL
+# with project scaffolding, readable errors, and a waveform viewer that
+# renders real VCD data in the terminal.
+#
+# The sources are listed in dependency order -- packages, then the
+# entities, then the testbench -- because GHDL binds an entity to the
+# architecture that was current when it was analysed.
+#
+# The testbench reads its capture from a hex sidecar and writes a trace,
+# and both paths are defaults that work from this directory:
+#
+#   # 1. Produce the capture and the C++ side's trace of it.
+#   ../build/hft_rtl_trace --out cpp.trace --hex capture.hex --records 2000
+#
+#   # 2. Simulate, and watch the decoder work.
+#   chronam simulate
+#
+# The waveform is worth looking at: it shows the framing state machine
+# and the field parser moving through a real capture, and the trace
+# file it writes is the same format the C++ side writes, so
+# `../build/hft_rtl_check cpp.trace trace.txt` compares the two.
+
+[project]
+name = "hft_rtl"
+version = "0.1.0"
+vhdl_std = "2008"
+
+[build]
+sources = [
+    "hft_itch_pkg.vhd",
+    "hft_trace_fmt.vhd",
+    "hft_moldudp64.vhd",
+    "hft_itch_decode.vhd",
+    "tb/tb_trace.vhd",
+]
+top_entity = "tb_trace"
+ghdl = ""
+
+[simulation]
+duration_ns = 1000000
+wave_format = "vcd"
+
+[ui]
+theme = "chronam"
+name_width = 22
