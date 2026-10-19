@@ -94,7 +94,7 @@ package hft_itch_pkg is
     subtype type_index_t is natural range 0 to 9;
     constant kUnknownType : type_index_t := 9;
 
-    subtype field_index_t is natural range 0 to 8;
+    subtype field_index_t is natural range 0 to 15;
     constant kMaxFields : natural := 9;
 
     -- The extracted fields, each up to eight bytes wide.
@@ -130,60 +130,60 @@ package hft_itch_pkg is
     -- slot is unused: a type with seven fields has no eighth.
     constant kFieldOffset : offset_table_t := (
         -- 'A' Add Order
-        0 => (1, 3, 5, 11, 19, 20, 24, 32, 0),
+        1, 3, 5, 11, 19, 20, 24, 32, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'E' Order Executed.  No Printable byte: the message ends at
         -- the match number.  See the note on kBodyLength below.
-        1 => (1, 3, 5, 11, 19, 23, 0, 0, 0),
+        1, 3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'C' Order Executed With Price
-        2 => (1, 3, 5, 11, 19, 23, 31, 32, 0),
+        1, 3, 5, 11, 19, 23, 31, 32, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'X' Order Cancel
-        3 => (1, 3, 5, 11, 19, 0, 0, 0, 0),
+        1, 3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'D' Order Delete
-        4 => (1, 3, 5, 11, 0, 0, 0, 0, 0),
+        1, 3, 5, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'U' Order Replace
-        5 => (1, 3, 5, 11, 19, 27, 31, 0, 0),
+        1, 3, 5, 11, 19, 27, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'B' Broken Trade
-        6 => (1, 3, 5, 11, 0, 0, 0, 0, 0),
+        1, 3, 5, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'P' Trade, non-cross
-        7 => (1, 3, 5, 11, 19, 20, 32, 36, 0),
+        1, 3, 5, 11, 19, 20, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'Q' Cross Trade
-        8 => (1, 3, 5, 11, 27, 31, 39, 0, 0),
+        1, 3, 5, 11, 27, 31, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- not a type this build decodes
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- Width of each field, in bytes.
     constant kFieldWidth : width_table_t := (
-        0 => (2, 2, 6, 8, 1, 4, 8, 4, 0),
-        1 => (2, 2, 6, 8, 4, 8, 0, 0, 0),
-        2 => (2, 2, 6, 8, 4, 8, 1, 4, 0),
-        3 => (2, 2, 6, 8, 4, 0, 0, 0, 0),
-        4 => (2, 2, 6, 8, 0, 0, 0, 0, 0),
-        5 => (2, 2, 6, 8, 8, 4, 4, 0, 0),
-        6 => (2, 2, 6, 8, 0, 0, 0, 0, 0),
-        7 => (2, 2, 6, 8, 1, 4, 4, 8, 0),
-        8 => (2, 2, 6, 8, 8, 4, 8, 1, 0),
+        2, 2, 6, 8, 1, 4, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 4, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 4, 8, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 8, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 1, 4, 4, 8, 0, 0, 0, 0, 0, 0, 0, 0,
+        2, 2, 6, 8, 8, 4, 8, 1, 0, 0, 0, 0, 0, 0, 0, 0,
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- The end offset of each field: the offset of the byte after it.
     constant kFieldEnd : end_table_t := (
         -- 'A' Add Order
-        0 => (3, 5, 11, 19, 20, 24, 32, 36, 0),
+        3, 5, 11, 19, 20, 24, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'E' Order Executed
-        1 => (3, 5, 11, 19, 23, 31, 0, 0, 0),
+        3, 5, 11, 19, 23, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'C' Order Executed At Price
-        2 => (3, 5, 11, 19, 23, 31, 32, 36, 0),
+        3, 5, 11, 19, 23, 31, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'X' Order Cancel
-        3 => (3, 5, 11, 19, 23, 0, 0, 0, 0),
+        3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'D' Order Delete
-        4 => (3, 5, 11, 19, 0, 0, 0, 0, 0),
+        3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'U' Order Replace
-        5 => (3, 5, 11, 19, 27, 31, 35, 0, 0),
+        3, 5, 11, 19, 27, 31, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'B' Broken Trade
-        6 => (3, 5, 11, 19, 0, 0, 0, 0, 0),
+        3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'P' Trade
-        7 => (3, 5, 11, 19, 20, 24, 36, 44, 0),
+        3, 5, 11, 19, 20, 24, 36, 44, 0, 0, 0, 0, 0, 0, 0, 0,
         -- 'Q' Cross Trade
-        8 => (3, 5, 11, 19, 27, 31, 39, 40, 0),
+        3, 5, 11, 19, 27, 31, 39, 40, 0, 0, 0, 0, 0, 0, 0, 0,
         -- not a type this build decodes
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0));
 
@@ -291,5 +291,6 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
 
 
