@@ -101,7 +101,7 @@ entity hft_book is
         -- Dump the book, in priority order.
         dump_start : in std_logic;
         dump_valid : out std_logic;
-        dump_kind  : out std_logic;           -- 'L' for a level, 'O' for an order
+        dump_kind  : out std_logic_vector(7 downto 0);  -- x"4C" for a level, x"4F" for an order
         dump_side  : out std_logic_vector(7 downto 0);  -- x"42" for the bid side, x"41" for the ask
         dump_a     : out std_logic_vector(63 downto 0);  -- level: price      order: id
         dump_b     : out std_logic_vector(63 downto 0);  -- level: aggregate  order: price
@@ -172,7 +172,7 @@ architecture rtl of hft_book is
     signal o_done : std_logic := '0';
     signal o_status : book_status_t := bs_ok;
     signal o_dump_valid : std_logic := '0';
-    signal o_dump_kind : std_logic := 'L';
+    signal o_dump_kind : std_logic_vector(7 downto 0) := x"4C";
     signal o_dump_side : std_logic_vector(7 downto 0) := x"42";
     signal o_dump_a : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_b : std_logic_vector(63 downto 0) := (others => '0');
@@ -327,14 +327,14 @@ begin
                 bid_head := 0;
                 ask_head := 0;
                 state := st_idle;
-                o_done := '0';
-                o_status := bs_ok;
-                o_dump_valid := '0';
-                o_dump_done := '0';
+                o_done  <= '0';
+                o_status  <= bs_ok;
+                o_dump_valid  <= '0';
+                o_dump_done  <= '0';
             else
-                o_done := '0';
-                o_dump_valid := '0';
-                o_dump_done := '0';
+                o_done  <= '0';
+                o_dump_valid  <= '0';
+                o_dump_done  <= '0';
 
                 case state is
 
@@ -387,7 +387,7 @@ begin
                             end case;
 
                             if op = op_none then
-                                o_status := bs_ok;
+                                o_status  <= bs_ok;
                                 state := st_finish;
                             else
                                 -- Probe the order-reference index.
@@ -414,7 +414,7 @@ begin
                                 -- The index is full. The C++ reports
                                 -- capacity exhaustion in the same
                                 -- situation.
-                                o_status := bs_capacity_exhausted;
+                                o_status  <= bs_capacity_exhausted;
                                 state := st_finish;
                             else
                                 probe_slot := (probe_slot + 1) mod TABLE_SLOTS;
@@ -428,16 +428,16 @@ begin
                                     -- ITCH references are day-unique,
                                     -- so a repeat is a replay or
                                     -- sequence fault.
-                                    o_status := bs_duplicate_order;
+                                    o_status  <= bs_duplicate_order;
                                     state := st_finish;
-                                elsif msg_id = 0 then
+                                elsif msg_id = x"0000000000000000" then
                                     -- The reference zero is reserved.
-                                    o_status := bs_duplicate_order;
+                                    o_status  <= bs_duplicate_order;
                                     state := st_finish;
                                 elsif msg_size = x"0000000000000000" then
                                     -- Zero size rests no liquidity. The
                                     -- venue drops these.
-                                    o_status := bs_zero_size;
+                                    o_status  <= bs_zero_size;
                                     state := st_finish;
                                 else
                                     -- Walk the level list to find where
@@ -455,7 +455,7 @@ begin
                                 -- A lookup: execute, cancel, remove or
                                 -- replace.
                                 if probe_hit = '0' then
-                                    o_status := bs_unknown_order;
+                                    o_status  <= bs_unknown_order;
                                     state := st_finish;
                                 else
                                     work_order := id_tab(probe_slot).handle;
@@ -501,7 +501,7 @@ begin
                         -- Allocate a level and link it between the two
                         -- the walk found.
                         if level_free = 0 then
-                            o_status := bs_capacity_exhausted;
+                            o_status  <= bs_capacity_exhausted;
                             state := st_finish;
                         else
                             walk_level := level_free;
@@ -542,7 +542,7 @@ begin
                         -- a price that already has orders sorts behind
                         -- all of them.
                         if order_free = 0 then
-                            o_status := bs_capacity_exhausted;
+                            o_status  <= bs_capacity_exhausted;
                             state := st_finish;
                         else
                             work_order := order_free;
@@ -579,7 +579,7 @@ begin
                         id_tab(probe_slot).handle := work_order;
                         id_tab(probe_slot).live := '1';
                         id_tab(probe_slot).used := '1';
-                        o_status := bs_ok;
+                        o_status  <= bs_ok;
                         state := st_finish;
 
                     when st_reduce =>
@@ -597,7 +597,7 @@ begin
                         elsif unsigned(msg_size) > unsigned(orders(work_order - 1).size) then
                             -- A reduce that would drive the remaining
                             -- size below zero is a protocol violation.
-                            o_status := bs_over_reduce;
+                            o_status  <= bs_over_reduce;
                             state := st_finish;
                         elsif msg_size = orders(work_order - 1).size then
                             -- The order is finished. Leave the size
@@ -631,7 +631,7 @@ begin
                                 -- cancellation is not a promotion.
                                 orders(work_order - 1).state := st_resting;
                             end if;
-                            o_status := bs_ok;
+                            o_status  <= bs_ok;
                             state := st_finish;
                         end if;
 
@@ -703,12 +703,12 @@ begin
                             probe_steps := 0;
                             state := st_probe;
                         else
-                            o_status := bs_ok;
+                            o_status  <= bs_ok;
                             state := st_finish;
                         end if;
 
                     when st_finish =>
-                        o_done := '1';
+                        o_done  <= '1';
                         state := st_idle;
 
                     when st_dump_level =>
@@ -719,16 +719,16 @@ begin
                                 dump_cur_level := ask_head;
                                 state := st_dump_level;
                             else
-                                o_dump_done := '1';
+                                o_dump_done  <= '1';
                                 state := st_idle;
                             end if;
                         else
-                            o_dump_valid := '1';
-                            o_dump_kind := 'L';
-                            o_dump_side := side_char(levels(dump_cur_level - 1).side);
-                            o_dump_a := levels(dump_cur_level - 1).price;
-                            o_dump_b := levels(dump_cur_level - 1).aggregate;
-                            o_dump_c := std_logic_vector(
+                            o_dump_valid  <= '1';
+                            o_dump_kind  <= x"4C";
+                            o_dump_side  <= side_char(levels(dump_cur_level - 1).side);
+                            o_dump_a  <= levels(dump_cur_level - 1).price;
+                            o_dump_b  <= levels(dump_cur_level - 1).aggregate;
+                            o_dump_c  <= std_logic_vector(
                                 to_unsigned(levels(dump_cur_level - 1).order_count, 64));
                             dump_cur_order := levels(dump_cur_level - 1).head;
                             dump_position := 0;
@@ -740,14 +740,14 @@ begin
                             dump_cur_level := levels(dump_cur_level - 1).l_next;
                             state := st_dump_level;
                         else
-                            o_dump_valid := '1';
-                            o_dump_kind := 'O';
-                            o_dump_side := side_char(orders(dump_cur_order - 1).side);
-                            o_dump_a := orders(dump_cur_order - 1).id;
-                            o_dump_b := orders(dump_cur_order - 1).price;
-                            o_dump_c := orders(dump_cur_order - 1).size;
-                            o_dump_state := orders(dump_cur_order - 1).state;
-                            o_dump_pos := dump_position;
+                            o_dump_valid  <= '1';
+                            o_dump_kind  <= x"4F";
+                            o_dump_side  <= side_char(orders(dump_cur_order - 1).side);
+                            o_dump_a  <= orders(dump_cur_order - 1).id;
+                            o_dump_b  <= orders(dump_cur_order - 1).price;
+                            o_dump_c  <= orders(dump_cur_order - 1).size;
+                            o_dump_state  <= orders(dump_cur_order - 1).state;
+                            o_dump_pos  <= dump_position;
                             dump_position := dump_position + 1;
                             dump_cur_order := orders(dump_cur_order - 1).q_next;
                             state := st_dump_order;
@@ -759,6 +759,8 @@ begin
     end process;
 
 end architecture rtl;
+
+
 
 
 
