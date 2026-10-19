@@ -306,6 +306,9 @@ begin
         variable probe_slot : natural range 0 to TABLE_SLOTS - 1 := 0;
         variable probe_steps : natural range 0 to TABLE_SLOTS := 0;
         variable probe_hit : std_logic := '0';
+        -- Set when the probe has an answer: the key was found, or an
+        -- unused slot was reached.
+        variable probe_done : std_logic := '0';
 
         -- The level-list walk.
         variable walk_cur : natural range 0 to MAX_LEVELS := 0;
@@ -440,6 +443,7 @@ begin
                                 -- only the RESULT has to match.
                                 probe_slot := hash_slot(msg_id);
                                 probe_steps := 0;
+                                probe_done := '0';
                                 state := st_probe;
                             end if;
                         end if;
@@ -770,6 +774,7 @@ begin
                             msg_id := msg_new_id;
                             probe_slot := hash_slot(msg_new_id);
                             probe_steps := 0;
+                            probe_done := '0';
                             state := st_probe;
                         else
                             o_status  <= bs_ok;
@@ -829,6 +834,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
