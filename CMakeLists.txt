@@ -153,6 +153,14 @@ target_link_libraries(hft_rtl_trace PRIVATE hft_core)
 add_executable(hft_rtl_check src/rtl/rtl_check.cpp)
 target_link_libraries(hft_rtl_check PRIVATE hft_core)
 
+# The book dump and its comparator: the order-book differential, the
+# same idea as the trace tools but one layer up.
+add_executable(hft_book_dump src/rtl/book_dump.cpp)
+target_link_libraries(hft_book_dump PRIVATE hft_core)
+
+add_executable(hft_book_check src/rtl/book_check.cpp)
+target_link_libraries(hft_book_check PRIVATE hft_core)
+
 add_executable(hft_rtl_test tests/test_rtl_trace.cpp)
 target_link_libraries(hft_rtl_test PRIVATE hft_core)
 
