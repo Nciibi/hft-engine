@@ -259,6 +259,30 @@ package body hft_itch_pkg is
         return n;
     end function;
 
+    -- Check the field tables against each other.
+    --
+    -- A package body's declarative part is elaborated when the package
+    -- is elaborated, so these assertions run before any simulation
+    -- starts and stop the build rather than a run.
+    procedure check_tables is
+    begin
+        for t in type_index_t loop
+            assert described_field_count(t) = kFieldCount(t)
+                report "the declared field count for a type disagrees with its width table"
+                severity failure;
+            for i in field_index_t loop
+                if i < kFieldCount(t) then
+                    assert kFieldEnd(t, i) = kFieldOffset(t, i) + kFieldWidth(t, i)
+                        report "a field's end offset disagrees with its start and width"
+                        severity failure;
+                    assert kFieldWidth(t, i) > 0
+                        report "a field has no width"
+                        severity failure;
+                end if;
+            end loop;
+        end loop;
+    end procedure;
+
     function type_index_of(tag : std_logic_vector(7 downto 0)) return type_index_t is
     begin
         case tag is
