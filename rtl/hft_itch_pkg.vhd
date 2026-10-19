@@ -178,7 +178,10 @@ package hft_itch_pkg is
     -- The end offset of each field: the offset of the byte after it.
     constant kFieldEnd : end_table_t := (
         0 => (3, 5, 11, 19, 20, 24, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0),
-        1 => (3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        -- 'E' Order Executed: locate, tracking, timestamp, reference,
+        -- shares, match.  No Printable byte -- the message ends at the
+        -- match number.
+        1 => (3, 5, 11, 19, 23, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         2 => (3, 5, 11, 19, 23, 31, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0),
         3 => (3, 5, 11, 19, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         4 => (3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
