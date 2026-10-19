@@ -749,7 +749,8 @@ begin
                         end if;
 
                     when st_finish =>
-                        o_done  <= '1';
+                        o_done <= '1';
+                        o_cycles <= cycle_count;
                         state := st_idle;
 
                     when st_dump_level =>
