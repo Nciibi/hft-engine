@@ -106,6 +106,22 @@ package hft_itch_pkg is
 
     type offset_table_t is array (type_index_t, field_index_t) of natural range 0 to 64;
     type width_table_t is array (type_index_t, field_index_t) of natural range 0 to 8;
+    -- The END offset of each field, precomputed.
+    --
+    -- The parser needs to know whether a byte falls inside the current
+    -- field, and the obvious way to ask is
+    --
+    --     off >= start  and  off < start + width
+    --
+    -- which puts a 7-bit adder in front of a 16-bit comparator. The
+    -- first synthesis run said so: the decoder closed at 32.5 MHz and
+    -- the critical path was a carry chain that added two table
+    -- outputs together.
+    --
+    -- The end offset is a CONSTANT of the table, so it can simply be
+    -- tabulated. The table carries one more number per field and the
+    -- adder leaves the critical path.
+    type end_table_t is array (type_index_t, field_index_t) of natural range 0 to 64;
     type count_table_t is array (type_index_t) of natural range 0 to 9;
     type length_table_t is array (type_index_t) of natural range 0 to 64;
     type flag_table_t is array (type_index_t) of boolean;
@@ -146,6 +162,29 @@ package hft_itch_pkg is
         6 => (2, 2, 6, 8, 0, 0, 0, 0, 0),
         7 => (2, 2, 6, 8, 1, 4, 4, 8, 0),
         8 => (2, 2, 6, 8, 8, 4, 8, 1, 0),
+        9 => (0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+    -- The end offset of each field: the offset of the byte after it.
+    constant kFieldEnd : end_table_t := (
+        -- 'A' Add Order
+        0 => (3, 5, 11, 19, 20, 24, 32, 36, 0),
+        -- 'E' Order Executed
+        1 => (3, 5, 11, 19, 23, 31, 0, 0, 0),
+        -- 'C' Order Executed At Price
+        2 => (3, 5, 11, 19, 23, 31, 32, 36, 0),
+        -- 'X' Order Cancel
+        3 => (3, 5, 11, 19, 23, 0, 0, 0, 0),
+        -- 'D' Order Delete
+        4 => (3, 5, 11, 19, 0, 0, 0, 0, 0),
+        -- 'U' Order Replace
+        5 => (3, 5, 11, 19, 27, 31, 35, 0, 0),
+        -- 'B' Broken Trade
+        6 => (3, 5, 11, 19, 0, 0, 0, 0, 0),
+        -- 'P' Trade
+        7 => (3, 5, 11, 19, 20, 24, 32, 40, 0),
+        -- 'Q' Cross Trade
+        8 => (3, 5, 11, 19, 27, 31, 39, 40, 0),
+        -- not a type this build decodes
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- How many fields each type carries.
@@ -252,4 +291,5 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
 
