@@ -186,6 +186,11 @@ package body hft_trace_fmt is
         return s;
     end function;
 
+    function hex_u64(v : std_logic_vector(63 downto 0)) return string is
+    begin
+        return hex_field(v, 8);
+    end function;
+
     function hex_field(v : std_logic_vector(63 downto 0); width : natural) return string is
         variable s : string(1 to 16) := (others => '0');
         variable nibble : natural;
