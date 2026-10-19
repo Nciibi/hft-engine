@@ -173,7 +173,7 @@ architecture rtl of hft_book is
     signal o_status : book_status_t := bs_ok;
     signal o_dump_valid : std_logic := '0';
     signal o_dump_kind : std_logic := 'L';
-    signal o_dump_side : std_logic := "B";
+    signal o_dump_side : std_logic := B"01000010";
     signal o_dump_a : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_b : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_c : std_logic_vector(63 downto 0) := (others => '0');
@@ -207,9 +207,9 @@ architecture rtl of hft_book is
     function side_char(side : std_logic) return std_logic is
     begin
         if side = '1' then
-            return "B";
+            return B"01000010";
         end if;
-        return "A";
+        return B"01000001";
     end function;
 
     -- The index slot for an order reference.
@@ -288,7 +288,7 @@ begin
         -- The dump walk.
         variable dump_cur_level : natural range 0 to MAX_LEVELS := 0;
         variable dump_cur_order : natural range 0 to MAX_ORDERS := 0;
-        variable dump_side : std_logic := '0';
+        variable dump_walk_side : std_logic := '0';
         variable dump_position : natural := 0;
 
     begin
@@ -340,7 +340,7 @@ begin
 
                     when st_idle =>
                         if dump_start = '1' then
-                            dump_side := '0';
+                            dump_walk_side := '0';
                             dump_cur_level := bid_head;
                             dump_position := 0;
                             state := st_dump_level;
@@ -714,8 +714,8 @@ begin
                     when st_dump_level =>
                         if dump_cur_level = 0 then
                             -- The side is finished.
-                            if dump_side = '0' then
-                                dump_side := '1';
+                            if dump_walk_side = '0' then
+                                dump_walk_side := '1';
                                 dump_cur_level := ask_head;
                                 state := st_dump_level;
                             else
@@ -759,6 +759,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
