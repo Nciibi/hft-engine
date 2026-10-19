@@ -91,6 +91,9 @@ architecture sim of tb_book is
     signal dec_cycles : natural range 0 to 65535 := 0;
 
     -- The book's result.
+    signal apply_start : std_logic := '0';
+    signal apply_type : std_logic_vector(7 downto 0) := (others => '0');
+    signal apply_fields : field_array_t := (others => (others => '0'));
     signal apply_done : std_logic := '0';
     signal apply_status : book_status_t := bs_ok;
     signal dump_valid : std_logic := '0';
@@ -209,11 +212,9 @@ begin
         variable dump_index : natural := 0;
         variable apply_cycles : natural := 0;
         variable l : line;
-        variable apply_type : std_logic_vector(7 downto 0);
-        variable apply_fields : field_array_t;
-        variable apply_start : std_logic := '0';
         variable dump_start : std_logic := '0';
         variable stop_pending : boolean := false;
+        variable issued : boolean := false;
         variable book_file : text;
     begin
         -- Phase 1: decode.
@@ -248,16 +249,24 @@ begin
         -- it is done. The cycles the book spends are counted, because
         -- that is the number the C++ cannot produce: a cycle count is
         -- a property of the design, not of the machine.
+        --
+        -- pply_start is a ONE-CYCLE pulse. The book latches it and
+        -- leaves its idle state, and if it were held high the book
+        -- would apply the same message again when it came back round.
         while apply_index < msg_count loop
             wait until falling_edge(clk);
-            apply_start <= '0';
             if apply_done = '1' then
                 apply_cycles := apply_cycles + 1;
                 apply_index := apply_index + 1;
-            else
+                issued := false;
+                apply_start <= '0';
+            elsif not issued then
                 apply_type := msgs(apply_index).msg_type;
                 apply_fields := msgs(apply_index).fields;
                 apply_start <= '1';
+                issued := true;
+            else
+                apply_start <= '0';
             end if;
         end loop;
         wait until falling_edge(clk);
@@ -338,3 +347,4 @@ begin
     end process;
 
 end architecture sim;
+
