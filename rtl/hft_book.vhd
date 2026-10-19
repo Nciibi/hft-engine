@@ -221,7 +221,7 @@ architecture rtl of hft_book is
     -- ITCH references are sequential -- across the table instead of
     -- colliding on every one of them.
     function hash_slot(key : std_logic_vector(63 downto 0)) return natural is
-        constant kHashMix : unsigned(31 downto 0) := to_unsigned(16#9E3779B9#, 32);
+        constant kHashMix : unsigned(31 downto 0) := to_unsigned(16#7FEB352D#, 32);
         variable mixed : unsigned(31 downto 0);
     begin
         -- The multiply is wider than the result and is truncated back
@@ -761,6 +761,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
