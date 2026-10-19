@@ -163,12 +163,15 @@ package body hft_trace_fmt is
     function dec4(v : natural) return string is
         variable buf : string(1 to kDecWidth) := (others => '0');
         variable digits : natural := 0;
+        variable pad : string(1 to 3) := (others => '0');
     begin
         write_decimal(buf, v, digits);
         if digits >= 4 then
             return buf(kDecWidth - digits + 1 to kDecWidth);
         end if;
-        return "000" & buf(kDecWidth - digits + 1 to kDecWidth);
+        -- Pad on the left to exactly four digits: 36 is 0036, not
+        -- 00036.
+        return pad(1 to 4 - digits) & buf(kDecWidth - digits + 1 to kDecWidth);
     end function;
 
     function hex_byte(b : std_logic_vector(7 downto 0)) return string is
