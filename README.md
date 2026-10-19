@@ -47,6 +47,7 @@ documents below, which is where the actual argument lives.
 - [Three findings worth the reader's time](#three-findings-worth-the-readers-time)
 - [The bug that mattered](#the-bug-that-mattered)
 - [What is implemented](#what-is-implemented)
+- [The hardware path](#the-hardware-path)
 - [Results](#results) — throughput, the ladder walk, correctness, concurrency
 - [Quick start](#quick-start)
 - [Architecture](#architecture)
