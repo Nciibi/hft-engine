@@ -110,7 +110,15 @@ int main(int argc, char** argv) {
         };
         if (arg == "--session") {
             session = next("--session");
-
+        } else if (arg == "--skip-to") {
+            const char* type = next("--skip-to");
+            if (type == nullptr || type[0] == '\0' || type[1] != '\0') {
+                std::printf("--skip-to needs a single character\n");
+                return 2;
+            }
+            skip_to = type[0];
+        } else if (arg == "--max-bytes") {
+            max_bytes = static_cast<std::size_t>(std::strtoull(next("--max-bytes"), nullptr, 10));
         } else if (!arg.empty() && arg[0] == '-') {
             std::printf("unknown option %s\n", arg.c_str());
             return 2;
