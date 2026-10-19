@@ -380,10 +380,11 @@ if(GHDL)
     # network is not there the test SKIPS rather than fails, because a
     # missing network is not a wrong answer.
     if(WIN32)
-        set(FETCH_SCRIPT powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch-itch.ps1")
+        set(FETCH_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch-itch.ps1")
+        set(FETCH_POWERSHELL ON)
     else()
         set(FETCH_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch-itch.sh")
+        set(FETCH_POWERSHELL OFF)
     endif()
     add_test(NAME rtl_real_data_differential
              COMMAND "${CMAKE_COMMAND}"
