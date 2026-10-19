@@ -280,7 +280,7 @@ begin
         wait until falling_edge(clk);
         dump_start <= '0';
 
-        write(l, "# hft-book-dump v1");
+        textio.write(l, "# hft-book-dump v1");
         writeline(book_file, l);
 
         loop
@@ -288,35 +288,35 @@ begin
             if dump_valid = '1' then
                 if dump_kind = x"4C" then
                     -- A level.
-                    write(l, integer'image(dump_index));
-                    write(l, ' ');
-                    write(l, 'L');
-                    write(l, ' ');
-                    write(l, character'val(to_integer(unsigned(dump_side))));
-                    write(l, ' ');
-                    write(l, hex_u64(dump_a));
-                    write(l, ' ');
-                    write(l, integer'image(to_integer(unsigned(dump_c))));
-                    write(l, ' ');
-                    write(l, hex_u64(dump_b));
+                    textio.write(l, integer'image(dump_index));
+                    textio.write(l, ' ');
+                    textio.write(l, 'L');
+                    textio.write(l, ' ');
+                    textio.write(l, character'val(to_integer(unsigned(dump_side))));
+                    textio.write(l, ' ');
+                    textio.write(l, hex_u64(dump_a));
+                    textio.write(l, ' ');
+                    textio.write(l, integer'image(to_integer(unsigned(dump_c))));
+                    textio.write(l, ' ');
+                    textio.write(l, hex_u64(dump_b));
                     writeline(book_file, l);
                 else
                     -- An order.
-                    write(l, integer'image(dump_index));
-                    write(l, ' ');
-                    write(l, 'O');
-                    write(l, ' ');
-                    write(l, character'val(to_integer(unsigned(dump_side))));
-                    write(l, ' ');
-                    write(l, hex_u64(dump_a));
-                    write(l, ' ');
-                    write(l, hex_u64(dump_b));
-                    write(l, ' ');
-                    write(l, hex_u64(dump_c));
-                    write(l, ' ');
-                    write(l, integer'image(dump_state));
-                    write(l, ' ');
-                    write(l, integer'image(dump_pos));
+                    textio.write(l, integer'image(dump_index));
+                    textio.write(l, ' ');
+                    textio.write(l, 'O');
+                    textio.write(l, ' ');
+                    textio.write(l, character'val(to_integer(unsigned(dump_side))));
+                    textio.write(l, ' ');
+                    textio.write(l, hex_u64(dump_a));
+                    textio.write(l, ' ');
+                    textio.write(l, hex_u64(dump_b));
+                    textio.write(l, ' ');
+                    textio.write(l, hex_u64(dump_c));
+                    textio.write(l, ' ');
+                    textio.write(l, integer'image(dump_state));
+                    textio.write(l, ' ');
+                    textio.write(l, integer'image(dump_pos));
                     writeline(book_file, l);
 
                     -- The checksum folds the orders, in this order:
@@ -326,7 +326,7 @@ begin
                     checksum := fnv1a_u64(checksum, dump_b);
                     checksum := fnv1a_u64(checksum, dump_c);
                     checksum := fnv1a_u64(checksum,
-                                           std_logic_vector(resize(unsigned(dump_state), 64)));
+                                           std_logic_vector(to_unsigned(dump_state, 64)));
                 end if;
                 dump_index := dump_index + 1;
             end if;
@@ -335,8 +335,8 @@ begin
             end if;
         end loop;
 
-        write(l, "# checksum ");
-        write(l, hex_u64(checksum));
+        textio.write(l, "# checksum ");
+        textio.write(l, hex_u64(checksum));
         writeline(book_file, l);
         file_close(book_file);
 
@@ -347,6 +347,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
