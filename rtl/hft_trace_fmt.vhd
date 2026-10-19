@@ -118,6 +118,11 @@ package body hft_trace_fmt is
         end case;
     end function;
 
+    -- The width of the decimal buffer. A value large enough for any
+    -- `natural`, and fixed, so that the aggregate below has a length
+    -- to resolve its `others` choice against.
+    constant kDecWidth : positive := 20;
+
     -- Write a decimal into `buf`, right-aligned, and report how many
     -- digits it took.
     --
@@ -126,17 +131,16 @@ package body hft_trace_fmt is
     -- type -- and a fixed-size buffer cannot be assigned a string of
     -- an unknown length without a bound check failing at run time.
     -- The digits are cheap to produce and the length is then known.
-    procedure write_decimal(variable buf : inout string;
+    procedure write_decimal(variable buf : inout string(1 to kDecWidth);
                              constant v : natural;
-                             constant width : positive;
                              variable digits : out natural) is
         variable x : natural := v;
-        variable pos : natural := width;
+        variable pos : natural := kDecWidth;
     begin
         buf := (others => '0');
         digits := 0;
         if v = 0 then
-            buf(width) := '0';
+            buf(kDecWidth) := '0';
             digits := 1;
         else
             while x > 0 loop
@@ -149,24 +153,22 @@ package body hft_trace_fmt is
     end procedure;
 
     function dec(v : natural) return string is
-        constant kMaxWidth : positive := 20;
-        variable buf : string(1 to kMaxWidth) := (others => '0');
+        variable buf : string(1 to kDecWidth) := (others => '0');
         variable digits : natural := 0;
     begin
-        write_decimal(buf, v, kMaxWidth, digits);
-        return buf(kMaxWidth - digits + 1 to kMaxWidth);
+        write_decimal(buf, v, digits);
+        return buf(kDecWidth - digits + 1 to kDecWidth);
     end function;
 
     function dec4(v : natural) return string is
-        constant kMaxWidth : positive := 20;
-        variable buf : string(1 to kMaxWidth) := (others => '0');
+        variable buf : string(1 to kDecWidth) := (others => '0');
         variable digits : natural := 0;
     begin
-        write_decimal(buf, v, kMaxWidth, digits);
+        write_decimal(buf, v, digits);
         if digits >= 4 then
-            return buf(kMaxWidth - digits + 1 to kMaxWidth);
+            return buf(kDecWidth - digits + 1 to kDecWidth);
         end if;
-        return "000" & buf(kMaxWidth - digits + 1 to kMaxWidth);
+        return "000" & buf(kDecWidth - digits + 1 to kDecWidth);
     end function;
 
     function hex_byte(b : std_logic_vector(7 downto 0)) return string is
