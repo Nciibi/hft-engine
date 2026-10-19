@@ -1364,11 +1364,67 @@ void test_decode_mutations() {
     }
 
     // ITCH 'E' Order Executed.
+    //
+    // The hand-built frame below is the point of this block. The 'E'
+    // field table used to carry a Printable byte at offset 31 and a
+    // body length of 32, and every round-trip test in this file
+    // agreed with it, because the generator wrote the same 32 bytes
+    // the decoder read. The two agreed perfectly and both disagreed
+    // with the exchange: the real message is 31 bytes and ends at the
+    // match number.
+    //
+    // The message that no test built by hand from the field table was
+    // the one that was wrong. This one is built by hand, from the
+    // table and nowhere else, so the next mistake in it is a compile
+    // error or a failed check rather than a silent disagreement.
+    {
+        // Spec section 1.4.1, Order Executed:
+        //   0 tag | 1 locate | 3 tracking | 5 timestamp | 11 reference
+        //   19 shares | 23 match number                        -> 31 bytes
+        constexpr std::uint32_t kShares = 40;
+        constexpr std::uint64_t kMatch = 0xFEED'FACE'0000'0001ULL;
+        const std::uint8_t body[itch::off::kOrderExecutedSize] = {
+            static_cast<std::uint8_t>('E'),                        // 0
+            0x04, 0xD2,                                              // 1  locate 1234
+            0x00, 0x07,                                              // 3  tracking 7
+            0x1F, 0x1A, 0xCE, 0xD9, 0xF0, 0x7B,                     // 5  timestamp
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A,          // 11 reference 42
+            0x00, 0x00, 0x00, 0x28,                                 // 19 SHARES 40
+            0xFE, 0xED, 0xFA, 0xCE, 0x00, 0x00, 0x00, 0x01,         // 23 match number
+        };
+        static_assert(sizeof(body) == 31, "the spec says the Order Executed body is 31 bytes");
+
+        // The message ends at the match number. A byte at 31 would be
+        // the NEXT message's length prefix.
+        check_eq_int(static_cast<long long>(itch::off::kOrderExecutedSize), 31,
+                     "Order Executed body is 31 bytes");
+
+        std::vector<std::uint8_t> frame;
+        frame.push_back(0);
+        frame.push_back(static_cast<std::uint8_t>(itch::off::kOrderExecutedSize));
+        frame.insert(frame.end(), body, body + itch::off::kOrderExecutedSize);
+
+        const auto r = itch::decode(frame.data(), frame.size());
+        check(r.ok(), "the hand-built Order Executed decodes");
+        const auto* e = std::get_if<itch::OrderExecuted>(&r.message.body);
+        check(e != nullptr, "the hand-built payload is an OrderExecuted");
+        if (e != nullptr) {
+            check_eq_int(static_cast<long long>(e->shares.raw()), static_cast<long long>(kShares),
+                         "the hand-built shares round trip");
+            check_eq_int(static_cast<long long>(e->match_number), static_cast<long long>(kMatch),
+                         "the hand-built match number round trips");
+            check_eq_int(static_cast<long long>(e->id), 42, "the hand-built reference round trips");
+            check_eq_int(static_cast<long long>(e->stock_locate), 1234,
+                         "the hand-built locate round trips");
+        }
+    }
+
+    // The generator's frame for the same message, and its size.
     {
         std::vector<std::uint8_t> buf;
         feed::append_order_executed(buf, kId, Quantity::from_raw(40), 0x2AULL,
                                     /*match_number=*/0xFEED'FACE'0000'0001ULL);
-        check_eq_int(static_cast<long long>(buf.size()), 34, "executed frame is 34 bytes");
+        check_eq_int(static_cast<long long>(buf.size()), 33, "executed frame is 33 bytes");
         const auto r = itch::decode(buf.data(), buf.size());
         check(r.ok(), "executed decodes");
         const auto* e = std::get_if<itch::OrderExecuted>(&r.message.body);
