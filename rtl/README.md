@@ -96,6 +96,7 @@ compares two files and reports the first difference, and nothing else.
 | **The RTL order book** | done — `hft_book.vhd` |
 | **The RTL book against the C++ book** | done — 0 differences over 974 records |
 | **Cycle-exact book cost** | done — 40.75 cycles per message, exact |
+| **Both differentials over REAL Nasdaq messages** | done — 70,208 messages, 0 differences |
 | Synthesis, area and timing | not started |
 
 ## The result
