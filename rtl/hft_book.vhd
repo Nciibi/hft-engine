@@ -132,7 +132,7 @@ architecture rtl of hft_book is
         price       : std_logic_vector(63 downto 0);
         head        : natural range 0 to MAX_ORDERS;  -- handle + 1
         tail        : natural range 0 to MAX_ORDERS;  -- handle + 1
-        order_count : natural range 0 to 2 ** 31 - 1;
+        order_count : natural range 0 to natural'high;
         aggregate   : std_logic_vector(63 downto 0);
         l_prev      : natural range 0 to MAX_LEVELS;  -- handle + 1
         l_next      : natural range 0 to MAX_LEVELS;  -- handle + 1
@@ -173,7 +173,7 @@ architecture rtl of hft_book is
     signal o_status : book_status_t := bs_ok;
     signal o_dump_valid : std_logic := '0';
     signal o_dump_kind : std_logic := 'L';
-    signal o_dump_side : std_logic := 'B';
+    signal o_dump_side : std_logic := "B";
     signal o_dump_a : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_b : std_logic_vector(63 downto 0) := (others => '0');
     signal o_dump_c : std_logic_vector(63 downto 0) := (others => '0');
@@ -207,9 +207,9 @@ architecture rtl of hft_book is
     function side_char(side : std_logic) return std_logic is
     begin
         if side = '1' then
-            return 'B';
+            return "B";
         end if;
-        return 'A';
+        return "A";
     end function;
 
     -- The index slot for an order reference.
@@ -758,6 +758,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
