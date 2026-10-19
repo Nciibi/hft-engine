@@ -345,10 +345,11 @@ asserting that the comparator **rejects** a trace that differs, because a
 comparison that cannot fail is not a comparison.
 
 **The RTL side exists.** It is a VHDL model of the same market data path:
-MoldUDP64 framing, a single-pass streaming ITCH decoder, and a trace
-writer, sharing no code with the C++ side. Its field tables are a second
-transcription of the published field tables. It is written against
-VHDL-2008 and simulated with GHDL, which is free and needs no licence.
+MoldUDP64 framing, a single-pass streaming ITCH decoder, a price-time
+priority order book, and a trace writer, sharing no code with the C++
+side. Its field tables are a second transcription of the published field
+tables. It is written against VHDL-2008 and simulated with GHDL, which
+is free and needs no licence.
 
 **The two agree, field by field, on 2,000 messages.** The C++ engine and
 the RTL model produce byte-identical traces — every field of every
@@ -358,12 +359,23 @@ it was missing. That is a claim no other check in this repository can
 make, because every other check compares the engine against something
 inside the repository.
 
-The RTL also produces a number the C++ side cannot: **one clock cycle
-per byte of message body, exactly.** The decode of 2,000 messages took
-63,444 cycles — a mean of 31.7 cycles per message — and that figure is a
-property of the design rather than of the machine, so it reproduces on
-any simulator and in CI. It is the first half of the second reason this
-directory exists.
+**The order book agrees too, and that is the stronger claim.** The RTL
+book is a separate implementation of the price-time priority, the queue
+order within a price, the level aggregates and the order count at every
+level. Both books are dumped and compared record by record — a checksum
+would say only "these differ", and a dump says which order and which
+field. Over 974 records, the two agree on every one of them, and the
+FNV-1a checksum over the book state is identical.
+
+**The RTL also produces numbers the C++ side cannot.** The decode of
+2,000 messages took **63,444 cycles** — exactly one per byte of message
+body. The book applied 1,000 messages in **40,750 cycles**, and that
+number scales with the depth of the book exactly as an O(depth) walk
+must: 40.75 cycles per message on a 240-level book, 70.40 on a
+440-level one. Both are properties of the *design* rather than of the
+machine, so they reproduce on any simulator and are checked in CI. The
+C++ can report the same phenomenon only as a ratio, and a ratio is a
+statement about a machine rather than about a design.
 
 ## Results
 
