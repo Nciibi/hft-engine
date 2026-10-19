@@ -316,6 +316,18 @@ package body hft_itch_pkg is
         return v(7 downto 0) = x"42" or v(7 downto 0) = x"53";
     end function;
 
+begin
+
+    -- The field tables must agree with each other.
+    --
+    -- Every type's declared count is checked against the number of
+    -- fields its width table describes, and every field's end offset
+    -- is checked against its start and width. A table that disagrees
+    -- with itself is a table that agrees with the other side while
+    -- both are wrong, which is the failure mode this repository exists
+    -- to catch.
+    check_tables;
+
 end package body hft_itch_pkg;
 
 
