@@ -38,7 +38,7 @@
 #         -DFETCH=<script> -P real_data_differential.cmake
 
 foreach(required HFT_RTL_TRACE HFT_RTL_CHECK HFT_BOOK_DUMP HFT_BOOK_CHECK HFT_CAPTURE_INSPECT
-                HFT_ITCH_CONVERT GHDL RTL_DIR WORK RAW FETCH)
+                HFT_ITCH_CONVERT GHDL RTL_DIR WORK RAW FETCH_SCRIPT)
     if(NOT DEFINED ${required})
         message(FATAL_ERROR "${required} was not passed to the script")
     endif()
