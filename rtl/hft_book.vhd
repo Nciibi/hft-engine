@@ -363,9 +363,21 @@ begin
                 o_dump_valid  <= '0';
                 o_dump_done  <= '0';
             else
-                o_done  <= '0';
-                o_dump_valid  <= '0';
-                o_dump_done  <= '0';
+                o_done <= '0';
+                o_dump_valid <= '0';
+                o_dump_done <= '0';
+
+                -- The state machine is not idle while a message is
+                -- being applied, so this is the number of clock cycles
+                -- the current apply has taken.
+                --
+                -- It is counted BEFORE the state machine runs, so the
+                -- cycle the result is produced on is counted too: the
+                -- number reported is the number of cycles from the
+                -- message being presented to the result being ready.
+                if state /= st_idle then
+                    cycle_count := cycle_count + 1;
+                end if;
 
                 case state is
 
