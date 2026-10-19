@@ -52,6 +52,13 @@ architecture sim of tb_book is
 
     constant kClockPeriod : time := 10 ns;
 
+    -- Typed constants, not literals. A string LITERAL is ambiguous to
+    -- an overloaded write: it could be a string or a bit vector, and
+    -- with numeric_std in scope there are four more candidates. A
+    -- constant of type STRING has one.
+    constant kDumpHeader : string := "# hft-book-dump v1";
+    constant kChecksumTag : string := "# checksum ";
+
     -- A decoded message, held for the apply pass.
     type msg_t is record
         msg_type : std_logic_vector(7 downto 0);
@@ -281,7 +288,7 @@ begin
         wait until falling_edge(clk);
         dump_start <= '0';
 
-        textio.write(l, "# hft-book-dump v1");
+        textio.write(l, kDumpHeader);
         writeline(book_file, l);
 
         loop
@@ -336,7 +343,7 @@ begin
             end if;
         end loop;
 
-        textio.write(l, "# checksum ");
+        textio.write(l, kChecksumTag);
         textio.write(l, hex_u64(checksum));
         writeline(book_file, l);
         file_close(book_file);
@@ -348,6 +355,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
