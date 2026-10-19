@@ -205,6 +205,10 @@ package body hft_itch_pkg is
     end function;
 
     function type_tag(t : type_index_t) return std_logic_vector is
+        -- A named constant rather than an aggregate, because the
+        -- return type is unconstrained and an `others` choice needs a
+        -- length to resolve against.
+        constant kZero : std_logic_vector(7 downto 0) := (others => '0');
     begin
         case t is
             when 0 => return x"41";
@@ -216,7 +220,7 @@ package body hft_itch_pkg is
             when 6 => return x"42";
             when 7 => return x"50";
             when 8 => return x"51";
-            when others => return (others => '0');
+            when others => return kZero;
         end case;
     end function;
 
