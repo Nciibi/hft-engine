@@ -246,7 +246,7 @@ inline constexpr std::size_t kOrderDeleteSize = order_delete_id + kOrderIdSize;
 // SPECIFICATION. Both are needed, and only the second one would have
 // caught the Add Order bug.
 static_assert(off::kAddOrderSize == 36, "ITCH Add Order body is 36 bytes");
-static_assert(off::kOrderExecutedSize == 32, "ITCH Order Executed body is 32 bytes");
+static_assert(off::kOrderExecutedSize == 31, "ITCH Order Executed body is 31 bytes");
 static_assert(off::kOrderExecutedAtPriceSize == 36, "ITCH Order Exec @ Price body is 36 bytes");
 static_assert(off::kOrderCancelSize == 23, "ITCH Order Cancel body is 23 bytes");
 static_assert(off::kOrderDeleteSize == 19, "ITCH Order Delete body is 19 bytes");
@@ -297,12 +297,12 @@ static_assert(off::add_order_stock == off::add_order_size + off::kSharesSize,
 // Order Executed, spec section 1.4.1.
 static_assert(off::order_executed_shares == 19, "Order Executed shares sit at offset 19");
 static_assert(off::order_executed_match == 23, "Order Executed match number sits at offset 23");
-static_assert(off::order_executed_printable == 31, "Order Executed printable flag at offset 31");
+static_assert(off::order_executed_match + 8 == off::kOrderExecutedSize, "Order Executed ends at the match number");
 
 // Every size must equal the end of its last field.
 static_assert(off::add_order_price + off::kPriceSize == off::kAddOrderSize,
               "Add Order size must equal the end of its last field");
-static_assert(off::order_executed_printable + 1 == off::kOrderExecutedSize,
+static_assert(off::order_executed_match + 8 == off::kOrderExecutedSize,
               "Order Executed size must equal the end of its last field");
 static_assert(off::order_exec_price_execution_price + off::kPriceSize ==
                   off::kOrderExecutedAtPriceSize,
@@ -344,3 +344,4 @@ static_assert(frame_size(off::kCrossTradeSize) == 42,
               "Cross Trade frame is 40 body bytes plus a 2-byte length prefix");
 
 }  // namespace hft::itch
+
