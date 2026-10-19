@@ -303,6 +303,24 @@ if(GHDL)
                      -DRECORDS=2000
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_differential.cmake")
     set_tests_properties(rtl_decode_differential PROPERTIES TIMEOUT 900)
+
+    # The same differential over a capture that stops in the middle of a
+    # message. Both implementations have to agree about what a short
+    # frame is and about how much of it was missing, and the truncated
+    # record is the one case where a decoder that guesses rather than
+    # reports would look fine.
+    add_test(NAME rtl_decode_differential_truncated
+             COMMAND "${CMAKE_COMMAND}"
+                     -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
+                     -DHFT_RTL_CHECK=$<TARGET_FILE:hft_rtl_check>
+                     -DGHDL=${GHDL}
+                     -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
+                     -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_diff_trunc_work
+                     -DRECORDS=2000
+                     -DTRUNCATE_AT=4096
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_differential.cmake")
+    set_tests_properties(rtl_decode_differential_truncated PROPERTIES TIMEOUT 900)
+
     message(STATUS "  ghdl .............. ${GHDL}")
 else()
     message(STATUS "  ghdl .............. not found, the RTL differential is skipped")

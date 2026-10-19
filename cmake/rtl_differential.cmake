@@ -43,10 +43,22 @@ string(REPLACE "\\" "/" rtl_trace_path "${WORK}/rtl.trace")
 string(REPLACE "\\" "/" work_forward "${WORK}")
 
 # ---- 1. The capture, and the C++ side's trace of it -------------------
+#
+# TRUNCATE_AT, when set, cuts the capture at that many bytes. The
+# result is a capture that stops in the middle of a message, which is
+# the case that exercises the truncated path on both sides: the C++
+# decoder and the RTL model have to agree about what a short frame is
+# and about how much of it was missing.
+
+if(TRUNCATE_AT)
+    set(capture_args --truncate-at "${TRUNCATE_AT}")
+else()
+    set(capture_args)
+endif()
 
 execute_process(
     COMMAND "${HFT_RTL_TRACE}" --out "${WORK}/cpp.trace" --hex "${WORK}/capture.hex"
-            --records "${RECORDS}"
+            --records "${RECORDS}" ${capture_args}
     RESULT_VARIABLE status
     OUTPUT_VARIABLE output_text
     ERROR_VARIABLE error_text)
