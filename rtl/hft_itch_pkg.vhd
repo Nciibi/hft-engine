@@ -169,7 +169,12 @@ package hft_itch_pkg is
     function type_index_of(tag : std_logic_vector(7 downto 0)) return type_index_t;
 
     -- The tag byte for a table index. The inverse of the above.
-    function type_tag(t : type_index_t) return std_logic_vector(7 downto 0);
+    --
+    -- The return type is unconstrained on purpose. A function's result
+    -- is unconstrained, so a constrained array type mark is not legal
+    -- here -- `std_logic_vector(7 downto 0)` is a parse error, and
+    -- `std_logic_vector` is the correct spelling.
+    function type_tag(t : type_index_t) return std_logic_vector;
 
     -- A short name for a type, for a failure message.
     function type_name(t : type_index_t) return string;
