@@ -207,9 +207,9 @@ begin
                         when st_end =>
                             null;
                     end case;
-                else
-                    -- The input has run out. What that means depends on
-                    -- where the framer was.
+                elsif in_eof = '1' then
+                    -- The source has no more bytes to give. What that
+                    -- means depends on where the framer was.
                     case state is
                         when st_header =>
                             -- The capture stopped in the middle of a

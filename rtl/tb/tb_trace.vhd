@@ -46,6 +46,7 @@ architecture sim of tb_trace is
 
     -- Byte stream into the framer.
     signal in_valid : std_logic := '0';
+    signal in_eof : std_logic := '0';
     signal in_byte : std_logic_vector(7 downto 0) := (others => '0');
 
     -- Framer to decoder.
@@ -95,6 +96,7 @@ begin
             clk => clk,
             rst => rst,
             in_valid => in_valid,
+            in_eof => in_eof,
             in_byte => in_byte,
             out_valid => out_valid,
             out_byte => out_byte,
@@ -194,6 +196,7 @@ begin
 
     begin
         in_valid <= '0';
+        in_eof <= '0';
         in_byte <= (others => '0');
         wait until rst = '0';
         wait until falling_edge(clk);
@@ -205,6 +208,7 @@ begin
                 -- more cycle with no valid byte before it can tell
                 -- that the capture ended.
                 in_valid <= '0';
+                in_eof <= '1';
                 in_byte <= (others => '0');
                 wait until falling_edge(clk);
                 wait until falling_edge(clk);
@@ -276,6 +280,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
