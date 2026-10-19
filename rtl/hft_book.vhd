@@ -105,6 +105,14 @@ entity hft_book is
         -- only report the same thing as a ratio, and a ratio is a
         -- statement about a machine rather than about a design.
         apply_cycles : out natural range 0 to natural'high;
+        -- The clock cycles this apply took, from the message being
+        -- presented to the result being ready.
+        --
+        -- A property of the DESIGN, not of the machine: the same
+        -- number on any simulator, on any host, for ever. The C++ can
+        -- only report the same thing as a ratio, and a ratio is a
+        -- statement about a machine rather than about a design.
+        apply_cycles : out natural range 0 to natural'high;
 
         -- Dump the book, in priority order.
         dump_start : in std_logic;
