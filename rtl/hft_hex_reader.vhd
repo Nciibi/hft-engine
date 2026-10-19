@@ -73,11 +73,16 @@ begin
                 o_eof <= '0';
             else
                 if not eof_reached then
-                    -- Read the next non-empty line if this one is
-                    -- spent. An empty line is skipped, so a trailing
-                    -- newline cannot look like a zero-length line
-                    -- rather than the end.
-                    while (line_len = 0) and (not eof_reached) loop
+                    -- Read the next line if this one is spent. An
+                    -- empty line is skipped, so a trailing newline
+                    -- cannot look like a zero-length line rather than
+                    -- the end.
+                    --
+                    -- The condition is "this line is spent", not "this
+                    -- line is empty": a spent line still has a length,
+                    -- and testing for emptiness would read past the end
+                    -- of it.
+                    while (line_pos >= line_len) and (not eof_reached) loop
                         if endfile(hex_file) then
                             eof_reached := true;
                         else
