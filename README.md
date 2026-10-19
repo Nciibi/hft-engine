@@ -268,7 +268,7 @@ checks_risk_oms: 156
 checks_strategy: 47
 checks_concurrent: 149
 checks_shards: 51
-checks_rtl_trace: 85
+checks_rtl_trace: 84
 checks_total: 1900
 ctest_tests: 26
 -->
