@@ -90,6 +90,23 @@ package body hft_trace_fmt is
         end case;
     end function;
 
+    function dec_digit(n : natural) return character is
+    begin
+        case n is
+            when 0 => return '0';
+            when 1 => return '1';
+            when 2 => return '2';
+            when 3 => return '3';
+            when 4 => return '4';
+            when 5 => return '5';
+            when 6 => return '6';
+            when 7 => return '7';
+            when 8 => return '8';
+            when 9 => return '9';
+            when others => return '0';
+        end case;
+    end function;
+
     function status_char(s : decode_status_t) return character is
     begin
         case s is
@@ -101,43 +118,55 @@ package body hft_trace_fmt is
         end case;
     end function;
 
-    function dec(v : natural) return string is
-        constant kMaxWidth : positive := 32;
-        variable img : string(1 to kMaxWidth) := (others => ' ');
-        variable out_s : string(1 to kMaxWidth);
-        variable n : natural := 0;
+    -- Write a decimal into `buf`, right-aligned, and report how many
+    -- digits it took.
+    --
+    -- Not `integer'image`. That function's result length is
+    -- implementation-defined -- GHDL pads to the width of the integer
+    -- type -- and a fixed-size buffer cannot be assigned a string of
+    -- an unknown length without a bound check failing at run time.
+    -- The digits are cheap to produce and the length is then known.
+    procedure write_decimal(variable buf : inout string;
+                             constant v : natural;
+                             constant width : positive;
+                             variable digits : out natural) is
+        variable x : natural := v;
+        variable pos : natural := width;
     begin
-        img := integer'image(v);
-        for i in img'range loop
-            if img(i) /= ' ' then
-                n := n + 1;
-                out_s(n) := img(i);
-            end if;
-        end loop;
-        return out_s(1 to n);
+        buf := (others => '0');
+        digits := 0;
+        if v = 0 then
+            buf(width) := '0';
+            digits := 1;
+        else
+            while x > 0 loop
+                buf(pos) := dec_digit(x mod 10);
+                x := x / 10;
+                pos := pos - 1;
+                digits := digits + 1;
+            end loop;
+        end if;
+    end procedure;
+
+    function dec(v : natural) return string is
+        constant kMaxWidth : positive := 20;
+        variable buf : string(1 to kMaxWidth) := (others => '0');
+        variable digits : natural := 0;
+    begin
+        write_decimal(buf, v, kMaxWidth, digits);
+        return buf(kMaxWidth - digits + 1 to kMaxWidth);
     end function;
 
     function dec4(v : natural) return string is
-        constant kMaxWidth : positive := 32;
-        variable img : string(1 to kMaxWidth) := (others => ' ');
-        variable digits : string(1 to kMaxWidth) := (others => '0');
-        variable n : natural := 0;
-        variable padded : string(1 to 4) := (others => '0');
+        constant kMaxWidth : positive := 20;
+        variable buf : string(1 to kMaxWidth) := (others => '0');
+        variable digits : natural := 0;
     begin
-        img := integer'image(v);
-        for i in img'range loop
-            if img(i) /= ' ' then
-                n := n + 1;
-                digits(n) := img(i);
-            end if;
-        end loop;
-        if n > 4 then
-            return digits(1 to n);
+        write_decimal(buf, v, kMaxWidth, digits);
+        if digits >= 4 then
+            return buf(kMaxWidth - digits + 1 to kMaxWidth);
         end if;
-        for i in 1 to n loop
-            padded(4 - n + i) := digits(i);
-        end loop;
-        return padded;
+        return "000" & buf(kMaxWidth - digits + 1 to kMaxWidth);
     end function;
 
     function hex_byte(b : std_logic_vector(7 downto 0)) return string is
