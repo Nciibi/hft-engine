@@ -212,3 +212,4 @@ if(NOT status EQUAL 0)
         "THE RTL AND THE C++ BOOK DISAGREE ON REAL DATA.\n${output_text}${error_text}")
 endif()
 message(STATUS "  differential ...... the two books agree on every order, level and field")
+

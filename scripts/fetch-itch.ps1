@@ -18,7 +18,7 @@
 # repository. It is fetched on demand, and the tests that use it skip
 # themselves when it is not there.
 #
-# Usage: fetch-itch.ps1 [-Bytes N] [-Out path]
+# Usage: fetch-itch.ps1 [out_path] [bytes]
 #
 # The default is 4 MiB compressed, which is about 10 MiB of messages:
 # enough to get past the session's directory and system messages and
@@ -86,3 +86,4 @@ if ($size -eq 0) {
 }
 
 Write-Host "wrote $Out ($size bytes)"
+

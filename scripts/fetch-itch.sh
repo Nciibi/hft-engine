@@ -19,7 +19,7 @@
 # repository. It is fetched on demand, and the tests that use it skip
 # themselves when it is not there.
 #
-# Usage: fetch-itch.sh [compressed_bytes] [output_path]
+# Usage: fetch-itch.sh [output_path] [compressed_bytes]
 #
 # The default is 4 MiB compressed, which is about 10 MiB of messages:
 # enough to get past the session's directory and system messages and
@@ -71,3 +71,4 @@ if [[ "$SIZE" -eq 0 ]]; then
 fi
 
 echo "wrote $OUT ($SIZE bytes)"
+
