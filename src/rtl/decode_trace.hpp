@@ -210,20 +210,18 @@ private:
             break;
         case hft::itch::DecodeStatus::unknown_type:
             out.status = TraceStatus::skipped;
-            // The tag was read: the frame is well formed and simply
-            // carries a type this build does not decode.
-            out.type = result.length > 0U ? tag_of(result) : 0U;
-            out.has_type = result.length > 0U;
+            out.type = result.tag;
+            out.has_type = result.has_tag;
             break;
         case hft::itch::DecodeStatus::bad_length:
             out.status = TraceStatus::bad_length;
-            out.type = tag_of(result);
-            out.has_type = true;
+            out.type = result.tag;
+            out.has_type = result.has_tag;
             break;
         case hft::itch::DecodeStatus::malformed:
             out.status = TraceStatus::malformed;
-            out.type = tag_of(result);
-            out.has_type = true;
+            out.type = result.tag;
+            out.has_type = result.has_tag;
             break;
         case hft::itch::DecodeStatus::truncated:
         case hft::itch::DecodeStatus::truncated_body:
