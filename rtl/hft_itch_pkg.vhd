@@ -204,7 +204,7 @@ package body hft_itch_pkg is
         end case;
     end function;
 
-    function type_tag(t : type_index_t) return std_logic_vector(7 downto 0) is
+    function type_tag(t : type_index_t) return std_logic_vector is
     begin
         case t is
             when 0 => return x"41";
