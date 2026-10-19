@@ -78,3 +78,11 @@ compile_commands.json
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# chronam (the VHDL toolkit) working directory
+.chronam/
+
+# GHDL work libraries
+*.cf
+work-obj*.cf
+
