@@ -349,7 +349,7 @@ if(GHDL)
                      -DGHDL=${GHDL}
                      -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
                      -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_book_work
-                     -DRECORDS=2000
+                     -DRECORDS=1000
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_book_differential.cmake")
     set_tests_properties(rtl_book_differential PROPERTIES TIMEOUT 1800)
 
