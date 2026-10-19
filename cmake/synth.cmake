@@ -97,9 +97,12 @@ foreach(top IN LISTS TOP)
         # cannot hold it. That IS the measurement: the pools are
         # process variables, so the synthesis expands them into flip-
         # flops and the memory never becomes a RAM.
-        set(note "behavioural memory: the pools do not become a RAM")
+        set(note "synthesis failed")
         if(error_text MATCHES "input buffer overflow")
             set(note "behavioural memory: the pools expand to 122 MB of Verilog")
+        elseif(NOT error_text STREQUAL "")
+            string(REGEX REPLACE "\n" " " note "${error_text}")
+            string(SUBSTRING "${note}" 0 90 note)
         endif()
         set(report "${report}| ${top} | — | — | — | — | ${note} |\n")
         continue()
