@@ -217,8 +217,12 @@ two.
 | `hft_itch_pkg.vhd` | The field tables: offsets, widths, body lengths, and which types are keyed on an order reference. A **second transcription** of the published specification, independent of the C++ one. |
 | `hft_moldudp64.vhd` | The framing: Downstream Packet Header, Message Count, Message Blocks. The RTL side's own capture walk. |
 | `hft_itch_decode.vhd` | The decoder. Single-pass streaming: it extracts each field as that field's bytes arrive, and never holds the message anywhere but in the pipeline. |
+| `hft_book_pkg.vhd` | The book's types: the order states, the outcomes, and the FNV-1a constants. |
+| `hft_book.vhd` | The order book: order pool, level pool, price-ordered level list, per-level queue, order-reference index, and the dump walk. |
+| `hft_hex_reader.vhd` | The hex sidecar reader: a file of hex, as a byte stream, one byte per clock with no gaps. |
 | `hft_trace_fmt.vhd` | Rendering a decoded message as a trace record: the status character, the decimal, the hex. |
-| `tb/tb_trace.vhd` | The testbench: reads the hex sidecar, runs the design, writes the trace. |
+| `tb/tb_trace.vhd` | The decode testbench: reads the hex sidecar, runs the design, writes the trace. |
+| `tb/tb_book.vhd` | The book testbench: decodes the capture, applies every message to the book, writes the book dump. |
 
 ## Why the reference walk is not the engine's reader
 
