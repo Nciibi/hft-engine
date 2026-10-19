@@ -241,6 +241,20 @@ add_test(NAME shards COMMAND hft_shards)
 # would make every future differential result meaningless.
 add_test(NAME rtl_trace COMMAND hft_rtl_test)
 
+# The tools end to end: generate, compare, and -- the part that matters
+# -- REJECT a trace that differs.
+#
+# The unit suite proves the comparator can fail in process. This one
+# proves the shipped binaries can, which is a different claim: a tool
+# whose exit status was always zero would make every future differential
+# result meaningless, and nothing in the unit suite would notice.
+add_test(NAME rtl_trace_tools
+         COMMAND "${CMAKE_COMMAND}"
+                 -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
+                 -DHFT_RTL_CHECK=$<TARGET_FILE:hft_rtl_check>
+                 -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_trace_work
+                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_trace_check.cmake")
+
 # The threaded pipeline must build the same book as the single-threaded
 # one from the same feed. That is a correctness property, not a speed
 # measurement, so it belongs in CI: a pipeline that drops or reorders a
