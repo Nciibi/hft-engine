@@ -113,23 +113,23 @@ inline constexpr FieldSpec kFieldsBrokenTrade[] = {
 
 inline constexpr FieldSpec kFieldsTrade[] = {
     {"locate", 2}, {"tracking", 2}, {"timestamp", 6}, {"id", 8},
-    {"side", 1},   {"shares", 4},    {"stock", 8},     {"price", 4},
-    {"match", 8},
+    {"side", 1},   {"shares", 4},    {"price", 4},     {"match", 8},
 };
 
-// The Cross Trade field list has NO stock symbol, and that is not an
-// oversight. The C++ decoder reads the Cross Trade share count at
-// offset 11 and the price at offset 27, stepping over the eight-byte
-// stock symbol at offset 19 on the way, and it does not carry that
-// symbol anywhere. The trace records what the decoder produces, so the
-// symbol is not in it.
+// The Trade and Cross Trade field lists have NO stock symbol, and that
+// is not an oversight. The C++ decoder reads the Trade share count at
+// offset 20 and the price at offset 32, stepping over the eight-byte
+// stock symbol at offset 24 on the way, and it does not carry that
+// symbol anywhere. The Cross Trade price at offset 27 is reached the
+// same way, over the symbol at offset 19. The trace records what the
+// decoder produces, so neither symbol is in it.
 //
-// The step is still covered: the RTL side must reach the price at 27,
-// and an implementation that read the price at 19 would put the symbol
-// bytes in the trace where the price belongs, and the comparison would
-// fail. What is not covered is an implementation that skipped the wrong
-// number of bytes AND happened to produce the same price -- which is not
-// a thing a decoder can do.
+// The step is still covered: the RTL side must reach the price at 32 (or
+// 27), and an implementation that read the price at 24 (or 19) would put
+// the symbol bytes in the trace where the price belongs, and the
+// comparison would fail. What is not covered is an implementation that
+// skipped the wrong number of bytes AND happened to produce the same
+// price -- which is not a thing a decoder can do.
 inline constexpr FieldSpec kFieldsCrossTrade[] = {
     {"locate", 2}, {"tracking", 2}, {"timestamp", 6}, {"shares", 8},
     {"price", 4},  {"match", 8},    {"cross_type", 1},
