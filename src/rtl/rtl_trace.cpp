@@ -158,13 +158,22 @@ public:
     [[nodiscard]] const std::uint8_t* next(std::size_t& frame_size,
                                            std::uint16_t& declared_length,
                                            bool& complete) noexcept {
-        if (done_) {
-            return nullptr;
-        }
-        if (remaining_blocks_ == 0U) {
-            if (!load_packet()) {
+        for (;;) {
+            if (done_) {
                 return nullptr;
             }
+            if (remaining_blocks_ == 0U) {
+                if (!load_packet()) {
+                    return nullptr;
+                }
+                if (remaining_blocks_ == 0U) {
+                    // A heartbeat: a packet with no message blocks. It
+                    // is part of the transport, not the feed, so it
+                    // carries no frame and the walk continues.
+                    continue;
+                }
+            }
+            break;
         }
         if (size_ - cursor_ < hft::itch::mold::kMessageBlockSize) {
             // A length prefix that runs off the end of the capture.
@@ -172,7 +181,7 @@ public:
             complete = false;
             declared_length = 0;
             frame_size = 0;
-            return reinterpret_cast<const std::uint8_t*>("");
+            return data_ + cursor_;
         }
         const std::uint16_t length = be16(data_ + cursor_);
         cursor_ += hft::itch::mold::kMessageBlockSize;
