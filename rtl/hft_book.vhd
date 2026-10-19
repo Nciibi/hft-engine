@@ -447,74 +447,90 @@ begin
                     when st_probe =>
                         -- Walk the index until the key is found or an
                         -- unused slot is reached.
-                        if id_tab(probe_slot).used = '1' and
-                           id_tab(probe_slot).key = msg_id then
-                            probe_hit := id_tab(probe_slot).live;
-                        elsif id_tab(probe_slot).used = '0' then
-                            probe_hit := '0';
-                        else
-                            probe_steps := probe_steps + 1;
-                            if probe_steps >= TABLE_SLOTS then
-                                -- The index is full. The C++ reports
-                                -- capacity exhaustion in the same
-                                -- situation.
-                                o_status  <= bs_capacity_exhausted;
+                        --
+                        -- The probe and the USE of its result are
+                        -- separate steps, and they have to be. An
+                        -- earlier version advanced to the next slot on
+                        -- a collision and then fell straight through
+                        -- to using it -- so a lookup that collided
+                        -- read a slot that had never been examined and
+                        -- took a handle from it that was not the
+                        -- order's.
+                        --
+                        -- It never fired on a generated capture, because
+                        -- the generator's order references are
+                        -- sequential and the hash spreads them: a
+                        -- collision needs two references that differ by
+                        -- a multiple of the table size. The exchange's
+                        -- references are not sequential, and it fired on
+                        -- the first real capture. See docs/BUGS.md.
+                        if probe_done = '0' then
+                            if id_tab(probe_slot).used = '1' and
+                               id_tab(probe_slot).key = msg_id then
+                                probe_hit := id_tab(probe_slot).live;
+                                probe_done := '1';
+                            elsif id_tab(probe_slot).used = '0' then
+                                probe_hit := '0';
+                                probe_done := '1';
+                            else
+                                probe_steps := probe_steps + 1;
+                                if probe_steps >= TABLE_SLOTS then
+                                    -- The index is full. The C++ reports
+                                    -- capacity exhaustion in the same
+                                    -- situation.
+                                    o_status <= bs_capacity_exhausted;
+                                    state := st_finish;
+                                else
+                                    probe_slot := (probe_slot + 1) mod TABLE_SLOTS;
+                                end if;
+                            end if;
+                        elsif op = op_add then
+                            if probe_hit = '1' then
+                                -- The reference is already live.
+                                -- ITCH references are day-unique,
+                                -- so a repeat is a replay or
+                                -- sequence fault.
+                                o_status <= bs_duplicate_order;
+                                state := st_finish;
+                            elsif msg_id = x"0000000000000000" then
+                                -- The reference zero is reserved.
+                                o_status <= bs_duplicate_order;
+                                state := st_finish;
+                            elsif msg_size = x"0000000000000000" then
+                                -- Zero size rests no liquidity. The
+                                -- venue drops these.
+                                o_status <= bs_zero_size;
                                 state := st_finish;
                             else
-                                probe_slot := (probe_slot + 1) mod TABLE_SLOTS;
-                            end if;
-                        end if;
-
-                        if state = st_probe then
-                            if op = op_add then
-                                if probe_hit = '1' then
-                                    -- The reference is already live.
-                                    -- ITCH references are day-unique,
-                                    -- so a repeat is a replay or
-                                    -- sequence fault.
-                                    o_status  <= bs_duplicate_order;
-                                    state := st_finish;
-                                elsif msg_id = x"0000000000000000" then
-                                    -- The reference zero is reserved.
-                                    o_status  <= bs_duplicate_order;
-                                    state := st_finish;
-                                elsif msg_size = x"0000000000000000" then
-                                    -- Zero size rests no liquidity. The
-                                    -- venue drops these.
-                                    o_status  <= bs_zero_size;
-                                    state := st_finish;
+                                -- Walk the level list to find where
+                                -- this price goes.
+                                walk_cur := 0;
+                                walk_prev := 0;
+                                if msg_side = '1' then
+                                    walk_cur := bid_head;
                                 else
-                                    -- Walk the level list to find where
-                                    -- this price goes.
-                                    walk_cur := 0;
-                                    walk_prev := 0;
-                                    if msg_side = '1' then
-                                        walk_cur := bid_head;
-                                    else
-                                        walk_cur := ask_head;
-                                    end if;
-                                    state := st_walk;
+                                    walk_cur := ask_head;
                                 end if;
+                                state := st_walk;
+                            end if;
+                        else
+                            -- A lookup: execute, cancel, remove or
+                            -- replace.
+                            if probe_hit = '0' then
+                                o_status <= bs_unknown_order;
+                                state := st_finish;
                             else
-                                -- A lookup: execute, cancel, remove or
-                                -- replace.
-                                if probe_hit = '0' then
-                                    o_status  <= bs_unknown_order;
-                                    state := st_finish;
-                                else
-                                    work_order := id_tab(probe_slot).handle;
-                                    work_level := orders(work_order - 1).level;
-                                    if op = op_replace then
-                                        -- The replacement inherits the
-                                        -- original's side: 'U' carries
-                                        -- no side, no stock and no MPID.
-                                        msg_side := orders(work_order - 1).side;
-                                    end if;
-                                    state := st_reduce;
+                                work_order := id_tab(probe_slot).handle;
+                                work_level := orders(work_order - 1).level;
+                                if op = op_replace then
+                                    -- The replacement inherits the
+                                    -- original's side: 'U' carries
+                                    -- no side, no stock and no MPID.
+                                    msg_side := orders(work_order - 1).side;
                                 end if;
+                                state := st_reduce;
                             end if;
                         end if;
-
                     when st_walk =>
                         -- Walk the price-ordered list until a level that
                         -- does not rank better than this price.
