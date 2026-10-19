@@ -177,7 +177,7 @@ begin
             -- Refill the line if it is spent. An empty line is skipped:
             -- a trailing newline at the end of the file would otherwise
             -- look like a zero-length line rather than the end.
-            while line_len = 0 loop
+            while line_pos >= line_len loop
                 if endfile(hex_file) then
                     eof_reached := true;
                     out_eof := true;
