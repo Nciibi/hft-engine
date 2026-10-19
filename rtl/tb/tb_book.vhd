@@ -44,7 +44,14 @@ entity tb_book is
     generic (
         HEX_PATH : string := "capture.hex";
         OUT_PATH : string := "book.dump";
-        MAX_MSGS : positive := 8192
+        MAX_MSGS : positive := 8192;
+        -- The book's capacities. A real feed holds far more orders than
+        -- a generated one, and a book that runs out of pool space
+        -- reports capacity exhaustion rather than failing, so the
+        -- capacities have to be stated rather than assumed.
+        ORDERS : positive := 4096;
+        LEVELS : positive := 2048;
+        SLOTS  : positive := 8192
     );
 end entity tb_book;
 
@@ -163,6 +170,10 @@ begin
             cycles => dec_cycles);
 
     book : entity work.hft_book
+        generic map (
+            MAX_ORDERS => ORDERS,
+            MAX_LEVELS => LEVELS,
+            TABLE_SLOTS => SLOTS)
         port map (
             clk => clk,
             rst => rst,
@@ -360,6 +371,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
