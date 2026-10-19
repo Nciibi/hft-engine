@@ -94,8 +94,14 @@ foreach(top IN LISTS TOP)
         RESULT_VARIABLE status)
     if(NOT status EQUAL 0)
         # The book's Verilog is 122 MB and the scanner's input buffer
-        # cannot hold it. That IS the measurement.
-        set(report "${report}| ${top} | — | — | — | — | did not fit the synthesis tool |\n")
+        # cannot hold it. That IS the measurement: the pools are
+        # process variables, so the synthesis expands them into flip-
+        # flops and the memory never becomes a RAM.
+        set(note "behavioural memory: the pools do not become a RAM")
+        if(error_text MATCHES "input buffer overflow")
+            set(note "behavioural memory: the pools expand to 122 MB of Verilog")
+        endif()
+        set(report "${report}| ${top} | — | — | — | — | ${note} |\n")
         continue()
     endif()
 
