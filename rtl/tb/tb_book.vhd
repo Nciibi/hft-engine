@@ -105,6 +105,7 @@ architecture sim of tb_book is
     signal apply_fields : field_array_t := (others => (others => '0'));
     signal apply_done : std_logic := '0';
     signal apply_status : book_status_t := bs_ok;
+    signal apply_cycles : natural range 0 to natural'high := 0;
     signal dump_valid : std_logic := '0';
     signal dump_kind : std_logic_vector(7 downto 0) := (others => '0');
     signal dump_side : std_logic_vector(7 downto 0) := (others => '0');
@@ -170,6 +171,7 @@ begin
             apply_fields => apply_fields,
             apply_done => apply_done,
             apply_status => apply_status,
+            apply_cycles => apply_cycles,
             dump_start => dump_start,
             dump_valid => dump_valid,
             dump_kind => dump_kind,
@@ -219,7 +221,7 @@ begin
         variable apply_index : natural := 0;
         variable checksum : std_logic_vector(63 downto 0) := fnv1a_basis;
         variable dump_index : natural := 0;
-        variable apply_cycles : natural := 0;
+        variable total_cycles : natural := 0;
         variable l : line;
 
         variable stop_pending : boolean := false;
@@ -265,7 +267,7 @@ begin
         while apply_index < msg_count loop
             wait until falling_edge(clk);
             if apply_done = '1' then
-                apply_cycles := apply_cycles + 1;
+                total_cycles := total_cycles + apply_cycles;
                 apply_index := apply_index + 1;
                 issued := false;
                 apply_start <= '0';
@@ -281,7 +283,10 @@ begin
         wait until falling_edge(clk);
         apply_start <= '0';
 
-        report "rtl book cycles  " & integer'image(apply_cycles);
+        report "rtl book cycles  " & integer'image(total_cycles);
+        if msg_count > 0 then
+            report "rtl cycles/msg   " & integer'image(total_cycles / msg_count);
+        end if;
 
         -- Phase 3: dump.
         dump_start <= '1';
@@ -355,6 +360,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
