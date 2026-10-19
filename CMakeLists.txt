@@ -255,6 +255,44 @@ add_test(NAME rtl_trace_tools
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_trace_work
                  -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_trace_check.cmake")
 
+# ---- The differential -------------------------------------------------
+#
+# The C++ decoder and the RTL model, over the same capture, compared
+# field by field.
+#
+# This is the check the rest of this repository does not have. Every
+# other check here compares the engine against something INSIDE the
+# repository -- the generator, a naive reference model, another build of
+# the same code -- and the Add Order misdecode survived all of them,
+# because the generator wrote the same wrong layout the decoder read.
+#
+# The RTL model is written from the published specification and shares
+# no code with the C++ side: its own field tables, its own framing, its
+# own decode rules. When the two traces agree, two independent
+# implementations are saying the same thing about the same bytes.
+#
+# GHDL is not a dependency. Where it is absent the test is skipped
+# rather than failed, because a missing simulator is a missing
+# simulator and not a wrong answer -- the same rule the doc check
+# follows. Set HFT_REQUIRE_GHDL=ON to turn the skip into a failure,
+# which is what CI does on the job that installs it.
+find_program(GHDL ghdl)
+if(GHDL)
+    add_test(NAME rtl_decode_differential
+             COMMAND "${CMAKE_COMMAND}"
+                     -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
+                     -DHFT_RTL_CHECK=$<TARGET_FILE:hft_rtl_check>
+                     -DGHDL=${GHDL}
+                     -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
+                     -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_diff_work
+                     -DRECORDS=2000
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_differential.cmake")
+    set_tests_properties(rtl_decode_differential PROPERTIES TIMEOUT 900)
+    message(STATUS "  ghdl .............. ${GHDL}")
+else()
+    message(STATUS "  ghdl .............. not found, the RTL differential is skipped")
+endif()
+
 # The threaded pipeline must build the same book as the single-threaded
 # one from the same feed. That is a correctness property, not a speed
 # measurement, so it belongs in CI: a pipeline that drops or reorders a
