@@ -154,6 +154,20 @@ begin
     -- to a line. It is a faithful dump of the capture, so both sides
     -- are provably looking at the same bytes.
 
+    -- The field tables must agree with each other.
+    --
+    -- A count that disagrees with the widths is a mistake that HIDES:
+    -- the extra field renders as an empty string, the trace's
+    -- tokeniser drops it, and the two sides agree on a record that is
+    -- wrong. This is the check that would have caught it.
+    table_check : process
+    begin
+        assert tables_are_consistent
+            report "the ITCH field tables disagree with each other"
+            severity failure;
+        wait;
+    end process;
+
     driver : process
         file hex_file : text open read_mode is HEX_PATH;
         variable l : line;
@@ -295,6 +309,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 

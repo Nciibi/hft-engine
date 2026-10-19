@@ -226,6 +226,15 @@ begin
     -- whole on every read, which for a few thousand messages is a
     -- megabyte-scale copy per clock cycle.
 
+    -- The field tables must agree with each other. See tb_trace for why.
+    table_check : process
+    begin
+        assert tables_are_consistent
+            report "the ITCH field tables disagree with each other"
+            severity failure;
+        wait;
+    end process;
+
     driver : process
         variable msgs : msg_array_t;
         variable msg_count : natural := 0;
@@ -371,6 +380,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
