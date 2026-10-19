@@ -247,7 +247,9 @@ package hft_itch_pkg is
     -- a package body with a `begin` section is rejected with "'end' is
     -- expected instead of 'begin'", even though the language allows
     -- one. The testbenches call it instead.
-    function tables_are_consistent return boolean;
+    -- Returns -1 when the tables agree, and the index of the type that
+    -- disagrees otherwise, so a failure says WHICH table.
+    function inconsistent_type return integer;
 
 end package hft_itch_pkg;
 
@@ -377,6 +379,7 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
 
 
 

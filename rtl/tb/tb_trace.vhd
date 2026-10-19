@@ -162,8 +162,8 @@ begin
     -- wrong. This is the check that would have caught it.
     table_check : process
     begin
-        assert tables_are_consistent
-            report "the ITCH field tables disagree with each other"
+        assert inconsistent_type = -1
+            report "the ITCH field tables disagree: type index " & integer'image(inconsistent_type)
             severity failure;
         wait;
     end process;
@@ -309,6 +309,7 @@ begin
     end process;
 
 end architecture sim;
+
 
 
 
