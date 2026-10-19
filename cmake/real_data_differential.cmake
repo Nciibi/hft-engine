@@ -54,8 +54,14 @@ string(REPLACE "\\" "/" rtl_dump_path "${WORK}/rtl.dump")
 
 # ---- 1. The real data ------------------------------------------------
 
+if(FETCH_POWERSHELL)
+    set(fetch_command powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${FETCH_SCRIPT}")
+else()
+    set(fetch_command "${FETCH_SCRIPT}")
+endif()
+
 execute_process(
-    COMMAND "${FETCH}" "${WORK}/raw.itch"
+    COMMAND ${fetch_command} "${WORK}/raw.itch"
     RESULT_VARIABLE status
     OUTPUT_VARIABLE output_text
     ERROR_VARIABLE error_text)
