@@ -183,6 +183,56 @@ jobs:
       - name: Claim check
         run: ./scripts/check-claims.sh build
 
+  # ---- The RTL differential -------------------------------------------
+  #
+  # The C++ decoder and the RTL model, over the same capture, compared
+  # field by field.
+  #
+  # This job exists because the C++ engine's other checks all compare it
+  # against something inside this repository, and the Add Order misdecode
+  # survived every one of them: the generator wrote the same wrong layout
+  # the decoder read, so the two agreed perfectly and both disagreed with
+  # the specification. The RTL model is a second implementation written
+  # from the published field tables, and it shares no code with the C++
+  # side -- its own field tables, its own framing, its own decode rules.
+  #
+  # GHDL is pinned rather than taken from the runner's apt, because the
+  # RTL is written against VHDL-2008 and the two have differed on what
+  # that means: a concurrent `report` statement is legal in 2019 and not
+  # in 2008, and a constrained array type mark is not a legal function
+  # return type in either.
+  rtl:
+    name: RTL differential
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ghdl
+          ghdl --version
+
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      # The two differential suites, and the two RTL tool suites. A
+      # missing simulator is a missing simulator rather than a wrong
+      # answer, so the suites are skipped where GHDL is absent -- but
+      # this job installed it, so a skip here is a failure in the
+      # installation rather than in the design.
+      - name: RTL differential
+        run: ctest --test-dir build -R "rtl" --output-on-failure --timeout 900
+
+      - name: Explain a skip
+        if: failure()
+        run: |
+          echo "The RTL suites are skipped when GHDL is not found. This job"
+          echo "installs it, so a skip here means the install failed."
+          ghdl --version || true
+
   # ---- Benchmarks: produced, never asserted ---------------------------
   #
   # A shared runner cannot support a publishable latency number, and this
