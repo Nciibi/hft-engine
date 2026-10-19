@@ -93,34 +93,78 @@ compares two files and reports the first difference, and nothing else.
 | **RTL against C++, 2,000 messages, field by field** | done — 0 differences |
 | **RTL against C++, over a capture cut mid-message** | done — 0 differences |
 | **Cycle-exact decode cost** | done — one cycle per body byte, measured |
-| The order book in RTL | not started |
+| **The RTL order book** | done — `hft_book.vhd` |
+| **The RTL book against the C++ book** | done — 0 differences over 974 records |
+| **Cycle-exact book cost** | done — 40.75 cycles per message, exact |
 | Synthesis, area and timing | not started |
-
-The order book in RTL is deliberately last. It is the most interesting
-piece and the most expensive, and it is worthless without the decode
-path it would be built on.
 
 ## The result
 
 ```
-$ ctest --test-dir build -R rtl_decode_differential -V
-  rtl trace records 2000
-  rtl decoded      2000
+$ ctest --test-dir build -R rtl -V
+  rtl simulation .... rtl trace records 2000
   rtl decode cycles63444
   differential ...... the two implementations agree on every record and field
+
+  rtl book .......... rtl messages     1000
+  rtl book cycles  40750
+  rtl cycles/msg   40
+  rtl dump records 974
+  rtl checksum     97a2bb9075066e99
+  differential ...... the two books agree on every order, level and field
 ```
 
-**63,444 cycles for 2,000 messages — a mean of 31.7 cycles per
-message.** The decoder takes exactly one clock cycle per byte of
-message body, and the mean is the mean body length of the feed.
+**Two numbers the C++ side cannot produce.**
 
-That number is the reason this directory exists. The C++ engine's
-latency table is blank on the development host because that host's
-clock ticks every 100 ns, and filling it in needs a rented bare-metal
-box. A cycle count in RTL is a property of the *design*: it is exact,
-it reproduces on any simulator, and it is checked in CI. The two
-engines now measure the same pipeline two ways, and the comparison
-between them is a result rather than an artefact of a clock.
+**63,444 cycles to decode 2,000 messages** — a mean of 31.7 cycles per
+message, because the RTL decoder takes exactly one clock cycle per byte
+of message body, and the mean is the mean body length of the feed.
+
+**40,750 cycles to apply 1,000 messages to the book** — a mean of 40.75
+cycles per message. That number is dominated by the price walk, and it
+scales with the depth of the book exactly as an O(depth) walk must:
+
+| Records | Levels per side | Cycles per message |
+|---|---|---|
+| 1,000 | ~240 | **40.75** |
+| 2,000 | ~440 | **70.40** |
+
+Both are properties of the *design*, not of the machine: they reproduce
+on any simulator, on any host, and they are checked in CI. The C++ can
+report the same phenomenon only as a ratio — `results/OPTIMIZATION.md`
+measures the sparse ladder's walk at up to 178x a touch insert at 3,200
+levels — and a ratio is a statement about a machine rather than about a
+design. Here the same number is a cycle count, and it says the dense
+grid is worth exactly `depth` cycles per add.
+
+## The order book
+
+The RTL book models the C++ book exactly: an order pool, a level pool,
+a price-ordered list of levels per side, a FIFO of orders within each
+level, and an open-addressed index from the ITCH order reference to the
+order.
+
+**The index never erases.** ITCH order references are unique for the
+trading day, so a reference whose order has left the book will never
+be looked up successfully again, and the slot it occupied can keep its
+key and be marked not live. The C++ does erase, and pays for it: its
+table accumulated tombstones until a defect made it wedge permanently
+once every slot was occupied or tombstoned, and a book that traded a
+few hundred million shares would have stopped accepting orders. An
+insert-only table cannot wedge in that way, because it never needs to
+reclaim a slot.
+
+**The comparison is a dump, not a checksum.** A checksum says "these two
+states are equal"; a dump says "these two states are equal, and if they
+are not, here is the order and the field that differ". The difference
+matters when the answer is no — and this repository has shipped a wrong
+answer before, in one field of one message, that a checksum would have
+reported as "these differ" and nothing else.
+
+The dump carries the level records as well as the order records, and
+that matters too: a book can have the right orders in the right order
+and still have an inflated level aggregate, and the checksum does not
+cover the aggregate at all.
 
 ## Running it
 
