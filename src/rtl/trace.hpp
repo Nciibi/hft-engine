@@ -45,8 +45,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <iosfwd>
+#include <iterator>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace hft::rtl {
@@ -251,6 +254,7 @@ inline bool write_record(std::ostream& out, const TraceRecord& record) {
 /// carry comments. Returns false at end of input, or on a malformed
 /// line, with `error` set.
 inline bool read_record(std::istream& in, TraceRecord& out, std::string& error) {
+    error.clear();
     std::string line;
     while (std::getline(in, line)) {
         if (!line.empty() && line.back() == '\r') {
