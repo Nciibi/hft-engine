@@ -232,6 +232,35 @@ begin
         variable n_malformed : natural := 0;
         variable n_truncated : natural := 0;
         variable total_cycles : natural := 0;
+        variable stop_pending : boolean := false;
+
+        -- Write one record, in the format `rtl/TRACE_FORMAT.md`
+        -- specifies.
+        procedure write_record is
+        begin
+            write(l, dec(index));
+            write(l, ' ');
+            write(l, status_char(status));
+            write(l, ' ');
+            write(l, type_token(type_byte, has_type = '1'));
+            write(l, ' ');
+            write(l, dec4(declared_len));
+            for i in 0 to field_count - 1 loop
+                write(l, ' ');
+                write(l, hex_field(fields(i), field_width(type_byte, has_type = '1', i)));
+            end loop;
+            writeline(trace_file, l);
+
+            case status is
+                when st_ok => n_ok := n_ok + 1;
+                when st_skipped => n_skipped := n_skipped + 1;
+                when st_bad_length => n_bad_length := n_bad_length + 1;
+                when st_malformed => n_malformed := n_malformed + 1;
+                when st_truncated => n_truncated := n_truncated + 1;
+            end case;
+            total_cycles := total_cycles + cycles;
+            index := index + 1;
+        end procedure;
     begin
         write(l, kTraceHeader);
         writeline(trace_file, l);
@@ -240,36 +269,22 @@ begin
             wait until falling_edge(clk);
 
             if done = '1' then
-                write(l, dec(index));
-                write(l, ' ');
-                write(l, status_char(status));
-                write(l, ' ');
-                write(l, type_token(type_byte, has_type = '1'));
-                write(l, ' ');
-                write(l, dec4(declared_len));
-                for i in 0 to field_count - 1 loop
-                    write(l, ' ');
-                    write(l, hex_field(fields(i), field_width(type_byte, has_type = '1', i)));
-                end loop;
-                writeline(trace_file, l);
-
-                case status is
-                    when st_ok => n_ok := n_ok + 1;
-                    when st_skipped => n_skipped := n_skipped + 1;
-                    when st_bad_length => n_bad_length := n_bad_length + 1;
-                    when st_malformed => n_malformed := n_malformed + 1;
-                    when st_truncated => n_truncated := n_truncated + 1;
-                end case;
-                total_cycles := total_cycles + cycles;
-                index := index + 1;
+                write_record;
             end if;
 
-            if end_of_capture = '1' then
+            -- The framer says the capture has ended. The decoder may
+            -- still owe a record for the frame that was cut in half, so
+            -- the stop is deferred by one cycle: the framer raises its
+            -- truncation flag and its end-of-capture flag together, and
+            -- the decoder answers the flag on the next edge.
+            if end_of_capture = '1' and not stop_pending then
+                stop_pending := true;
+            elsif stop_pending then
                 sim_done <= '1';
                 report "rtl trace records " & integer'image(index);
                 report "rtl decoded      " & integer'image(n_ok);
                 report "rtl skipped      " & integer'image(n_skipped);
-                report "rtl bad length   " & integer'image(n_bad_length);
+                report "rtl bad length   & integer'image(n_bad_length);
                 report "rtl malformed    " & integer'image(n_malformed);
                 report "rtl truncated    " & integer'image(n_truncated);
                 report "rtl decode cycles" & integer'image(total_cycles);
