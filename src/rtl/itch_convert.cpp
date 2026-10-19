@@ -84,7 +84,7 @@ void put_be64(std::vector<std::uint8_t>& out, std::uint64_t v) {
 int main(int argc, char** argv) {
     std::string raw_path;
     std::string capture_path;
-    std::string session = "SAMPLE000";
+    std::string session = "SAMPLE0000";
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -208,5 +208,6 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
 
 
