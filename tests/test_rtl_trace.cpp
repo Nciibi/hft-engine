@@ -101,7 +101,7 @@ void test_format() {
     untyped.index = 7;
     untyped.status = TraceStatus::truncated;
     untyped.length = 36;
-    check_eq_str(hft::rtl::format_record(untyped), "7 T -- 0024",
+    check_eq_str(hft::rtl::format_record(untyped), "7 T -- 0036",
                  "a record with no type renders the type as --");
 }
 
@@ -116,7 +116,7 @@ void test_round_trip() {
     original.type = 'E';
     original.has_type = true;
     original.length = 32;
-    original.fields = {"0001", "0002", "0000000000000001", "0000000000000abc",
+    original.fields = {"0001", "0002", "000000000001", "0000000000000abc",
                        "00000064", "0000000000000001", "01"};
 
     std::istringstream in(hft::rtl::format_record(original) + "\n");
@@ -160,7 +160,7 @@ void test_validation() {
     good.type = 'D';
     good.has_type = true;
     good.length = 19;
-    good.fields = {"0001", "0002", "0000000000000001", "0000000000000abc"};
+    good.fields = {"0001", "0002", "000000000001", "0000000000000abc"};
 
     std::string error;
     check(hft::rtl::validate_record(good, error), "a well-formed record validates");

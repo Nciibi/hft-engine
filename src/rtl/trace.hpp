@@ -184,14 +184,16 @@ struct TraceDifference {
 /// Lowercase hex, zero-padded to `bytes` bytes, most significant first.
 ///
 /// `bytes` is the WIDTH ON THE WIRE, so the value is rendered exactly as
-/// the bytes appear in the frame.
+/// the bytes appear in the frame -- and ITCH is big endian, so the most
+/// significant byte comes first. A 4-byte share count of 100 is
+/// `00000064` on the wire and is rendered `00000064` here.
 [[nodiscard]] inline std::string hex_u64(std::uint64_t value, int bytes) {
     static constexpr char kDigits[] = "0123456789abcdef";
     std::string out;
     out.resize(static_cast<std::size_t>(bytes) * 2U);
-    for (int i = bytes - 1; i >= 0; --i) {
+    for (int i = 0; i < bytes; ++i) {
         const auto byte = static_cast<std::uint8_t>((value >> (i * 8)) & 0xFFU);
-        const std::size_t at = static_cast<std::size_t>(i) * 2U;
+        const std::size_t at = static_cast<std::size_t>(bytes - 1 - i) * 2U;
         out[at] = kDigits[byte >> 4U];
         out[at + 1U] = kDigits[byte & 0x0FU];
     }
