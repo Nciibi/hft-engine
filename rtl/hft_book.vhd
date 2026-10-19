@@ -183,14 +183,22 @@ architecture rtl of hft_book is
 
     -- Does `candidate` rank better than `reference` on this side?
     --
-    -- Bid: higher is better. Ask: lower is better. This is the
-    -- definition of price-time priority, and the C++ has the same
-    -- function with the same name and the same rule.
+    -- The side encoding is '1' for the bid side and '0' for the ask
+    -- side, and the two are not symmetric in the encoding: a bid ranks
+    -- better when its price is HIGHER and an ask ranks better when its
+    -- price is LOWER.
+    --
+    -- Getting this backwards does not produce a wrong answer, which is
+    -- what makes it worth writing down. It produces a book that is
+    -- internally consistent and in the wrong order: the ladder is
+    -- perfectly sorted, just sorted the other way up, and every field
+    -- of every order is exactly right. The differential catches it
+    -- because the ORDER is part of the state.
     function is_better(side : std_logic;
                        candidate : std_logic_vector(63 downto 0);
                        reference : std_logic_vector(63 downto 0)) return boolean is
     begin
-        if side = '0' then
+        if side = '1' then
             return unsigned(candidate) > unsigned(reference);
         end if;
         return unsigned(candidate) < unsigned(reference);
