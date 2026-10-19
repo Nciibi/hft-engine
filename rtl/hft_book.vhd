@@ -202,6 +202,31 @@ architecture rtl of hft_book is
         return side_byte(7 downto 0) = x"42";
     end function;
 
+    -- The side, as the dump spells it: 'B' for the bid side, 'A' for
+    -- the ask side.
+    function side_char(side : std_logic) return std_logic is
+    begin
+        if side = '1' then
+            return 'B';
+        end if;
+        return 'A';
+    end function;
+
+    -- The index slot for an order reference.
+    --
+    -- The hash does not have to match the C++'s: only the RESULT of a
+    -- lookup has to match, and any hash with open addressing gives the
+    -- same answer for the same key. This one is a multiply by the
+    -- 64-bit golden ratio, which spreads sequential references -- and
+    -- ITCH references are sequential -- across the table instead of
+    -- colliding on every one of them.
+    function hash_slot(key : std_logic_vector(63 downto 0)) return natural is
+        variable mixed : std_logic_vector(63 downto 0);
+    begin
+        mixed := std_logic_vector(unsigned(key) * unsigned(x"9E3779B97F4A7C15"));
+        return to_integer(unsigned(mixed(31 downto 0))) mod TABLE_SLOTS;
+    end function;
+
 begin
 
     apply_done <= o_done;
