@@ -284,3 +284,4 @@ and exits non-zero if any of them is found.
 - **Transport behaviour.** Sequence gaps, heartbeats and end-of-session
   are handled by the walk in §2.1 but are not recorded in the trace. A
   gap is a property of a capture, not of a frame.
+
