@@ -21,6 +21,7 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library work;
 use work.hft_itch_pkg.all;
@@ -239,12 +240,12 @@ begin
                 write(l, ' ');
                 write(l, status_char(status));
                 write(l, ' ');
-                write(l, type_token(type_byte, has_type));
+                write(l, type_token(type_byte, has_type = '1'));
                 write(l, ' ');
                 write(l, dec4(declared_len));
                 for i in 0 to field_count - 1 loop
                     write(l, ' ');
-                    write(l, hex_field(fields(i), field_width(type_byte, has_type, i)));
+                    write(l, hex_field(fields(i), field_width(type_byte, has_type = '1', i)));
                 end loop;
                 writeline(trace_file, l);
 
@@ -275,5 +276,6 @@ begin
     end process;
 
 end architecture sim;
+
 
 
