@@ -202,14 +202,14 @@ architecture rtl of hft_book is
         return side_byte(7 downto 0) = x"42";
     end function;
 
-    -- The side, as the dump spells it: 'B' for the bid side, 'A' for
-    -- the ask side.
-    function side_char(side : std_logic) return std_logic is
+    -- The side, as the dump spells it: x"42" for the bid side, x"41"
+    -- for the ask side.
+    function side_char(side : std_logic) return std_logic_vector is
     begin
         if side = '1' then
-            return B"01000010";
+            return x"42";
         end if;
-        return B"01000001";
+        return x"41";
     end function;
 
     -- The index slot for an order reference.
