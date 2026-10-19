@@ -120,6 +120,9 @@ begin
     end_of_capture <= o_end;
 
     process (clk)
+        -- The Message Count of the packet being read, and the number of
+        -- blocks it says the packet holds.
+        variable count_value : natural range 0 to 65535 := 0;
     begin
         if rising_edge(clk) then
             if rst = '1' then
@@ -146,27 +149,36 @@ begin
                 if in_valid = '1' then
                     case state is
                         when st_header =>
-                            if hdr_pos = 18 then
-                                len_hi <= to_integer(unsigned(in_byte));
-                            elsif hdr_pos = 19 then
-                                count <= len_hi * 256 + to_integer(unsigned(in_byte));
+                            if hdr_pos = 19 then
+                                -- The last byte of the header: the
+                                -- Message Count, and the end of the
+                                -- header.
+                                count_value := len_hi * 256 + to_integer(unsigned(in_byte));
+                                count <= count_value;
                                 hdr_pos <= 0;
-                                if (len_hi * 256 + to_integer(unsigned(in_byte))) = 65535 then
+                                if count_value = 65535 then
                                     -- End of session.
                                     state <= st_end;
                                     o_end <= '1';
-                                elsif (len_hi * 256 + to_integer(unsigned(in_byte))) = 0 then
-                                    -- A heartbeat carries the next expected
-                                    -- sequence number and no messages. It
-                                    -- is part of the transport, not the
-                                    -- feed, so it carries no frame.
+                                elsif count_value = 0 then
+                                    -- A heartbeat carries the next
+                                    -- expected sequence number and no
+                                    -- messages. It is part of the
+                                    -- transport, not the feed, so it
+                                    -- carries no frame.
                                     state <= st_header;
                                 else
-                                    blocks_left <= len_hi * 256 + to_integer(unsigned(in_byte));
+                                    blocks_left <= count_value;
                                     len_hi <= 0;
+                                    len_pos <= 0;
                                     state <= st_block_len;
                                 end if;
                             else
+                                if hdr_pos = 18 then
+                                    -- The high byte of the Message
+                                    -- Count, at offset 18.
+                                    len_hi <= to_integer(unsigned(in_byte));
+                                end if;
                                 hdr_pos <= hdr_pos + 1;
                             end if;
 
