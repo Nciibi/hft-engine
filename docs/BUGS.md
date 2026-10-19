@@ -25,11 +25,45 @@ teaches you something about the shape of the problem.
 | A second compiler | 2 | One compiler's warnings are not the project's warnings. |
 | **Comparing against the specification** | **4** | The only method that finds a wrong-but-self-consistent system. |
 | **Reading this repository's own output critically** | **5** | The most dangerous bugs produce good-looking numbers. |
+| **Comparing against real market data** | **2** | A generator is not an oracle. See below. |
 
-The last two rows are the ones worth memorising, and they are the reason
-the first three exist. A test suite can only prove that two things agree.
+The last three rows are the ones worth memorising, and they are the reason
+the first two exist. A test suite can only prove that two things agree.
 If the thing under test and the thing it is compared against share an
 assumption, they will agree perfectly and both be wrong.
+
+### A new row: comparing against real market data
+
+**The generator is not an oracle.** Every check in this repository
+compared the engine against something the repository also produced: the
+feed generator, a naive reference model, another build of the same code.
+That is enough to catch a divergence between two things, and it is
+completely unable to catch a mistake they SHARE.
+
+Two defects survived it, and they were found the moment the exchange's
+own bytes were used instead:
+
+1. **The Order Executed field table had a Printable byte that the
+   message does not have.** The table said 32 bytes; the real message is
+   31. Every 'E' message on the wire was being rejected as a bad length.
+   [Full account](#the-order-executed-field-table-had-a-byte-the-message-does-not-have).
+2. **The RTL order book's index probe advanced to the next slot on a
+   collision and then used that unexamined slot as the result.** It never
+   fired on a generated capture, because the generator's order references
+   are sequential and the hash spreads them; the exchange's references are
+   not sequential, and it fired on the first real capture.
+   [Full account](#the-rtl-index-probe-used-a-slot-it-had-not-examined).
+
+Both are the same shape as the Add Order misdecode that this repository
+is built around: an internally consistent transformation that was wrong
+at the boundary, and nothing inside the repository capable of noticing.
+The difference is that the second one was found by going and looking.
+
+The check is now a test: `hft_capture_inspect` walks a capture and
+compares every message's declared length against the length the field
+table says its type must have, and `rtl_real_data_differential` runs the
+whole differential suite over a slice of the real archive. Both are in
+CI, and the second one skips itself when the network is not there.
 
 ---
 
