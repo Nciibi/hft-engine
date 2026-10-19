@@ -25,8 +25,8 @@
 # into the trading.
 
 param(
-    [int]$Bytes = 4194304,
-    [string]$Out = "itch_raw.itch"
+    [string]$Out = "itch_raw.itch",
+    [int]$Bytes = 4194304
 )
 
 $ErrorActionPreference = 'Stop'
