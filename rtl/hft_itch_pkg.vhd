@@ -172,7 +172,7 @@ package hft_itch_pkg is
         5 => (2, 2, 6, 8, 8, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         6 => (2, 2, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         7 => (2, 2, 6, 8, 1, 4, 4, 8, 0, 0, 0, 0, 0, 0, 0, 0),
-        8 => (2, 2, 6, 8, 8, 4, 8, 1, 0, 0, 0, 0, 0, 0, 0, 0),
+        8 => (2, 2, 6, 8, 4, 8, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- The end offset of each field: the offset of the byte after it.
@@ -188,11 +188,11 @@ package hft_itch_pkg is
         5 => (3, 5, 11, 19, 27, 31, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         6 => (3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         7 => (3, 5, 11, 19, 20, 24, 36, 44, 0, 0, 0, 0, 0, 0, 0, 0),
-        8 => (3, 5, 11, 19, 27, 31, 39, 40, 0, 0, 0, 0, 0, 0, 0, 0),
+        8 => (3, 5, 11, 19, 31, 39, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         9 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- How many fields each type carries.
-    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 8, 0);
+    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 7, 0);
 
     -- The body length each type requires, in bytes. A frame whose
     -- declared length disagrees with this is a BAD LENGTH, not a
@@ -378,6 +378,7 @@ package body hft_itch_pkg is
     end function;
 
 end package body hft_itch_pkg;
+
 
 
 
