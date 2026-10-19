@@ -130,7 +130,10 @@ int main(int argc, char** argv) {
     while (reader.next(frame, frame_size)) {
         const hft::itch::DecodeResult r = hft::itch::decode(frame, frame_size);
         if (r.ok()) {
-            hft::lob::apply(r.message, book);
+            // The result is deliberately ignored: a message the book
+            // rejects is a normal event on a live feed, and the dump
+            // records the book that results either way.
+            (void)hft::lob::apply(r.message, book);
         }
     }
 
