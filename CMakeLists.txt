@@ -276,7 +276,22 @@ add_test(NAME rtl_trace_tools
 # simulator and not a wrong answer -- the same rule the doc check
 # follows. Set HFT_REQUIRE_GHDL=ON to turn the skip into a failure,
 # which is what CI does on the job that installs it.
-find_program(GHDL ghdl)
+#
+# GHDL is looked for on PATH, in the two standard Windows install
+# locations, and wherever the GHDL environment variable points. The
+# cache variable overrides all of them:
+#   cmake -B build -DHFT_GHDL=/usr/bin/ghdl
+set(HFT_GHDL "" CACHE FILEPATH "The GHDL executable, for the RTL differential test")
+if(HFT_GHDL)
+    set(GHDL "${HFT_GHDL}")
+else()
+    find_program(GHDL ghdl
+        HINTS
+            "$ENV{GHDL}/bin"
+            "C:/ghdl/bin"
+            "D:/ghdl/bin"
+        DOC "The GHDL simulator, for the RTL differential test")
+endif()
 if(GHDL)
     add_test(NAME rtl_decode_differential
              COMMAND "${CMAKE_COMMAND}"
