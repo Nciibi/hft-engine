@@ -21,7 +21,7 @@ resolution floor before reporting anything.
 |---|---|
 | **What it is** | ITCH 5.0 decoder, price-time-priority limit order book, pre-trade risk, OMS, Avellaneda-Stoikov market maker, and adverse-selection measurement |
 | **Language** | C++20, zero external dependencies in the library target |
-| **Tests** | **1,900 checks** across **26 CTest suites**, 0 failures, under **two compilers** |
+| **Tests** | **1,900 checks** across **28 CTest suites**, 0 failures, under **two compilers** |
 | **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
 | **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
 | **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
@@ -233,7 +233,11 @@ Three things are now true that were not:
 | **Decode trace format**, specified in prose, two implementations | done — [`rtl/TRACE_FORMAT.md`](rtl/TRACE_FORMAT.md) |
 | **Trace generator, comparator, and reference capture walk** | done |
 | Trace format, comparator and bridge, tested | done — 85 checks |
-| **RTL model of the market data path** (VHDL) | not started |
+| **RTL model of the market data path** (VHDL): framing, decode, trace | done — [`rtl/`](rtl/README.md) |
+| **RTL against C++, field by field, 2,000 messages** | done — 0 differences |
+| RTL against C++, over a capture cut mid-message | done — 0 differences |
+| Cycle-exact decode cost | done — one cycle per body byte, measured |
+| The order book in RTL | not started |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
@@ -270,10 +274,10 @@ checks_concurrent: 149
 checks_shards: 51
 checks_rtl_trace: 85
 checks_total: 1900
-ctest_tests: 26
+ctest_tests: 28
 -->
 
-**Verified: 1,900 checks across 26 CTest suites** — 1,412 unit + 156
+**Verified: 1,900 checks across 28 CTest suites** — 1,412 unit + 156
 risk/OMS + 47 strategy + 149 concurrency + 51 sharding + 85 RTL trace,
 zero failures, under **two compilers**. Every number in that sentence is
 asserted by `ctest`, and `scripts/check-claims.sh` fails the build if it
@@ -624,7 +628,7 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure   # 26 suites, ~70s
+ctest --test-dir build --output-on-failure   # 28 suites, ~70s
 ```
 
 That is the whole verification story. The individual binaries, if you want
@@ -1111,3 +1115,4 @@ an order book needs to exist at all, so they were worth checking against
 the document. Everything else is skipped rather than guessed, because a
 decoder that reads a plausible field table confidently is worse than one
 that declines to read it.
+
