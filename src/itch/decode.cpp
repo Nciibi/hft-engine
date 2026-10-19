@@ -95,6 +95,16 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
     const std::uint8_t* body = data + kLengthPrefixSize;
     const auto tag = static_cast<std::uint8_t>(body[off::tag]);
 
+    // The tag is known from here on, and it stays known for every
+    // outcome below -- including the ones that carry no decoded message.
+    // A caller that skipped a frame needs to know what it skipped.
+    const auto with_tag = [tag, body_length](DecodeStatus status) noexcept {
+        DecodeResult r = status_of(status, body_length);
+        r.tag = tag;
+        r.has_tag = true;
+        return r;
+    };
+
     // Reject a declared length that disagrees with the type before
     // reading any field, so a mis-framed message can never be read as
     // though its fields were laid out differently.
@@ -116,7 +126,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
 
     if (expected != 0) {
         if (body_length != expected) {
-            return status_of(DecodeStatus::bad_length, body_length);
+            return with_tag(DecodeStatus::bad_length);
         }
     } else {
         // A well-formed frame of a type this build does not decode.
@@ -124,7 +134,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
         // frame. Order Replace lands here on purpose: its field table
         // was not verified, and an unverified offset is worse than an
         // honest skip.
-        return status_of(DecodeStatus::unknown_type, body_length);
+        return with_tag(DecodeStatus::unknown_type);
     }
 
     const OrderHeader header = read_order_header(body);
@@ -156,11 +166,13 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
         // ITCH uses 0 to mean "no order reference" in some contexts;
         // treating it as a live handle would collide with every
         // subsequent order.
-        return status_of(DecodeStatus::malformed, body_length);
+        return with_tag(DecodeStatus::malformed);
     }
 
     DecodeResult r;
     r.length = body_length;
+    r.tag = tag;
+    r.has_tag = true;
 
     switch (static_cast<MessageType>(tag)) {
         case MessageType::add_order: {
@@ -170,7 +182,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             ao.timestamp = header.timestamp;
             ao.id = header.id;
             if (!side_from_byte(body[off::add_order_side], ao.side)) {
-                return status_of(DecodeStatus::malformed, body_length);
+                return with_tag(DecodeStatus::malformed);
             }
             ao.size = Quantity::from_raw(read_be32(body + off::add_order_size));
             for (std::size_t i = 0; i < off::kStockSymbolSize; ++i) {
@@ -294,7 +306,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             // Unreachable: every tag reaching here was classified
             // above. Returned rather than asserted so a future tag
             // added to the switch above degrades safely.
-            return status_of(DecodeStatus::unknown_type, body_length);
+            return with_tag(DecodeStatus::unknown_type);
     }
 }
 

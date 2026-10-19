@@ -272,6 +272,21 @@ struct DecodeResult {
     /// Declared body length in bytes, excluding the 2-byte prefix.
     /// Populated whenever the prefix itself was readable.
     std::uint16_t length = 0;
+    /// The message tag byte, when the decoder reached it.
+    ///
+    /// Set for every outcome that got as far as reading the tag: a
+    /// decoded message, a skipped type, a length that disagrees with
+    /// the type, and a malformed field. It is NOT set when the frame
+    /// was too short to contain a body, because then there is no tag
+    /// on the wire to report.
+    ///
+    /// This was previously discarded, and a handler that wanted to know
+    /// which type it had skipped -- the first thing anyone asks when a
+    /// live feed contains a message this build does not decode -- had
+    /// no way to find out short of re-reading the bytes.
+    std::uint8_t tag = 0;
+    /// True when `tag` was read from the wire.
+    bool has_tag = false;
     Message message{};
 
     [[nodiscard]] bool ok() const noexcept { return status == DecodeStatus::ok; }
