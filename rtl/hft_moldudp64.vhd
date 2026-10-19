@@ -88,12 +88,12 @@ architecture rtl of hft_moldudp64 is
 
     -- Bytes of the 20-byte packet header read so far.
     signal hdr_pos : natural range 0 to 19 := 0;
-    -- The Message Count, and how many blocks of this packet are left.
-    signal count : natural range 0 to 65535 := 0;
+    -- How many blocks of this packet are left.
     signal blocks_left : natural range 0 to 65535 := 0;
-    -- The block length, assembled from its two bytes.
+    -- The high byte of the block length. The low byte is the byte in
+    -- hand when the length is assembled, so only the high half needs
+    -- to be held.
     signal len_hi : natural range 0 to 255 := 0;
-    signal len_lo : natural range 0 to 255 := 0;
     -- Which byte of the length prefix has been read. A separate flag
     -- rather than a test on len_lo, because a length of zero and a
     -- length prefix not yet started look the same otherwise.
@@ -128,10 +128,8 @@ begin
             if rst = '1' then
                 state <= st_header;
                 hdr_pos <= 0;
-                count <= 0;
                 blocks_left <= 0;
                 len_hi <= 0;
-                len_lo <= 0;
                 body_left <= 0;
                 o_valid <= '0';
                 o_byte <= (others => '0');
@@ -208,7 +206,6 @@ begin
                                 else
                                     blocks_left <= blocks_left - 1;
                                     len_hi <= 0;
-                                    len_lo <= 0;
                                     len_pos <= 0;
                                     state <= st_block_len;
                                 end if;
@@ -257,4 +254,5 @@ begin
     end process;
 
 end architecture rtl;
+
 
