@@ -329,6 +329,30 @@ if(GHDL)
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_differential.cmake")
     set_tests_properties(rtl_decode_differential_truncated PROPERTIES TIMEOUT 900)
 
+    # The order-book differential, one layer up: the C++ book and the
+    # RTL book, over the same capture, compared field by field.
+    #
+    # The decode differential proved that two implementations agree on
+    # what the WIRE says. This proves that two implementations agree on
+    # what the BOOK does with it -- the price-time priority, the queue
+    # order within a price, the level aggregates, and the order count
+    # at every level.
+    #
+    # The comparison is a dump and not a checksum, because a checksum
+    # says only "these differ" and a dump says which order and which
+    # field.
+    add_test(NAME rtl_book_differential
+             COMMAND "${CMAKE_COMMAND}"
+                     -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
+                     -DHFT_BOOK_DUMP=$<TARGET_FILE:hft_book_dump>
+                     -DHFT_BOOK_CHECK=$<TARGET_FILE:hft_book_check>
+                     -DGHDL=${GHDL}
+                     -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
+                     -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_book_work
+                     -DRECORDS=2000
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_book_differential.cmake")
+    set_tests_properties(rtl_book_differential PROPERTIES TIMEOUT 1800)
+
     message(STATUS "  ghdl .............. ${GHDL}")
 else()
     message(STATUS "  ghdl .............. not found, the RTL differential is skipped")
