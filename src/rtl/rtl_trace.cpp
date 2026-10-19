@@ -144,6 +144,8 @@ int main(int argc, char** argv) {
             trace_path = next("--out");
         } else if (arg == "--hex") {
             hex_path = next("--hex");
+        } else if (arg == "--capture") {
+            capture_out = next("--capture");
         } else if (arg == "--records") {
             record_limit = static_cast<std::size_t>(std::strtoull(next("--records"), nullptr, 10));
         } else if (arg == "--truncate-at") {
