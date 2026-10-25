@@ -858,7 +858,13 @@ begin
                     end if;
 
                 when st_dump_next_level =>
-                    if dump_walk_side = '1' then
+                    if dump_next_level /= 0 then
+                        dump_cur_level := dump_next_level;
+                        dump_position := 0;
+                        lvl_raddr := dump_cur_level - 1;
+                        read_ret := st_dump_level_use;
+                        state := st_read_wait;
+                    elsif dump_walk_side = '1' then
                         dump_walk_side := '0';
                         dump_cur_level := ask_head;
                         dump_position := 0;
