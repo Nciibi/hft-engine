@@ -26,6 +26,8 @@
 #   4. The RTL book runs with the dense grid disabled. This must still
 #      match the sparse reference exactly: the dense feature must not
 #      change the default path.
+#   4b. The synthesizable hardware book runs over the same capture and
+#      must produce the same dump.
 #   5. The C++ and RTL books both run with a full-band dense grid, and
 #      both must match the sparse reference.
 #   6. Both run with a deliberately narrow band, so some prices use the
