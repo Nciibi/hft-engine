@@ -224,6 +224,19 @@ a 100-unit tick and a 1,000,001-slot band, because its observed prices
 span 800 to 100,000,000 raw units. `PRICE_FLOOR` is a natural, so
 negative raw prices remain outside the model.**
 
+**The hardware core is a separate implementation of the sparse ladder.**
+`hft_book_hw.vhd` keeps the same interface and dump format, but stores
+the order pool, level pool and reference index in synchronous arrays so
+GHDL infers block RAM. It sequences one access per cycle, and it is
+checked against the C++ dump on both the generated capture and the real
+slice. With 4,096 orders, 2,048 levels and 8,192 index slots the three
+memories are about 2.0 Mbit, which is why synthesis places the core on
+an 85F rather than the 25F. The hardware run costs 83.66 cycles per
+message on 1,000 generated messages and 311.15 on the 1,792-message real
+slice. Those are not improvements on the behavioural model; they are the
+price of real memories, and the behavioural model remains the cycle
+model.
+
 **The comparison is a dump, not a checksum.** A checksum says "these two
 states are equal"; a dump says "these two states are equal, and if they
 are not, here is the order and the field that differ". The difference
