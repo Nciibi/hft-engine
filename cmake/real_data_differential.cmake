@@ -30,6 +30,7 @@
 #      table that the wire disagrees with.
 #   4. DECODE it on both sides and compare, field by field.
 #   5. APPLY it to both books and compare, record by record.
+#   5b. APPLY it to the synthesizable hardware book and compare.
 #   6. APPLY it again through the dense grid, with a tick wide enough
 #      for real prices, and compare against the sparse reference.
 #
