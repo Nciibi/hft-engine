@@ -121,7 +121,6 @@ begin
             if rst = '1' then
                 busy <= '0';
                 r_done <= '0';
-                r_fields <= flds;
                 r_status <= st_truncated;
                 r_type <= (others => '0');
                 r_has_type <= '0';
@@ -272,6 +271,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
