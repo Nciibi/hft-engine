@@ -58,7 +58,8 @@ set(sources
     "${RTL_DIR}/hft_hex_reader.vhd"
     "${RTL_DIR}/hft_moldudp64.vhd"
     "${RTL_DIR}/hft_itch_decode.vhd"
-    "${RTL_DIR}/hft_book.vhd")
+    "${RTL_DIR}/hft_book.vhd"
+    "${RTL_DIR}/hft_book_hw.vhd")
 
 set(analyse "")
 foreach(src IN LISTS sources)
