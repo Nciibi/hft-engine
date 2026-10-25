@@ -129,10 +129,19 @@ begin
         variable declared : natural range 0 to 65535 := 0;
         variable flds : field_array_t := (others => (others => '0'));
         variable cyc : natural range 0 to 65535 := 0;
+
+        variable have_start : boolean := false;
+        variable start_len : natural range 0 to 65535 := 0;
+        variable start_has_len : std_logic := '0';
     begin
         if rising_edge(clk) then
             if rst = '1' then
                 busy <= '0';
+                finalizing <= '0';
+                pending_start <= '0';
+                pending_len <= 0;
+                pending_has_len <= '0';
+                r_type_idx <= kUnknownType;
                 r_done <= '0';
                 r_status <= st_truncated;
                 r_type <= (others => '0');
@@ -145,140 +154,176 @@ begin
                 r_done <= '0';
                 r_fields <= flds;
 
-                if frame_start = '1' then
-                    cyc := 0;
-                    off := 0;
-                    fld_idx := 0;
-                    in_field := 0;
-                    acc := (others => '0');
-                    flds := (others => (others => '0'));
-                    type_idx := kUnknownType;
-                    declared := frame_len;
-                    r_declared <= frame_len;
+                if finalizing = '1' then
+                    -- The last body byte has been captured. Qualifying
+                    -- the body is a separate cycle: these status tests
+                    -- compare 64-bit fields and a body length, and they
+                    -- must not sit on the byte parser's path.
+                    finalizing <= '0';
+                    busy <= '0';
+                    r_has_type <= '1';
 
-                    if frame_has_len = '0' then
-                        -- The length prefix could not be read at all.
-                        -- The frame is truncated at length zero, with
-                        -- no type: there is no tag byte on the wire.
-                        busy <= '0';
-                        r_status <= st_truncated;
-                        r_type <= (others => '0');
-                        r_has_type <= '0';
+                    if r_type_idx = kUnknownType then
+                        -- A well-formed frame of a type this build does
+                        -- not decode. The type is recorded, because a
+                        -- handler that skipped a frame needs to know
+                        -- what it skipped.
+                        r_status <= st_skipped;
                         r_field_count <= 0;
-                        r_cycles <= 0;
-                        r_done <= '1';
-                    elsif frame_len = 0 then
-                        -- A body of zero bytes. The decoder stops before
-                        -- the tag, so there is no type -- but this is a
-                        -- BAD LENGTH, not a truncation: the frame
-                        -- declared a length and it was wrong.
-                        busy <= '0';
+                    elsif r_declared /= kBodyLength(r_type_idx) then
+                        -- The declared length disagrees with the type.
+                        -- The frame is not read as though its fields
+                        -- were laid out differently.
                         r_status <= st_bad_length;
-                        r_type <= (others => '0');
-                        r_has_type <= '0';
                         r_field_count <= 0;
-                        r_cycles <= 0;
-                        r_done <= '1';
+                    elsif kOrderKeyed(r_type_idx) and
+                          r_fields(3) = x"0000000000000000" then
+                        -- The message is keyed on an order reference
+                        -- and the reference is the reserved zero.
+                        r_status <= st_malformed;
+                        r_field_count <= 0;
+                    elsif r_type_idx = 0 and not side_is_valid(r_fields(4)) then
+                        -- An Add Order whose side byte is neither 'B'
+                        -- nor 'S'. Silently reading an unknown side as
+                        -- a bid corrupts the book in a way no
+                        -- downstream test would catch.
+                        r_status <= st_malformed;
+                        r_field_count <= 0;
                     else
-                        busy <= '1';
-                        remaining := frame_len;
+                        r_status <= st_ok;
+                        r_field_count <= kFieldCount(r_type_idx);
                     end if;
 
-                elsif busy = '1' then
-                    cyc := cyc + 1;
+                    r_done <= '1';
 
-                    if frame_trunc = '1' then
-                        -- The body ran short. The frame is truncated at
-                        -- its declared length, with no type.
-                        busy <= '0';
-                        r_status <= st_truncated;
-                        r_type <= (others => '0');
-                        r_has_type <= '0';
-                        r_field_count <= 0;
-                        r_cycles <= cyc;
-                        r_done <= '1';
+                    -- The end of a capture is special: after the last
+                    -- body byte the framer immediately presents the
+                    -- zero-length trailer as the next frame start. Hold
+                    -- it rather than dropping it while this body is
+                    -- qualified.
+                    if frame_start = '1' then
+                        pending_start <= '1';
+                        pending_len <= frame_len;
+                        pending_has_len <= frame_has_len;
+                    end if;
 
-                    elsif byte_valid = '1' then
-                        if off = 0 then
-                            r_type <= byte_in;
-                            r_has_type <= '1';
-                            type_idx := type_index_of(byte_in);
-                        end if;
+                else
+                    have_start := false;
+                    start_len := 0;
+                    start_has_len := '0';
+                    if pending_start = '1' then
+                        have_start := true;
+                        start_len := pending_len;
+                        start_has_len := pending_has_len;
+                        pending_start <= '0';
+                    elsif frame_start = '1' then
+                        have_start := true;
+                        start_len := frame_len;
+                        start_has_len := frame_has_len;
+                    end if;
 
-                        if type_idx /= kUnknownType and
-                           fld_idx < kFieldCount(type_idx) then
-                            -- The end offset is tabulated rather than
-                            -- computed: `off < start + width` puts an
-                            -- adder in front of a comparator, and the
-                            -- first synthesis run said the adder was
-                            -- the decoder's critical path.
-                            if off >= kFieldOffset(type_idx, fld_idx) and
-                               off < kFieldEnd(type_idx, fld_idx) then
-                                if in_field = 0 then
-                                    acc := (others => '0');
-                                end if;
-                                acc := acc(55 downto 0) & byte_in;
-                                in_field := in_field + 1;
-                                if in_field = kFieldWidth(type_idx, fld_idx) then
-                                    flds(fld_idx) := acc;
-                                    fld_idx := fld_idx + 1;
-                                    in_field := 0;
-                                end if;
-                            end if;
-                        end if;
+                    if have_start then
+                        cyc := 0;
+                        off := 0;
+                        fld_idx := 0;
+                        in_field := 0;
+                        acc := (others => '0');
+                        flds := (others => (others => '0'));
+                        type_idx := kUnknownType;
+                        r_type_idx <= kUnknownType;
+                        finalizing <= '0';
+                        declared := start_len;
+                        r_declared <= start_len;
 
-                        if remaining = 1 then
-                            -- The last body byte. The body is complete,
-                            -- and the type is now known.
+                        if start_has_len = '0' then
+                            -- The length prefix could not be read at
+                            -- all. The frame is truncated at length
+                            -- zero, with no type: there is no tag byte
+                            -- on the wire.
                             busy <= '0';
-                            r_cycles <= cyc;
+                            r_status <= st_truncated;
+                            r_type <= (others => '0');
+                            r_has_type <= '0';
+                            r_field_count <= 0;
+                            r_cycles <= 0;
+                            r_done <= '1';
+                        elsif start_len = 0 then
+                            -- A body of zero bytes. The decoder stops
+                            -- before the tag, so there is no type -- but
+                            -- this is a BAD LENGTH, not a truncation:
+                            -- the frame declared a length and it was
+                            -- wrong.
+                            busy <= '0';
+                            r_status <= st_bad_length;
+                            r_type <= (others => '0');
+                            r_has_type <= '0';
+                            r_field_count <= 0;
+                            r_cycles <= 0;
+                            r_done <= '1';
+                        else
+                            busy <= '1';
+                            remaining := start_len;
+                        end if;
 
-                            if type_idx = kUnknownType then
-                                -- A well-formed frame of a type this
-                                -- build does not decode. The type is
-                                -- recorded, because a handler that
-                                -- skipped a frame needs to know what it
-                                -- skipped.
-                                r_status <= st_skipped;
+                    elsif busy = '1' then
+                        cyc := cyc + 1;
+
+                        if frame_trunc = '1' then
+                            -- The body ran short. The frame is truncated
+                            -- at its declared length, with no type.
+                            busy <= '0';
+                            finalizing <= '0';
+                            r_status <= st_truncated;
+                            r_type <= (others => '0');
+                            r_has_type <= '0';
+                            r_field_count <= 0;
+                            r_cycles <= cyc;
+                            r_done <= '1';
+
+                        elsif byte_valid = '1' then
+                            if off = 0 then
+                                r_type <= byte_in;
                                 r_has_type <= '1';
-                                r_field_count <= 0;
-                            elsif declared /= kBodyLength(type_idx) then
-                                -- The declared length disagrees with the
-                                -- type. The frame is not read as though
-                                -- its fields were laid out differently.
-                                r_status <= st_bad_length;
-                                r_has_type <= '1';
-                                r_field_count <= 0;
-                            elsif kOrderKeyed(type_idx) and
-                                  flds(3) = x"0000000000000000" then
-                                -- The message is keyed on an order
-                                -- reference and the reference is the
-                                -- reserved zero.
-                                r_status <= st_malformed;
-                                r_has_type <= '1';
-                                r_field_count <= 0;
-                            elsif type_idx = 0 and not side_is_valid(flds(4)) then
-                                -- An Add Order whose side byte is
-                                -- neither 'B' nor 'S'. Silently reading
-                                -- an unknown side as a bid corrupts the
-                                -- book in a way no downstream test would
-                                -- catch.
-                                r_status <= st_malformed;
-                                r_has_type <= '1';
-                                r_field_count <= 0;
-                            else
-                                r_status <= st_ok;
-                                r_has_type <= '1';
-                                r_field_count <= kFieldCount(type_idx);
+                                type_idx := type_index_of(byte_in);
+                                r_type_idx <= type_index_of(byte_in);
                             end if;
 
-                            r_done <= '1';
-                        end if;
+                            if type_idx /= kUnknownType and
+                               fld_idx < kFieldCount(type_idx) then
+                                -- The end offset is tabulated rather
+                                -- than computed: `off < start + width`
+                                -- puts an adder in front of a
+                                -- comparator, and the first synthesis
+                                -- run said the adder was the decoder's
+                                -- critical path.
+                                if off >= kFieldOffset(type_idx, fld_idx) and
+                                   off < kFieldEnd(type_idx, fld_idx) then
+                                    if in_field = 0 then
+                                        acc := (others => '0');
+                                    end if;
+                                    acc := acc(55 downto 0) & byte_in;
+                                    in_field := in_field + 1;
+                                    if in_field = kFieldWidth(type_idx, fld_idx) then
+                                        flds(fld_idx) := acc;
+                                        fld_idx := fld_idx + 1;
+                                        in_field := 0;
+                                    end if;
+                                end if;
+                            end if;
 
-                        if off < 63 then
-                            off := off + 1;
+                            if remaining = 1 then
+                                -- Last body byte. The fields are
+                                -- captured now; qualification happens
+                                -- on the next cycle.
+                                finalizing <= '1';
+                                r_cycles <= cyc;
+                            end if;
+
+                            if off < 63 then
+                                off := off + 1;
+                            end if;
+                            remaining := remaining - 1;
                         end if;
-                        remaining := remaining - 1;
                     end if;
                 end if;
             end if;
