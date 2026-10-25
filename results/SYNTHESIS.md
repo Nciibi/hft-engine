@@ -58,7 +58,7 @@ state. That is the cost of making the storage real; the cycle numbers
 above are not a speed claim against the behavioural model. The sparse
 behavioural book costs 41.75 cycles per message on the generated
 capture; the hardware core costs 83.66. On real messages the hardware
-core costs 311.2 cycles per message.
+core costs 311.15 cycles per message.
 
 Timing is a miss. The 85F run closes at **49.58 MHz**, not 100 MHz. The
 critical path starts at a block-RAM output and runs through the
