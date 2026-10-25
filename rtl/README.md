@@ -94,6 +94,8 @@ compares two files and reports the first difference, and nothing else.
 | **RTL against C++, over a capture cut mid-message** | done — 0 differences |
 | **Cycle-exact decode cost** | done — one cycle per body byte, measured |
 | **The RTL order book** | done — `hft_book.vhd`: order pool, sparse level list, dense grid, occupancy bitmap, sparse fallback |
+| **The synthesizable RTL book** | done - `hft_book_hw.vhd`: inferred block RAMs, 2.0 Mbit, 85F |
+| **Hardware book against the C++ book** | done - 0 differences on generated and real captures |
 | **The RTL book against the C++ book** | done — 0 differences in sparse, dense and fallback runs |
 | **Cycle-exact book cost** | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Both differentials over REAL Nasdaq messages** | done — decoder 70,208 messages, book 1,792 sparse and dense; 0 differences |
