@@ -453,9 +453,9 @@ begin
                     state := read_ret;
 
                 when st_probe_use =>
-                    if id_rdata.used = '0' or id_rdata.key = msg_id then
-                        if id_rdata.used = '1' and id_rdata.key = msg_id then
-                            probe_hit := id_rdata.live;
+                    if id_q.used = '0' or id_q.key = msg_id then
+                        if id_q.used = '1' and id_q.key = msg_id then
+                            probe_hit := id_q.live;
                         else
                             probe_hit := '0';
                         end if;
@@ -504,7 +504,7 @@ begin
                             stat := bs_unknown_order;
                             state := st_finish;
                         else
-                            work_order := id_rdata.handle;
+                            work_order := id_q.handle;
                             ord_raddr := work_order - 1;
                             read_ret := st_lookup_order_use;
                             state := st_read_wait;
@@ -512,9 +512,9 @@ begin
                     end if;
 
                 when st_walk_use =>
-                    if is_better(msg_side, lvl_rdata.price, msg_price) then
+                    if is_better(msg_side, lvl_q.price, msg_price) then
                         walk_prev := walk_cur;
-                        walk_cur := lvl_rdata.l_next;
+                        walk_cur := lvl_q.l_next;
                         if walk_cur = 0 then
                             state := st_new_level_alloc;
                         else
@@ -522,9 +522,9 @@ begin
                             read_ret := st_walk_use;
                             state := st_read_wait;
                         end if;
-                    elsif lvl_rdata.price = msg_price then
+                    elsif lvl_q.price = msg_price then
                         work_level := walk_cur;
-                        work_lvl := lvl_rdata;
+                        work_lvl := lvl_q;
                         state := st_order_write;
                     else
                         state := st_new_level_alloc;
@@ -570,7 +570,7 @@ begin
                     end if;
 
                 when st_link_prev_use =>
-                    lvl_wdata := lvl_rdata;
+                    lvl_wdata := lvl_q;
                     lvl_wdata.l_next := work_level;
                     lvl_waddr := walk_prev - 1;
                     lvl_we := '1';
@@ -583,7 +583,7 @@ begin
                     end if;
 
                 when st_link_next_use =>
-                    lvl_wdata := lvl_rdata;
+                    lvl_wdata := lvl_q;
                     lvl_wdata.l_prev := work_level;
                     lvl_waddr := walk_cur - 1;
                     lvl_we := '1';
@@ -618,7 +618,7 @@ begin
                     end if;
 
                 when st_order_tail_use =>
-                    ord_wdata := ord_rdata;
+                    ord_wdata := ord_q;
                     ord_wdata.q_next := work_order;
                     ord_waddr := work_lvl.tail - 1;
                     ord_we := '1';
@@ -645,59 +645,59 @@ begin
                     state := st_finish;
 
                 when st_lookup_order_use =>
-                    if ord_rdata.live = '0' then
+                    if ord_q.live = '0' then
                         stat := bs_unknown_order;
                         state := st_finish;
                     elsif op = op_remove then
                         detach_order := work_order;
-                        detach_level := ord_rdata.level;
-                        detach_size := ord_rdata.size;
-                        detach_side := ord_rdata.side;
+                        detach_level := ord_q.level;
+                        detach_size := ord_q.size;
+                        detach_side := ord_q.side;
                         detach_new_state := st_cancelled;
                         detach_after := da_finish;
-                        ord_wdata := ord_rdata;
+                        ord_wdata := ord_q;
                         ord_wdata.state := st_cancelled;
                         ord_wdata.live := '0';
                         ord_waddr := work_order - 1;
                         ord_we := '1';
-                        id_wdata := id_rdata;
+                        id_wdata := id_q;
                         id_wdata.live := '0';
                         id_waddr := probe_slot;
                         id_we := '1';
-                        lvl_raddr := ord_rdata.level - 1;
+                        lvl_raddr := ord_q.level - 1;
                         read_ret := st_detach_level_use;
                         state := st_read_wait;
                     elsif op = op_execute or op = op_cancel then
-                        if unsigned(msg_size) > unsigned(ord_rdata.size) then
+                        if unsigned(msg_size) > unsigned(ord_q.size) then
                             stat := bs_over_reduce;
                             state := st_finish;
-                        elsif msg_size = ord_rdata.size then
+                        elsif msg_size = ord_q.size then
                             detach_order := work_order;
-                            detach_level := ord_rdata.level;
-                            detach_size := ord_rdata.size;
-                            detach_side := ord_rdata.side;
+                            detach_level := ord_q.level;
+                            detach_size := ord_q.size;
+                            detach_side := ord_q.side;
                             detach_after := da_finish;
                             if op = op_execute then
                                 detach_new_state := st_executed;
                             else
                                 detach_new_state := st_cancelled;
                             end if;
-                            ord_wdata := ord_rdata;
+                            ord_wdata := ord_q;
                             ord_wdata.state := detach_new_state;
                             ord_wdata.live := '0';
                             ord_waddr := work_order - 1;
                             ord_we := '1';
-                            id_wdata := id_rdata;
+                            id_wdata := id_q;
                             id_wdata.live := '0';
                             id_waddr := probe_slot;
                             id_we := '1';
-                            lvl_raddr := ord_rdata.level - 1;
+                            lvl_raddr := ord_q.level - 1;
                             read_ret := st_detach_level_use;
                             state := st_read_wait;
                         else
-                            ord_wdata := ord_rdata;
+                            ord_wdata := ord_q;
                             ord_wdata.size := std_logic_vector(
-                                unsigned(ord_rdata.size) - unsigned(msg_size));
+                                unsigned(ord_q.size) - unsigned(msg_size));
                             if op = op_execute then
                                 ord_wdata.state := st_part_executed;
                             else
@@ -705,65 +705,65 @@ begin
                             end if;
                             ord_waddr := work_order - 1;
                             ord_we := '1';
-                            lvl_raddr := ord_rdata.level - 1;
+                            lvl_raddr := ord_q.level - 1;
                             read_ret := st_partial_level_use;
                             state := st_read_wait;
                         end if;
                     else
                         detach_order := work_order;
-                        detach_level := ord_rdata.level;
-                        detach_size := ord_rdata.size;
-                        detach_side := ord_rdata.side;
+                        detach_level := ord_q.level;
+                        detach_size := ord_q.size;
+                        detach_side := ord_q.side;
                         detach_new_state := st_superseded;
                         detach_after := da_replace;
-                        ord_wdata := ord_rdata;
+                        ord_wdata := ord_q;
                         ord_wdata.state := st_superseded;
                         ord_wdata.live := '0';
                         ord_waddr := work_order - 1;
                         ord_we := '1';
-                        id_wdata := id_rdata;
+                        id_wdata := id_q;
                         id_wdata.live := '0';
                         id_waddr := probe_slot;
                         id_we := '1';
-                        lvl_raddr := ord_rdata.level - 1;
+                        lvl_raddr := ord_q.level - 1;
                         read_ret := st_detach_level_use;
                         state := st_read_wait;
                     end if;
 
                 when st_partial_level_use =>
-                    lvl_wdata := lvl_rdata;
-                    lvl_wdata.aggregate := sat_sub(lvl_rdata.aggregate, msg_size);
-                    lvl_waddr := ord_rdata.level - 1;
+                    lvl_wdata := lvl_q;
+                    lvl_wdata.aggregate := sat_sub(lvl_q.aggregate, msg_size);
+                    lvl_waddr := ord_q.level - 1;
                     lvl_we := '1';
                     stat := bs_ok;
                     state := st_finish;
 
                 when st_detach_level_use =>
-                    lvl_wdata := lvl_rdata;
-                    if lvl_rdata.order_count = 0 then
+                    lvl_wdata := lvl_q;
+                    if lvl_q.order_count = 0 then
                         stat := bs_unknown_order;
                         state := st_finish;
                     else
-                        lvl_wdata.order_count := lvl_rdata.order_count - 1;
-                        lvl_wdata.aggregate := sat_sub(lvl_rdata.aggregate, detach_size);
+                        lvl_wdata.order_count := lvl_q.order_count - 1;
+                        lvl_wdata.aggregate := sat_sub(lvl_q.aggregate, detach_size);
                         lvl_waddr := detach_level - 1;
                         lvl_we := '1';
                         if lvl_wdata.order_count = 0 then
                             detach_lvl := lvl_wdata;
                             detach_lvl.live := '0';
                             lvl_wdata := detach_lvl;
-                            if lvl_rdata.l_prev /= 0 then
-                                lvl_raddr := lvl_rdata.l_prev - 1;
+                            if lvl_q.l_prev /= 0 then
+                                lvl_raddr := lvl_q.l_prev - 1;
                                 read_ret := st_detach_unlink_prev_use;
                                 state := st_read_wait;
                             else
-                                if lvl_rdata.side = '1' then
-                                    bid_head := lvl_rdata.l_next;
+                                if lvl_q.side = '1' then
+                                    bid_head := lvl_q.l_next;
                                 else
-                                    ask_head := lvl_rdata.l_next;
+                                    ask_head := lvl_q.l_next;
                                 end if;
-                                if lvl_rdata.l_next /= 0 then
-                                    lvl_raddr := lvl_rdata.l_next - 1;
+                                if lvl_q.l_next /= 0 then
+                                    lvl_raddr := lvl_q.l_next - 1;
                                     read_ret := st_detach_unlink_next_use;
                                     state := st_read_wait;
                                 else
@@ -776,7 +776,7 @@ begin
                     end if;
 
                 when st_detach_unlink_prev_use =>
-                    lvl_wdata := lvl_rdata;
+                    lvl_wdata := lvl_q;
                     lvl_wdata.l_next := detach_lvl.l_next;
                     lvl_waddr := detach_lvl.l_prev - 1;
                     lvl_we := '1';
@@ -789,7 +789,7 @@ begin
                     end if;
 
                 when st_detach_unlink_next_use =>
-                    lvl_wdata := lvl_rdata;
+                    lvl_wdata := lvl_q;
                     lvl_wdata.l_prev := detach_lvl.l_prev;
                     lvl_waddr := detach_lvl.l_next - 1;
                     lvl_we := '1';
@@ -820,14 +820,14 @@ begin
                 when st_dump_level_use =>
                     o_dump_valid <= '1';
                     o_dump_kind <= x"4C";
-                    o_dump_side <= side_char(lvl_rdata.side);
-                    o_dump_a <= lvl_rdata.price;
-                    o_dump_b <= lvl_rdata.aggregate;
+                    o_dump_side <= side_char(lvl_q.side);
+                    o_dump_a <= lvl_q.price;
+                    o_dump_b <= lvl_q.aggregate;
                     o_dump_c <= std_logic_vector(
-                        to_unsigned(lvl_rdata.order_count, 64));
+                        to_unsigned(lvl_q.order_count, 64));
                     o_dump_pos <= dump_position;
-                    dump_cur_order := lvl_rdata.head;
-                    dump_next_level := lvl_rdata.l_next;
+                    dump_cur_order := lvl_q.head;
+                    dump_next_level := lvl_q.l_next;
                     dump_position := 0;
                     if dump_cur_order /= 0 then
                         ord_raddr := dump_cur_order - 1;
@@ -838,18 +838,18 @@ begin
                     end if;
 
                 when st_dump_order_use =>
-                    if ord_rdata.live = '1' then
+                    if ord_q.live = '1' then
                         o_dump_valid <= '1';
                         o_dump_kind <= x"4F";
-                        o_dump_side <= side_char(ord_rdata.side);
-                        o_dump_a <= ord_rdata.id;
-                        o_dump_b <= ord_rdata.price;
-                        o_dump_c <= ord_rdata.size;
-                        o_dump_state <= ord_rdata.state;
+                        o_dump_side <= side_char(ord_q.side);
+                        o_dump_a <= ord_q.id;
+                        o_dump_b <= ord_q.price;
+                        o_dump_c <= ord_q.size;
+                        o_dump_state <= ord_q.state;
                         o_dump_pos <= dump_position;
                         dump_position := dump_position + 1;
                     end if;
-                    dump_cur_order := ord_rdata.q_next;
+                    dump_cur_order := ord_q.q_next;
                     if dump_cur_order /= 0 then
                         ord_raddr := dump_cur_order - 1;
                         read_ret := st_dump_order_use;
