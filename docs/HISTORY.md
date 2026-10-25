@@ -223,6 +223,33 @@ slots; a 100-unit tick needs a 1,000,001-slot band. The 1,792-message
 real slice run through that grid matches the sparse book, falls back for
 the prices not on the tick, and costs 10,284 cycles, 5.74 per message.
 
+**11. The book, in actual hardware.**
+The behavioural book was never synthesizable: its pools were process
+variables, so GHDL expanded them into registers rather than block RAM,
+and the dense bitmap scans used loop bounds the synthesizer rejects. The
+fix was not to bend the model; it was a second implementation.
+`hft_book_hw.vhd` keeps the same ports and dump format, but stores the
+order pool, level pool and reference index in synchronous arrays. GHDL
+infers three RAMs: 235 x 4,096 orders, 193 x 2,048 levels and 79 x 8,192
+index entries, about **2.0 Mbit** in total.
+
+The first dump disagreed in a useful way: the hardware book emitted 10
+records where the C++ emitted 974. The missing part was the level walk:
+the hardware dump always switched from bids to asks after the first
+level instead of following `l_next`. The C++ oracle had already developed
+the same structure, so the comparison found it in one run. With that
+fixed, the generated capture and the 1,792-message real slice both
+produce field-for-field identical dumps, and the real checksum is
+`95aa35f0045c196e` - the same one the behavioural model produces.
+
+The hardware core costs 83.66 cycles per message on the generated
+capture and 311.15 on the real slice, against 41.75 for the behavioural
+sparse book. That is the cost of one synchronous memory access per
+cycle, not a regression to hide. Synthesis needs an 85F: 110 DP16KDs
+(52% of the device), 4,349 LUT4s and 2,635 FFs. It closes at **49.58
+MHz** against the 100 MHz constraint. The miss is reported as a miss;
+the next step is to pipeline the read and dump paths.
+
 ---
 
 ## What the sequence actually argues
