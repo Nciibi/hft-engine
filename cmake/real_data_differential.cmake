@@ -231,6 +231,33 @@ if(NOT status EQUAL 0)
 endif()
 message(STATUS "  differential ...... the two books agree on every order, level and field")
 
+# The synthesizable core, over the same real messages. These are the
+# capacities the 85F synthesis run uses; the real slice fits them.
+
+execute_process(
+    COMMAND "${GHDL}" -r --std=08 "--workdir=${WORK}/ghdl" tb_book
+            "-gHEX_PATH=${WORK}/book.hex" "-gOUT_PATH=${rtl_hw_dump_path}"
+            "-gMAX_MSGS=16384" -gUSE_HW=true
+            -gORDERS=4096 -gLEVELS=2048 -gSLOTS=8192
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR "the hardware RTL book failed (${status}): ${output_text}${error_text}")
+endif()
+message(STATUS "  rtl hardware ...... ${output_text}")
+
+execute_process(
+    COMMAND "${HFT_BOOK_CHECK}" "${WORK}/cpp.dump" "${rtl_hw_dump_path}"
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR
+        "THE HARDWARE RTL AND THE C++ BOOK DISAGREE ON REAL DATA.\n${output_text}${error_text}")
+endif()
+message(STATUS "  hardware differential ...... the hardware and C++ books agree")
+
 # ---- 6. The same book through the dense grid --------------------------
 #
 # The band needs a tick wider than one raw unit for this data. It covers
