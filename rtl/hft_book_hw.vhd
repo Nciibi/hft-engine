@@ -201,7 +201,7 @@ architecture rtl of hft_book_hw is
         if unsigned(a) >= unsigned(b) then
             return std_logic_vector(unsigned(a) - unsigned(b));
         end if;
-        return (others => '0');
+        return std_logic_vector'(others => '0');
     end function;
 
     function side_is_bid(side_byte : std_logic_vector(63 downto 0)) return boolean is
