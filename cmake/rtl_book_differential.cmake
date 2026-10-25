@@ -158,6 +158,27 @@ message(STATUS "  rtl sparse ........ ${output_text}")
 read_cycles(sparse "${output_text}")
 check_books("sparse differential" "${WORK}/cpp.dump" "${rtl_sparse_path}")
 
+# ---- 4b. The synthesizable hardware book -------------------------------
+#
+# Same capture, same dump, different implementation. The hardware core
+# keeps its pools in BRAM-friendly arrays and takes one access per
+# cycle, so it is slower than the behavioural model; the comparison
+# here is correctness, not cycle count. Its capacities are the ones
+# the synthesis report uses.
+
+execute_process(
+    COMMAND "${GHDL}" -r --std=08 "--workdir=${WORK}/ghdl" tb_book
+            "-gHEX_PATH=${hex_path}" "-gOUT_PATH=${rtl_hw_path}"
+            -gUSE_HW=true -gORDERS=4096 -gLEVELS=2048 -gSLOTS=8192
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR "the hardware RTL simulation failed (${status}): ${output_text}${error_text}")
+endif()
+message(STATUS "  rtl hardware ...... ${output_text}")
+check_books("hardware differential" "${WORK}/cpp.dump" "${rtl_hw_path}")
+
 # ---- 5. The dense grid over the whole price range ----------------------
 
 execute_process(
