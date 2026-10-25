@@ -386,6 +386,7 @@ begin
 
                 when st_idle =>
                     if dump_start = '1' then
+                        dump_next_level := 0;
                         if bid_head /= 0 then
                             dump_walk_side := '1';
                             dump_cur_level := bid_head;
