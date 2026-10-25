@@ -185,6 +185,13 @@ architecture rtl of hft_book_hw is
     signal lvl_rdata : level_rec_t := zero_level;
     signal id_rdata  : id_entry_t := zero_id;
 
+    -- One fabric register after the EBR output. The EBR clock-to-q
+    -- alone is more than half a 100 MHz period on this part; the state
+    -- machine consumes these registered copies, not the array outputs.
+    signal ord_q : order_rec_t := zero_order;
+    signal lvl_q : level_rec_t := zero_level;
+    signal id_q  : id_entry_t := zero_id;
+
     function is_better(side : std_logic;
                        candidate : std_logic_vector(63 downto 0);
                        reference : std_logic_vector(63 downto 0)) return boolean is
