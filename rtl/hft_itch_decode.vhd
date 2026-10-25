@@ -124,7 +124,7 @@ begin
         variable fld_idx : natural range 0 to 9 := 0;
         variable in_field : natural range 0 to 8 := 0;
         variable acc : std_logic_vector(63 downto 0) := (others => '0');
-        variable off : natural range 0 to 63 := 0;
+        variable off : unsigned(5 downto 0) := (others => '0');
         variable remaining : natural range 0 to 65535 := 0;
         variable declared : natural range 0 to 65535 := 0;
         variable flds : field_array_t := (others => (others => '0'));
@@ -224,7 +224,7 @@ begin
 
                     if have_start then
                         cyc := 0;
-                        off := 0;
+                        off := (others => '0');
                         fld_idx := 0;
                         in_field := 0;
                         acc := (others => '0');
@@ -281,7 +281,7 @@ begin
                             r_done <= '1';
 
                         elsif byte_valid = '1' then
-                            if off = 0 then
+                            if off = to_unsigned(0, 6) then
                                 r_type <= byte_in;
                                 r_has_type <= '1';
                                 type_idx := type_index_of(byte_in);
@@ -296,8 +296,8 @@ begin
                                 -- comparator, and the first synthesis
                                 -- run said the adder was the decoder's
                                 -- critical path.
-                                if off >= kFieldOffset(type_idx, fld_idx) and
-                                   off < kFieldEnd(type_idx, fld_idx) then
+                                if off >= to_unsigned(kFieldOffset(type_idx, fld_idx), 6) and
+                                   off < to_unsigned(kFieldEnd(type_idx, fld_idx), 6) then
                                     if in_field = 0 then
                                         acc := (others => '0');
                                     end if;
@@ -319,7 +319,7 @@ begin
                                 r_cycles <= cyc;
                             end if;
 
-                            if off < 63 then
+                            if off /= to_unsigned(63, 6) then
                                 off := off + 1;
                             end if;
                             remaining := remaining - 1;
