@@ -126,6 +126,14 @@ foreach(top IN LISTS TOP)
         set(book_synthesised TRUE)
     endif()
 
+    if(top STREQUAL "hft_book_hw")
+        set(device_name "LFE5U-85F")
+        set(device_part "85k")
+    else()
+        set(device_name "LFE5U-25F")
+        set(device_part "25k")
+    endif()
+
     # 1. GHDL to Verilog.
     execute_process(
         COMMAND "${GHDL}" --synth --std=08 "--workdir=${WORK}" --out=verilog ${top}
