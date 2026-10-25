@@ -111,7 +111,7 @@ begin
         variable fld_idx : natural range 0 to 9 := 0;
         variable in_field : natural range 0 to 8 := 0;
         variable acc : std_logic_vector(63 downto 0) := (others => '0');
-        variable off : natural range 0 to 65535 := 0;
+        variable off : natural range 0 to 63 := 0;
         variable remaining : natural range 0 to 65535 := 0;
         variable declared : natural range 0 to 65535 := 0;
         variable flds : field_array_t := (others => (others => '0'));
