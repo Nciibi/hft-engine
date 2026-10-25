@@ -1,4 +1,4 @@
--- The ITCH decoder: a message body in, the extracted fields out.
+﻿-- The ITCH decoder: a message body in, the extracted fields out.
 --
 -- This is the RTL side's implementation of the decode rules, written
 -- from the Nasdaq TotalView-ITCH 5.0 interface specification and from
@@ -271,6 +271,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
