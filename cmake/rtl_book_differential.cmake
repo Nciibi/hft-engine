@@ -69,6 +69,7 @@ file(MAKE_DIRECTORY "${WORK}/ghdl")
 # Windows produces them. Forward slashes work everywhere.
 string(REPLACE "\\" "/" hex_path "${WORK}/capture.hex")
 string(REPLACE "\\" "/" rtl_sparse_path "${WORK}/rtl_sparse.dump")
+string(REPLACE "\\" "/" rtl_hw_path "${WORK}/rtl_hw.dump")
 string(REPLACE "\\" "/" rtl_dense_path "${WORK}/rtl_dense.dump")
 string(REPLACE "\\" "/" rtl_fallback_path "${WORK}/rtl_fallback.dump")
 
