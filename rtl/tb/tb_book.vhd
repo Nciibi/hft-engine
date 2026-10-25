@@ -55,7 +55,12 @@ entity tb_book is
         DENSE  : boolean := false;
         PRICE_FLOOR : natural := 0;
         PRICE_TICK  : positive := 1;
-        DENSE_SLOTS : positive := 4096
+        DENSE_SLOTS : positive := 4096;
+        -- The synthesizable hardware core. The default stays the
+        -- behavioural model: every existing cycle count and dump is a
+        -- behavioural result, and switching it silently would change
+        -- what those numbers mean.
+        USE_HW : boolean := false
     );
 end entity tb_book;
 
