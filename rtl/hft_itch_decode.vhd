@@ -121,6 +121,7 @@ begin
             if rst = '1' then
                 busy <= '0';
                 r_done <= '0';
+                r_fields <= flds;
                 r_status <= st_truncated;
                 r_type <= (others => '0');
                 r_has_type <= '0';
@@ -130,6 +131,7 @@ begin
                 r_cycles <= 0;
             else
                 r_done <= '0';
+                r_fields <= flds;
 
                 if frame_start = '1' then
                     cyc := 0;
@@ -256,7 +258,6 @@ begin
                                 r_status <= st_ok;
                                 r_has_type <= '1';
                                 r_field_count <= kFieldCount(type_idx);
-                                r_fields <= flds;
                             end if;
 
                             r_done <= '1';
@@ -271,6 +272,7 @@ begin
     end process;
 
 end architecture rtl;
+
 
 
 
