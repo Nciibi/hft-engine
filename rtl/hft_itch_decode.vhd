@@ -177,12 +177,12 @@ begin
                         r_status <= st_bad_length;
                         r_field_count <= 0;
                     elsif kOrderKeyed(r_type_idx) and
-                          r_fields(3) = x"0000000000000000" then
+                          flds(3) = x"0000000000000000" then
                         -- The message is keyed on an order reference
                         -- and the reference is the reserved zero.
                         r_status <= st_malformed;
                         r_field_count <= 0;
-                    elsif r_type_idx = 0 and not side_is_valid(r_fields(4)) then
+                    elsif r_type_idx = 0 and not side_is_valid(flds(4)) then
                         -- An Add Order whose side byte is neither 'B'
                         -- nor 'S'. Silently reading an unknown side as
                         -- a bid corrupts the book in a way no
