@@ -256,11 +256,11 @@ foreach(top IN LISTS TOP)
         set(fmax "${fmax} MHz")
     endif()
 
-    set(report "${report}| ${top} | ${lut4} | ${ff} | ${bram} | ${FREQ} MHz | ${fmax} | ${notes} |\n")
+    set(report "${report}| ${top} | ${device_name} | ${lut4} | ${ff} | ${bram} | ${FREQ} MHz | ${fmax} | ${notes} |\n")
 endforeach()
 
 if(NOT book_synthesised)
-    set(report "${report}| hft_book | - | - | - | ${FREQ} MHz | - | behavioural model; not synthesised (see rtl/README.md) |\n")
+    set(report "${report}| hft_book | LFE5U-25F | - | - | - | ${FREQ} MHz | - | behavioural model; not synthesised (see rtl/README.md) |\n")
 endif()
 
 file(WRITE "${REPORT}" "${report}")
