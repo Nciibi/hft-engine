@@ -411,6 +411,11 @@ side. Its field tables are a second transcription of the published field
 tables. It is written against VHDL-2008 and simulated with GHDL, which
 is free and needs no licence.
 
+The book also has a synthesizable core, `rtl/hft_book_hw.vhd`, with
+BRAM-friendly state and a read-wait state machine. The behavioural book
+is the cycle model; the hardware core is the one that maps to ECP5
+block RAM and is checked against the same C++ dump.
+
 **The two agree, field by field, on 2,000 messages.** The C++ engine and
 the RTL model produce byte-identical traces — every field of every
 record — and they agree again on a capture cut in the middle of a
