@@ -230,6 +230,9 @@ begin
                         off := (others => '0');
                         fld_idx := 0;
                         in_field := 0;
+                        cur_start := (others => '0');
+                        cur_end := (others => '0');
+                        cur_width := 0;
                         acc := (others => '0');
                         flds := (others => (others => '0'));
                         type_idx := kUnknownType;
