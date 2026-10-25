@@ -262,7 +262,9 @@ begin
                             r_done <= '1';
                         end if;
 
-                        off := off + 1;
+                        if off < 63 then
+                            off := off + 1;
+                        end if;
                         remaining := remaining - 1;
                     end if;
                 end if;
