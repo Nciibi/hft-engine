@@ -17,12 +17,15 @@
 # latency in software is a property of a machine. And an area figure is
 # the one number that says whether any of this is realisable at all.
 #
-# The order book is not synthesized by default. Its pools are process
-# variables, so no RAM is inferred, and the dense grid's bitmap scans
-# use loop bounds GHDL requires to be static. Pass HFT_SYNTH_BOOK=ON to
-# reproduce the failure. The report always carries the row, because
-# "this part of the model is not hardware yet" is a thing a reader
-# needs to know.
+# There are two books. `hft_book` is the behavioural model: its pools
+# are process variables and its dense bitmap scans use loop bounds GHDL
+# requires to be static, so it is not synthesized by default. Pass
+# HFT_SYNTH_BOOK=ON to reproduce that failure; the report always carries
+# the row. `hft_book_hw` is the hardware core: synchronous arrays,
+# inferred block RAM, and the same external interface. It needs an 85F
+# because its state is about 2 Mbit, so the device is chosen per top.
+# The report always carries the behavioural row, because "this part of
+# the model is not hardware" is a thing a reader needs to know.
 #
 # Invoked as:
 #   cmake -DGHDL=... -DYOSYS=... -DNEXTPNR=... -DRTL_DIR=... -DWORK=...
