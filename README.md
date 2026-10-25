@@ -372,7 +372,9 @@ $ ctest --test-dir build -R rtl_real -V
 
 The same book slice is replayed through the dense grid with a 100-unit
 tick and a 1,000,001-slot band. It matches the sparse reference and takes
-10,284 cycles, 5.74 per message.
+10,284 cycles, 5.74 per message. The same messages are also replayed
+through the synthesizable hardware core, which produces the identical
+checksum at 557,588 cycles, 311.15 per message.
 
 ## The hardware path
 
