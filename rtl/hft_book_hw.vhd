@@ -458,6 +458,12 @@ begin
                     end if;
 
                 when st_read_wait =>
+                    state := st_read_data;
+
+                when st_read_data =>
+                    id_q <= id_rdata;
+                    ord_q <= ord_rdata;
+                    lvl_q <= lvl_rdata;
                     state := read_ret;
 
                 when st_probe_use =>
