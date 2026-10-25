@@ -93,6 +93,19 @@ architecture rtl of hft_itch_decode is
     signal r_fields : field_array_t := (others => (others => '0'));
     signal r_cycles : natural range 0 to 65535 := 0;
 
+    -- The body is captured on its last byte and qualified on the next
+    -- cycle. The status tests compare 64-bit fields and a body length;
+    -- keeping them off the byte-parser cycle is what lets the parser
+    -- run at one byte per cycle on a 100 MHz clock.
+    signal finalizing : std_logic := '0';
+    signal r_type_idx : type_index_t := kUnknownType;
+
+    -- A frame start that arrives while the previous body is being
+    -- qualified is held here for one cycle.
+    signal pending_start : std_logic := '0';
+    signal pending_len : natural range 0 to 65535 := 0;
+    signal pending_has_len : std_logic := '0';
+
 begin
 
     done <= r_done;
