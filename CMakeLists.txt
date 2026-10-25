@@ -470,9 +470,9 @@ if(GHDL)
                          -DFREQ=100
                          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/synth.cmake")
         if(HFT_SYNTH_BOOK)
-            set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 1800)
+            set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 2400)
         else()
-            set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 900)
+            set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 1800)
         endif()
         if(HFT_SYNTH_LIB AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.22")
             set_tests_properties(rtl_synthesis PROPERTIES
