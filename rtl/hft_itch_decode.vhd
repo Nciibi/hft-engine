@@ -323,6 +323,9 @@ begin
                                 if type_idx /= kUnknownType and
                                    fld_idx < kFieldCount(type_idx) and
                                    off >= cur_start and off < cur_end then
+                                    if in_field = 0 then
+                                        acc := (others => '0');
+                                    end if;
                                     acc := acc(55 downto 0) & byte_in;
                                     in_field := in_field + 1;
                                     if in_field = cur_width then
