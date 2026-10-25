@@ -93,11 +93,11 @@ compares two files and reports the first difference, and nothing else.
 | **RTL against C++, 2,000 messages, field by field** | done — 0 differences |
 | **RTL against C++, over a capture cut mid-message** | done — 0 differences |
 | **Cycle-exact decode cost** | done — one cycle per body byte, measured |
-| **The RTL order book** | done — `hft_book.vhd` |
-| **The RTL book against the C++ book** | done — 0 differences over 974 records |
-| **Cycle-exact book cost** | done — 40.75 cycles per message, exact |
-| **Both differentials over REAL Nasdaq messages** | done — 70,208 messages, 0 differences |
-| Synthesis, area and timing | not started |
+| **The RTL order book** | done — `hft_book.vhd`: order pool, sparse level list, dense grid, occupancy bitmap, sparse fallback |
+| **The RTL book against the C++ book** | done — 0 differences in sparse, dense and fallback runs |
+| **Cycle-exact book cost** | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
+| **Both differentials over REAL Nasdaq messages** | done — decoder 70,208 messages, book 1,792 sparse and dense; 0 differences |
+| Synthesis, area and timing | done — framer 182.32 MHz, decoder 52.72 MHz; [`../results/SYNTHESIS.md`](../results/SYNTHESIS.md) |
 
 ## The result
 
@@ -108,8 +108,8 @@ $ ctest --test-dir build -R rtl -V
   differential ...... the two implementations agree on every record and field
 
   rtl book .......... rtl messages     1000
-  rtl book cycles  40750
-  rtl cycles/msg   40
+  rtl book cycles  41750
+  rtl cycles/msg   41
   rtl dump records 974
   rtl checksum     97a2bb9075066e99
   differential ...... the two books agree on every order, level and field
@@ -121,22 +121,33 @@ $ ctest --test-dir build -R rtl -V
 message, because the RTL decoder takes exactly one clock cycle per byte
 of message body, and the mean is the mean body length of the feed.
 
-**40,750 cycles to apply 1,000 messages to the book** — a mean of 40.75
-cycles per message. That number is dominated by the price walk, and it
-scales with the depth of the book exactly as an O(depth) walk must:
+**41,750 cycles to apply 1,000 messages to the sparse book** — a mean of
+41.75 cycles per message. That number is dominated by the price walk, and
+it scales with the depth of the book exactly as an O(depth) walk must.
+The dense grid removes the walk; it is flat at about 5.25 cycles per
+message across both depths:
 
-| Records | Levels per side | Cycles per message |
-|---|---|---|
-| 1,000 | ~240 | **40.75** |
-| 2,000 | ~440 | **70.40** |
+| Records | Levels per side | Sparse | Dense | Narrow-band fallback |
+|---|---|---|---|---|
+| 1,000 | ~240 | **41.75** | **5.28** | **25.96** |
+| 2,000 | ~440 | **71.40** | **5.25** | **40.52** |
 
-Both are properties of the *design*, not of the machine: they reproduce
-on any simulator, on any host, and they are checked in CI. The C++ can
-report the same phenomenon only as a ratio — `results/OPTIMIZATION.md`
-measures the sparse ladder's walk at up to 178x a touch insert at 3,200
-levels — and a ratio is a statement about a machine rather than about a
-design. Here the same number is a cycle count, and it says the dense
-grid is worth exactly `depth` cycles per add.
+The fallback figures use the same deliberately narrow band: in-band
+prices use the grid, the rest use the list, and the merged dump must
+still be in priority order. At 1,000 records the band costs 25.96 cycles
+per message; at 2,000 the book is deeper and more of it lies outside the
+band, so the cost rises to 40.52. That is what a bounded band should do,
+and it is why the differential runs all three cases rather than only the
+one that flatters the structure.
+
+These are properties of the *design*, not of the machine: they reproduce
+on any simulator, on any host. The 1,000-record cases are checked in CI;
+the 2,000-record figures come from the same script with `RECORDS=2000`.
+The C++ can report the same phenomenon only as a ratio —
+`results/OPTIMIZATION.md` measures the sparse ladder's walk at up to
+178x a touch insert at 3,200 levels — and a ratio is a statement about a
+machine rather than about a design. Here the same number is a cycle
+count.
 
 ## The same differential, over real market data
 
@@ -147,14 +158,26 @@ $ ctest --test-dir build -R rtl_real -V
   rtl decode ....... rtl trace records 70208
   rtl decode cycles1934929
   differential ...... the two decoders agree on every field of every real message
-  rtl book .......... rtl messages     3776
-  rtl book cycles  862519
+  rtl book .......... rtl messages     1792
+  rtl book cycles  279035
   differential ...... the two books agree on every order, level and field
+  rtl dense ......... rtl messages     1792
+  rtl dense cycles  10284
+  differential ...... the sparse and dense books agree on every order, level and field
 ```
 
-**70,208 real messages from the exchange**, and the RTL model and the
-C++ engine agree on every field of every one of them, and on the book
-they build.
+**70,208 real messages from the exchange**, and the RTL decoder and the
+C++ engine agree on every field of every one of them. The book
+differential uses a separate 64 KiB slice - 1,792 messages - because
+the sparse walk costs more per message as the real book deepens; the two
+books still agree on every order, level and field.
+
+The same slice also runs through the dense grid. Real prices span raw
+values 800 to 100,000,000, so that run uses a 100-unit tick and a
+1,000,001-slot band. Prices that do not fall on the tick, and prices
+outside the band, take the sparse fallback, so the merged dump is
+exercised on real messages too. It matches the sparse book and takes
+10,284 cycles, 5.74 per message.
 
 This is the test that found two defects that generated data could not:
 the Order Executed field table had a byte the message does not have, and
@@ -170,9 +193,13 @@ is not there.
 ## The order book
 
 The RTL book models the C++ book exactly: an order pool, a level pool,
-a price-ordered list of levels per side, a FIFO of orders within each
-level, and an open-addressed index from the ITCH order reference to the
-order.
+a FIFO of orders within each level, and an open-addressed index from the
+ITCH order reference to the order. Levels live either in a price-ordered
+sparse list or in a dense grid: a slot is
+`(price - PRICE_FLOOR) / PRICE_TICK`, the per-side occupancy bitmap
+makes the best level a bit scan, and prices outside the configured band
+fall back to the list. `DENSE` is off by default, so the original
+behaviour remains the regression path.
 
 **The index never erases.** ITCH order references are unique for the
 trading day, so a reference whose order has left the book will never
@@ -183,6 +210,14 @@ once every slot was occupied or tombstoned, and a book that traded a
 few hundred million shares would have stopped accepting orders. An
 insert-only table cannot wedge in that way, because it never needs to
 reclaim a slot.
+
+**The RTL grid takes `PRICE_FLOOR` and `PRICE_TICK` in raw price units.
+A price below the floor, outside the band, or not on a tick boundary is
+not addressable in the grid and falls back to the sparse list. The
+generated differential uses tick one; the real-data book also runs with
+a 100-unit tick and a 1,000,001-slot band, because its observed prices
+span 800 to 100,000,000 raw units. `PRICE_FLOOR` is a natural, so
+negative raw prices remain outside the model.**
 
 **The comparison is a dump, not a checksum.** A checksum says "these two
 states are equal"; a dump says "these two states are equal, and if they

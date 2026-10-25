@@ -30,6 +30,8 @@
 #      table that the wire disagrees with.
 #   4. DECODE it on both sides and compare, field by field.
 #   5. APPLY it to both books and compare, record by record.
+#   6. APPLY it again through the dense grid, with a tick wide enough
+#      for real prices, and compare against the sparse reference.
 #
 # Invoked as:
 #   cmake -DHFT_RTL_TRACE=... -DHFT_BOOK_DUMP=... -DHFT_BOOK_CHECK=...
@@ -51,6 +53,14 @@ file(MAKE_DIRECTORY "${WORK}/ghdl")
 string(REPLACE "\\" "/" hex_path "${WORK}/capture.hex")
 string(REPLACE "\\" "/" rtl_trace_path "${WORK}/rtl.trace")
 string(REPLACE "\\" "/" rtl_dump_path "${WORK}/rtl.dump")
+string(REPLACE "\\" "/" rtl_dense_dump_path "${WORK}/rtl_dense.dump")
+
+# The real book spans raw prices from 800 to 100,000,000, so the dense
+# run needs a tick wider than one raw unit. Prices that are not on a
+# 100-unit boundary are still correct: they take the sparse fallback.
+set(BOOK_DENSE_FLOOR 0)
+set(BOOK_DENSE_TICK 100)
+set(BOOK_DENSE_SLOTS 1000001)
 
 # ---- 1. The real data ------------------------------------------------
 
@@ -218,5 +228,60 @@ if(NOT status EQUAL 0)
         "THE RTL AND THE C++ BOOK DISAGREE ON REAL DATA.\n${output_text}${error_text}")
 endif()
 message(STATUS "  differential ...... the two books agree on every order, level and field")
+
+# ---- 6. The same book through the dense grid --------------------------
+#
+# The band needs a tick wider than one raw unit for this data. It covers
+# the whole observed price range; the few prices that do not sit on the
+# tick boundary take the sparse fallback, so this also exercises the
+# merged dump on real messages.
+
+execute_process(
+    COMMAND "${HFT_BOOK_DUMP}" "${WORK}/book_capture.itch" --out "${WORK}/cpp_dense.dump"
+            --dense --floor "${BOOK_DENSE_FLOOR}" --tick "${BOOK_DENSE_TICK}"
+            --ticks-per-side "${BOOK_DENSE_SLOTS}"
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR "hft_book_dump --dense failed (${status}): ${output_text}${error_text}")
+endif()
+message(STATUS "  c++ dense ......... ${output_text}")
+
+execute_process(
+    COMMAND "${HFT_BOOK_CHECK}" "${WORK}/cpp.dump" "${WORK}/cpp_dense.dump"
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR
+        "THE C++ DENSE AND SPARSE BOOKS DISAGREE ON REAL DATA.\n${output_text}${error_text}")
+endif()
+message(STATUS "  c++ dense differential ...... the dense and sparse C++ books agree")
+
+execute_process(
+    COMMAND "${GHDL}" -r --std=08 "--workdir=${WORK}/ghdl" tb_book
+            "-gHEX_PATH=${WORK}/book.hex" "-gOUT_PATH=${rtl_dense_dump_path}"
+            "-gMAX_MSGS=16384" "-gORDERS=32768" "-gLEVELS=8192" "-gSLOTS=65536"
+            "-gDENSE=true" "-gPRICE_FLOOR=${BOOK_DENSE_FLOOR}"
+            "-gPRICE_TICK=${BOOK_DENSE_TICK}" "-gDENSE_SLOTS=${BOOK_DENSE_SLOTS}"
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR "the dense RTL book failed (${status}): ${output_text}${error_text}")
+endif()
+message(STATUS "  rtl dense ......... ${output_text}")
+
+execute_process(
+    COMMAND "${HFT_BOOK_CHECK}" "${WORK}/cpp.dump" "${rtl_dense_dump_path}"
+    RESULT_VARIABLE status
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text)
+if(NOT status EQUAL 0)
+    message(FATAL_ERROR
+        "THE RTL AND THE C++ BOOKS DISAGREE ON REAL DATA (DENSE).\n${output_text}${error_text}")
+endif()
+message(STATUS "  differential ...... the sparse and dense books agree on every order, level and field")
 
 

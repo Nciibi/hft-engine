@@ -33,7 +33,9 @@
 //
 // Usage:
 //   hft_book_dump [capture] [--out <file>]
+//                [--dense --floor <raw> --tick <raw> --ticks-per-side <N>]
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -74,14 +76,44 @@ using hft::Side;
 int main(int argc, char** argv) {
     std::string capture_path;
     std::string out_path;
+    bool dense = false;
+    std::int64_t floor_raw = 0;
+    std::int64_t tick_raw = 1;
+    std::size_t ticks_per_side = 4096;
+
+    const auto need_value = [&](int& i, const char* name) -> const char* {
+        if (i + 1 >= argc) {
+            std::printf("%s needs a value\n", name);
+            std::exit(2);
+        }
+        return argv[++i];
+    };
+
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--out") {
-            if (i + 1 >= argc) {
-                std::printf("--out needs a value\n");
+            out_path = need_value(i, "--out");
+        } else if (arg == "--dense") {
+            dense = true;
+        } else if (arg == "--floor" || arg == "--tick" || arg == "--ticks-per-side") {
+            const char* value = need_value(i, arg.c_str());
+            char* end = nullptr;
+            const long long parsed = std::strtoll(value, &end, 10);
+            if (end == value || *end != '\0') {
+                std::printf("%s needs a number\n", arg.c_str());
                 return 2;
             }
-            out_path = argv[++i];
+            if (arg == "--floor") {
+                floor_raw = parsed;
+            } else if (arg == "--tick") {
+                tick_raw = parsed;
+            } else {
+                if (parsed <= 0) {
+                    std::printf("--ticks-per-side must be positive\n");
+                    return 2;
+                }
+                ticks_per_side = static_cast<std::size_t>(parsed);
+            }
         } else if (!arg.empty() && arg[0] == '-') {
             std::printf("unknown option %s\n", arg.c_str());
             return 2;
@@ -91,6 +123,15 @@ int main(int argc, char** argv) {
             std::printf("unexpected argument %s\n", arg.c_str());
             return 2;
         }
+    }
+
+    if (tick_raw <= 0) {
+        std::printf("--tick must be positive\n");
+        return 2;
+    }
+    if (ticks_per_side == 0) {
+        std::printf("--ticks-per-side must be positive\n");
+        return 2;
     }
 
     std::vector<std::uint8_t> capture;
@@ -122,7 +163,21 @@ int main(int argc, char** argv) {
         capture = hft::feed::generate_capture(config, &stats);
     }
 
-    hft::lob::OrderBook book(1u << 20, 1u << 16);
+    hft::lob::LadderConfig ladder;
+    ladder.dense = dense;
+    ladder.floor_price = hft::Price::from_raw(floor_raw);
+    ladder.tick = tick_raw;
+    ladder.ticks_per_side = ticks_per_side;
+
+    hft::lob::OrderBook book(1u << 20, 1u << 16, 0, ladder);
+    if (dense) {
+        std::printf("ladder            dense floor %lld tick %lld slots %zu\n",
+                    static_cast<long long>(floor_raw), static_cast<long long>(tick_raw),
+                    ticks_per_side);
+    } else {
+        std::printf("ladder            sparse\n");
+    }
+
     hft::feed::CaptureReader reader(capture.data(), capture.size());
 
     const std::uint8_t* frame = nullptr;

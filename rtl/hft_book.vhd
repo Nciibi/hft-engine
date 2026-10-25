@@ -10,8 +10,10 @@
 -- The C++ book has two ladders: a sparse one, which is a hash index
 -- for the price plus a price-ordered list of levels, and a dense one,
 -- which is a direct-indexed grid with an occupancy bitmap. This models
--- the SPARSE one, because that is the default and because a dump of
--- the two must be comparable without configuring either.
+-- both. DENSE selects the grid; with it off the book uses the sparse
+-- list, which is the default and the regression path. The dump is the
+-- same either way, so the two sides stay comparable without configuring
+-- either.
 --
 -- So the structures are:
 --
@@ -53,11 +55,12 @@
 --
 -- ---- The cost, stated plainly ---------------------------------------
 --
--- Finding a price is a walk down the list, and the walk is O(depth).
--- The C++ has the same asymptotics for its sparse ladder and
--- measures the walk at up to 178x a touch insert at 3,200 levels; the
--- dense grid is what removes it. Here the walk costs one clock cycle
--- per level, so the same number that the C++ reports as a ratio is
+-- With DENSE off, finding a price is a walk down the list, and the walk
+-- is O(depth). The C++ has the same asymptotics for its sparse ladder
+-- and measures the walk at up to 178x a touch insert at 3,200 levels;
+-- with DENSE on, the grid removes it, and the best and next slots come
+-- from an occupancy bitmap. With the grid off the walk costs one clock
+-- cycle per level, so the same number that the C++ reports as a ratio is
 -- here a cycle count.
 --
 -- That is the honest result and it is a useful one: it says the dense
@@ -84,7 +87,11 @@ entity hft_book is
     generic (
         MAX_ORDERS  : positive := 4096;
         MAX_LEVELS  : positive := 2048;
-        TABLE_SLOTS : positive := 8192
+        TABLE_SLOTS : positive := 8192;
+        DENSE       : boolean := false;
+        PRICE_FLOOR : natural := 0;
+        PRICE_TICK  : positive := 1;
+        DENSE_SLOTS : positive := 4096
     );
     port (
         clk : in std_logic;
@@ -159,6 +166,24 @@ architecture rtl of hft_book is
     type level_pool_t is array (0 to MAX_LEVELS - 1) of level_rec_t;
     type id_table_t is array (0 to TABLE_SLOTS - 1) of id_entry_t;
 
+    -- ---- The dense price grid -----------------------------------------
+    --
+    -- A level is found by arithmetic on the price instead of by walking
+    -- the sparse list. The grid covers a contiguous band of prices that
+    -- lie on PRICE_TICK boundaries. A price outside the band, or one
+    -- that is not on a tick boundary, falls back to the list, so the
+    -- book is still correct when the market moves past the configured
+    -- window or uses a finer price than the grid.
+    --
+    -- A slot stores the same handle the sparse list stores, and zero
+    -- means empty. The bitmap answers "is any slot in this 64-price
+    -- word occupied?", so finding the best dense price does not walk
+    -- the slot array. The hint is the extreme occupied word: the
+    -- highest word for a bid, the lowest for an ask.
+    constant DENSE_WORDS : positive := (DENSE_SLOTS + 63) / 64;
+    type dense_slot_t is array (0 to DENSE_SLOTS - 1) of natural range 0 to MAX_LEVELS;
+    type dense_bits_t is array (0 to DENSE_WORDS - 1) of std_logic_vector(63 downto 0);
+
     -- ---- The state machine --------------------------------------------
 
     type op_t is (op_none, op_add, op_execute, op_cancel, op_remove, op_replace);
@@ -211,6 +236,126 @@ architecture rtl of hft_book is
             return unsigned(candidate) > unsigned(reference);
         end if;
         return unsigned(candidate) < unsigned(reference);
+    end function;
+
+    function is_zero(word : std_logic_vector(63 downto 0)) return boolean is
+    begin
+        return word = (word'range => '0');
+    end function;
+
+    function lowest_set_bit(word : std_logic_vector(63 downto 0)) return natural is
+    begin
+        for b in 0 to 63 loop
+            if word(b) = '1' then
+                return b;
+            end if;
+        end loop;
+        return 0;
+    end function;
+
+    function highest_set_bit(word : std_logic_vector(63 downto 0)) return natural is
+    begin
+        for b in 63 downto 0 loop
+            if word(b) = '1' then
+                return b;
+            end if;
+        end loop;
+        return 0;
+    end function;
+
+    -- The slot for a price, offset by one so that zero means "outside
+    -- the dense band". PRICE_FLOOR and PRICE_TICK are expressed in raw
+    -- price units, the same units the wire carries. A price that is not
+    -- on a tick boundary is not addressable in a grid, so it falls back
+    -- to the sparse list rather than being rounded to a neighbour.
+    function ladder_slot(price : std_logic_vector(63 downto 0)) return natural is
+        constant tick_width : unsigned(63 downto 0) := to_unsigned(PRICE_TICK, 64);
+        variable offset : unsigned(63 downto 0);
+    begin
+        if not DENSE then
+            return 0;
+        end if;
+        if unsigned(price) < to_unsigned(PRICE_FLOOR, 64) then
+            return 0;
+        end if;
+        offset := unsigned(price) - to_unsigned(PRICE_FLOOR, 64);
+        if offset mod tick_width /= to_unsigned(0, 64) then
+            return 0;
+        end if;
+        offset := offset / tick_width;
+        if offset >= to_unsigned(DENSE_SLOTS, 64) then
+            return 0;
+        end if;
+        return to_integer(offset) + 1;
+    end function;
+
+    -- The best occupied slot on a side, offset by one. The hint is the
+    -- extreme word, so the scan starts at the end that can win instead
+    -- of at the start of the grid.
+    function best_dense_slot(bits : dense_bits_t;
+                             side : std_logic;
+                             hint : natural range 0 to DENSE_WORDS) return natural is
+    begin
+        if hint = 0 then
+            return 0;
+        end if;
+        if side = '1' then
+            for w in hint - 1 downto 0 loop
+                if not is_zero(bits(w)) then
+                    return w * 64 + highest_set_bit(bits(w)) + 1;
+                end if;
+            end loop;
+        else
+            for w in hint - 1 to DENSE_WORDS - 1 loop
+                if not is_zero(bits(w)) then
+                    return w * 64 + lowest_set_bit(bits(w)) + 1;
+                end if;
+            end loop;
+        end if;
+        return 0;
+    end function;
+
+    -- The next occupied slot after `from_slot`, in price priority order.
+    -- This is the dense-grid equivalent of following a level's l_next.
+    function next_dense_slot(bits : dense_bits_t;
+                             from_slot : natural;
+                             side : std_logic) return natural is
+        variable slot_index : natural;
+        variable word_index : natural;
+    begin
+        if from_slot = 0 then
+            return 0;
+        end if;
+        slot_index := from_slot - 1;
+        word_index := slot_index / 64;
+        if side = '1' then
+            for b in (slot_index mod 64) - 1 downto 0 loop
+                if bits(word_index)(b) = '1' then
+                    return word_index * 64 + b + 1;
+                end if;
+            end loop;
+            if word_index > 0 then
+                for w in word_index - 1 downto 0 loop
+                    if not is_zero(bits(w)) then
+                        return w * 64 + highest_set_bit(bits(w)) + 1;
+                    end if;
+                end loop;
+            end if;
+        else
+            for b in (slot_index mod 64) + 1 to 63 loop
+                if bits(word_index)(b) = '1' then
+                    return word_index * 64 + b + 1;
+                end if;
+            end loop;
+            if word_index + 1 < DENSE_WORDS then
+                for w in word_index + 1 to DENSE_WORDS - 1 loop
+                    if not is_zero(bits(w)) then
+                        return w * 64 + lowest_set_bit(bits(w)) + 1;
+                    end if;
+                end loop;
+            end if;
+        end if;
+        return 0;
     end function;
 
     -- The side byte, as the wire carries it: 'B' or 'S'.
@@ -281,6 +426,13 @@ begin
         variable levels : level_pool_t;
         variable id_tab : id_table_t;
 
+        variable bid_slots : dense_slot_t;
+        variable ask_slots : dense_slot_t;
+        variable bid_bits : dense_bits_t;
+        variable ask_bits : dense_bits_t;
+        variable bid_hint : natural range 0 to DENSE_WORDS := 0;
+        variable ask_hint : natural range 0 to DENSE_WORDS := 0;
+
         variable order_free : natural range 0 to MAX_ORDERS := 0;
         variable level_free : natural range 0 to MAX_LEVELS := 0;
         variable bid_head : natural range 0 to MAX_LEVELS := 0;
@@ -314,16 +466,25 @@ begin
         variable walk_cur : natural range 0 to MAX_LEVELS := 0;
         variable walk_prev : natural range 0 to MAX_LEVELS := 0;
         variable walk_level : natural range 0 to MAX_LEVELS := 0;
+        variable work_slot : natural range 0 to DENSE_SLOTS := 0;
+        variable level_slot : natural range 0 to DENSE_SLOTS := 0;
+        variable level_is_dense : boolean := false;
 
         -- The order being worked on.
         variable work_order : natural range 0 to MAX_ORDERS := 0;
         variable work_level : natural range 0 to MAX_LEVELS := 0;
 
-        -- The dump walk.
+        -- The dump walk. A sparse level is followed through l_next; a
+        -- dense level is followed through the bitmap. The two sources
+        -- are merged so the dump is still in price priority order.
         variable dump_cur_level : natural range 0 to MAX_LEVELS := 0;
         variable dump_cur_order : natural range 0 to MAX_ORDERS := 0;
         variable dump_walk_side : std_logic := '0';
         variable dump_position : natural := 0;
+        variable dump_sparse_level : natural range 0 to MAX_LEVELS := 0;
+        variable dump_dense_slot : natural range 0 to DENSE_SLOTS := 0;
+        variable dump_cur_dense : std_logic := '0';
+        variable picked_level : natural range 0 to MAX_LEVELS := 0;
 
     begin
         if rising_edge(clk) then
@@ -358,8 +519,24 @@ begin
                     id_tab(i).key := (others => '0');
                 end loop;
 
+                for i in 0 to DENSE_SLOTS - 1 loop
+                    bid_slots(i) := 0;
+                    ask_slots(i) := 0;
+                end loop;
+                for i in 0 to DENSE_WORDS - 1 loop
+                    bid_bits(i) := (others => '0');
+                    ask_bits(i) := (others => '0');
+                end loop;
+
                 bid_head := 0;
                 ask_head := 0;
+                bid_hint := 0;
+                ask_hint := 0;
+                dump_cur_level := 0;
+                dump_cur_order := 0;
+                dump_sparse_level := 0;
+                dump_dense_slot := 0;
+                dump_cur_dense := '0';
                 state := st_idle;
                 o_done  <= '0';
                 o_status  <= bs_ok;
@@ -387,7 +564,11 @@ begin
                     when st_idle =>
                         if dump_start = '1' then
                             dump_walk_side := '0';
-                            dump_cur_level := bid_head;
+                            dump_cur_level := 0;
+                            dump_cur_order := 0;
+                            dump_sparse_level := bid_head;
+                            dump_dense_slot := best_dense_slot(bid_bits, '1', bid_hint);
+                            dump_cur_dense := '0';
                             dump_position := 0;
                             state := st_dump_level;
                         elsif apply_start = '1' then
@@ -506,16 +687,31 @@ begin
                                 o_status <= bs_zero_size;
                                 state := st_finish;
                             else
-                                -- Walk the level list to find where
-                                -- this price goes.
+                                -- In-band prices go straight to their
+                                -- grid slot; everything else walks the
+                                -- sparse list.
                                 walk_cur := 0;
                                 walk_prev := 0;
-                                if msg_side = '1' then
-                                    walk_cur := bid_head;
+                                work_slot := ladder_slot(msg_price);
+                                if work_slot /= 0 then
+                                    if msg_side = '1' then
+                                        walk_level := bid_slots(work_slot - 1);
+                                    else
+                                        walk_level := ask_slots(work_slot - 1);
+                                    end if;
+                                    if walk_level /= 0 then
+                                        state := st_new_order;
+                                    else
+                                        state := st_new_level;
+                                    end if;
                                 else
-                                    walk_cur := ask_head;
+                                    if msg_side = '1' then
+                                        walk_cur := bid_head;
+                                    else
+                                        walk_cur := ask_head;
+                                    end if;
+                                    state := st_walk;
                                 end if;
-                                state := st_walk;
                             end if;
                         else
                             -- A lookup: execute, cancel, remove or
@@ -576,22 +772,45 @@ begin
                             levels(walk_level - 1).tail := 0;
                             levels(walk_level - 1).order_count := 0;
                             levels(walk_level - 1).aggregate := (others => '0');
-                            levels(walk_level - 1).l_prev := walk_prev;
-                            levels(walk_level - 1).l_next := walk_cur;
+                            levels(walk_level - 1).l_prev := 0;
+                            levels(walk_level - 1).l_next := 0;
                             levels(walk_level - 1).side := msg_side;
                             levels(walk_level - 1).live := '1';
 
-                            if walk_prev = 0 then
+                            if work_slot /= 0 then
+                                -- The level lives in the dense grid and
+                                -- not in the sparse list.
                                 if msg_side = '1' then
-                                    bid_head := walk_level;
+                                    bid_slots(work_slot - 1) := walk_level;
+                                    bid_bits((work_slot - 1) / 64)((work_slot - 1) mod 64) := '1';
+                                    if bid_hint = 0 or ((work_slot - 1) / 64) + 1 > bid_hint then
+                                        bid_hint := ((work_slot - 1) / 64) + 1;
+                                    end if;
                                 else
-                                    ask_head := walk_level;
+                                    ask_slots(work_slot - 1) := walk_level;
+                                    ask_bits((work_slot - 1) / 64)((work_slot - 1) mod 64) := '1';
+                                    if ask_hint = 0 or ((work_slot - 1) / 64) + 1 < ask_hint then
+                                        ask_hint := ((work_slot - 1) / 64) + 1;
+                                    end if;
                                 end if;
                             else
-                                levels(walk_prev - 1).l_next := walk_level;
-                            end if;
-                            if walk_cur /= 0 then
-                                levels(walk_cur - 1).l_prev := walk_level;
+                                -- The level is outside the dense band:
+                                -- link it into the sparse priority list.
+                                levels(walk_level - 1).l_prev := walk_prev;
+                                levels(walk_level - 1).l_next := walk_cur;
+
+                                if walk_prev = 0 then
+                                    if msg_side = '1' then
+                                        bid_head := walk_level;
+                                    else
+                                        ask_head := walk_level;
+                                    end if;
+                                else
+                                    levels(walk_prev - 1).l_next := walk_level;
+                                end if;
+                                if walk_cur /= 0 then
+                                    levels(walk_cur - 1).l_prev := walk_level;
+                                end if;
                             end if;
 
                             state := st_new_order;
@@ -734,18 +953,60 @@ begin
                             levels(work_level - 1).order_count - 1;
 
                         if levels(work_level - 1).order_count = 0 then
-                            -- The level is empty: unlink it.
-                            if levels(work_level - 1).l_prev = 0 then
+                            -- The level is empty: unlink it from whichever
+                            -- structure owns it.
+                            level_slot := ladder_slot(levels(work_level - 1).price);
+                            level_is_dense := false;
+                            if level_slot /= 0 then
+                                if (levels(work_level - 1).side = '1' and
+                                    bid_slots(level_slot - 1) = work_level) or
+                                   (levels(work_level - 1).side = '0' and
+                                    ask_slots(level_slot - 1) = work_level) then
+                                    level_is_dense := true;
+                                end if;
+                            end if;
+                            if level_is_dense then
                                 if levels(work_level - 1).side = '1' then
-                                    bid_head := levels(work_level - 1).l_next;
+                                    bid_slots(level_slot - 1) := 0;
+                                    bid_bits((level_slot - 1) / 64)((level_slot - 1) mod 64) := '0';
+                                    if bid_hint = ((level_slot - 1) / 64) + 1 and
+                                       is_zero(bid_bits((level_slot - 1) / 64)) then
+                                        bid_hint := 0;
+                                        for w in ((level_slot - 1) / 64) - 1 downto 0 loop
+                                            if not is_zero(bid_bits(w)) then
+                                                bid_hint := w + 1;
+                                                exit;
+                                            end if;
+                                        end loop;
+                                    end if;
                                 else
-                                    ask_head := levels(work_level - 1).l_next;
+                                    ask_slots(level_slot - 1) := 0;
+                                    ask_bits((level_slot - 1) / 64)((level_slot - 1) mod 64) := '0';
+                                    if ask_hint = ((level_slot - 1) / 64) + 1 and
+                                       is_zero(ask_bits((level_slot - 1) / 64)) then
+                                        ask_hint := 0;
+                                        for w in ((level_slot - 1) / 64) + 1 to DENSE_WORDS - 1 loop
+                                            if not is_zero(ask_bits(w)) then
+                                                ask_hint := w + 1;
+                                                exit;
+                                            end if;
+                                        end loop;
+                                    end if;
                                 end if;
                             else
-                                levels(levels(work_level - 1).l_prev - 1).l_next := levels(work_level - 1).l_next;
-                            end if;
-                            if levels(work_level - 1).l_next /= 0 then
-                                levels(levels(work_level - 1).l_next - 1).l_prev := levels(work_level - 1).l_prev;
+                                -- A sparse level: unlink it from the list.
+                                if levels(work_level - 1).l_prev = 0 then
+                                    if levels(work_level - 1).side = '1' then
+                                        bid_head := levels(work_level - 1).l_next;
+                                    else
+                                        ask_head := levels(work_level - 1).l_next;
+                                    end if;
+                                else
+                                    levels(levels(work_level - 1).l_prev - 1).l_next := levels(work_level - 1).l_next;
+                                end if;
+                                if levels(work_level - 1).l_next /= 0 then
+                                    levels(levels(work_level - 1).l_next - 1).l_prev := levels(work_level - 1).l_prev;
+                                end if;
                             end if;
                             levels(work_level - 1).live := '0';
                             levels(work_level - 1).l_next := level_free;
@@ -788,31 +1049,81 @@ begin
 
                     when st_dump_level =>
                         if dump_cur_level = 0 then
-                            -- The side is finished.
-                            if dump_walk_side = '0' then
-                                dump_walk_side := '1';
-                                dump_cur_level := ask_head;
-                                state := st_dump_level;
+                            if dump_dense_slot = 0 and dump_sparse_level = 0 then
+                                -- The side is finished.
+                                if dump_walk_side = '0' then
+                                    dump_walk_side := '1';
+                                    dump_sparse_level := ask_head;
+                                    dump_dense_slot := best_dense_slot(ask_bits, '0', ask_hint);
+                                    state := st_dump_level;
+                                else
+                                    o_dump_done  <= '1';
+                                    state := st_idle;
+                                end if;
                             else
-                                o_dump_done  <= '1';
-                                state := st_idle;
+                                -- Pick the better of the next dense level
+                                -- and the next sparse level.
+                                if dump_dense_slot = 0 then
+                                    dump_cur_level := dump_sparse_level;
+                                    dump_cur_dense := '0';
+                                elsif dump_sparse_level = 0 then
+                                    if dump_walk_side = '0' then
+                                        dump_cur_level := bid_slots(dump_dense_slot - 1);
+                                    else
+                                        dump_cur_level := ask_slots(dump_dense_slot - 1);
+                                    end if;
+                                    dump_cur_dense := '1';
+                                else
+                                    if dump_walk_side = '0' then
+                                        picked_level := bid_slots(dump_dense_slot - 1);
+                                        if is_better('1',
+                                                     levels(picked_level - 1).price,
+                                                     levels(dump_sparse_level - 1).price) then
+                                            dump_cur_level := picked_level;
+                                            dump_cur_dense := '1';
+                                        else
+                                            dump_cur_level := dump_sparse_level;
+                                            dump_cur_dense := '0';
+                                        end if;
+                                    else
+                                        picked_level := ask_slots(dump_dense_slot - 1);
+                                        if is_better('0',
+                                                     levels(picked_level - 1).price,
+                                                     levels(dump_sparse_level - 1).price) then
+                                            dump_cur_level := picked_level;
+                                            dump_cur_dense := '1';
+                                        else
+                                            dump_cur_level := dump_sparse_level;
+                                            dump_cur_dense := '0';
+                                        end if;
+                                    end if;
+                                end if;
+
+                                o_dump_valid  <= '1';
+                                o_dump_kind  <= x"4C";
+                                o_dump_side  <= side_char(levels(dump_cur_level - 1).side);
+                                o_dump_a  <= levels(dump_cur_level - 1).price;
+                                o_dump_b  <= levels(dump_cur_level - 1).aggregate;
+                                o_dump_c  <= std_logic_vector(
+                                    to_unsigned(levels(dump_cur_level - 1).order_count, 64));
+                                dump_cur_order := levels(dump_cur_level - 1).head;
+                                dump_position := 0;
+                                state := st_dump_order;
                             end if;
-                        else
-                            o_dump_valid  <= '1';
-                            o_dump_kind  <= x"4C";
-                            o_dump_side  <= side_char(levels(dump_cur_level - 1).side);
-                            o_dump_a  <= levels(dump_cur_level - 1).price;
-                            o_dump_b  <= levels(dump_cur_level - 1).aggregate;
-                            o_dump_c  <= std_logic_vector(
-                                to_unsigned(levels(dump_cur_level - 1).order_count, 64));
-                            dump_cur_order := levels(dump_cur_level - 1).head;
-                            dump_position := 0;
-                            state := st_dump_order;
                         end if;
 
                     when st_dump_order =>
                         if dump_cur_order = 0 then
-                            dump_cur_level := levels(dump_cur_level - 1).l_next;
+                            if dump_cur_dense = '1' then
+                                if levels(dump_cur_level - 1).side = '1' then
+                                    dump_dense_slot := next_dense_slot(bid_bits, dump_dense_slot, '1');
+                                else
+                                    dump_dense_slot := next_dense_slot(ask_bits, dump_dense_slot, '0');
+                                end if;
+                            else
+                                dump_sparse_level := levels(dump_cur_level - 1).l_next;
+                            end if;
+                            dump_cur_level := 0;
                             state := st_dump_level;
                         else
                             o_dump_valid  <= '1';

@@ -41,6 +41,7 @@ documents below, which is where the actual argument lives.
 | [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
 | [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md) | The optimisation log, **including the two changes that were measured, failed, and reverted**. |
 | [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why the **latency** table is withheld while throughput and ratios are published. |
+| [`results/SYNTHESIS.md`](results/SYNTHESIS.md) | ECP5 area and timing: what the flow measures, what it refuses to round up, and why the book is not synthesised. |
 
 ## Contents
 
@@ -228,7 +229,7 @@ Three things are now true that were not:
 | Invariant-TSC determination across physical cores | done |
 | Timer unit regression test (caught a 100x error) | done |
 | `FlatMap` tombstone reclamation (fixed a permanent wedge) | done |
-| **Dense price ladder + occupancy bitmap** (removed the O(depth) walk) | done |
+| **C++ dense price ladder + occupancy bitmap** (removed the O(depth) walk) | done |
 | Price-ladder O(depth) walk, quantified | done |
 | **Decode trace format**, specified in prose, two implementations | done — [`rtl/TRACE_FORMAT.md`](rtl/TRACE_FORMAT.md) |
 | **Trace generator, comparator, and reference capture walk** | done |
@@ -237,10 +238,11 @@ Three things are now true that were not:
 | **RTL against C++, field by field, 2,000 messages** | done — 0 differences |
 | RTL against C++, over a capture cut mid-message | done — 0 differences |
 | Cycle-exact decode cost | done — one cycle per body byte, measured |
-| **RTL order book** | done — order pool, price ladder, per-level queue, reference index |
-| **RTL book against the C++ book**, every order and every field | done — 0 differences |
-| Cycle-exact book cost | done — 40.75 cycles per message, exact |
-| Synthesis, area and timing | not started |
+| **RTL order book** | done — order pool, sparse price ladder, per-level queue, reference index |
+| **RTL dense price grid + occupancy bitmap**, with sparse fallback | done — 0 differences; 5.28 cycles/message |
+| **RTL book against the C++ book**, every order and every field | done — 0 differences in sparse, dense and fallback runs |
+| Cycle-exact book cost | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
+| Synthesis, area and timing | done — framer 182.32 MHz, decoder 52.72 MHz; [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
@@ -344,20 +346,29 @@ The check is now a test, and it is in CI:
   declared length against the length the field table says its type must
   have. It is the check that would have found the Order Executed bug on
   the day it was written.
-- **tl_real_data_differential** fetches a slice of the real archive,
-  frames it, checks the field tables against the wire, and runs BOTH
-  differentials over it -- the decoder and the order book. It skips
-  itself when the network is not there, because a missing network is not
-  a wrong answer.
+- **rtl_real_data_differential** fetches a slice of the real archive,
+  frames it, checks the field tables against the wire, and runs both
+  differentials: the decoder over 70,208 messages and the book over a
+  1,792-message slice, sparse and dense. It skips itself when the
+  network is not there, because a missing network is not a wrong answer.
 
-`
+```
 $ ctest --test-dir build -R rtl_real -V
   real data ........ fetching 4194304 compressed bytes from the Nasdaq ITCH archive
   field tables ..... every decoded type has the length the table says
   rtl decode ....... rtl trace records 70208
   differential ...... the two decoders agree on every field of every real message
+  rtl book .......... rtl messages     1792
+  rtl book cycles  279035
   differential ...... the two books agree on every order, level and field
-`
+  rtl dense ......... rtl messages     1792
+  rtl dense cycles  10284
+  differential ...... the sparse and dense books agree on every order, level and field
+```
+
+The same book slice is replayed through the dense grid with a 100-unit
+tick and a 1,000,001-slot band. It matches the sparse reference and takes
+10,284 cycles, 5.74 per message.
 
 ## The hardware path
 
@@ -410,15 +421,35 @@ would say only "these differ", and a dump says which order and which
 field. Over 974 records, the two agree on every one of them, and the
 FNV-1a checksum over the book state is identical.
 
+The book now carries the same dense-grid design as the C++ one: a
+bounded price band, a configurable raw price tick, a per-side occupancy
+bitmap, and a fallback to the sparse list for prices outside the band or
+off the tick. The differential runs the sparse path, a full-band grid
+and a deliberately narrow band; all three dumps are identical to the C++
+book.
+
 **The RTL also produces numbers the C++ side cannot.** The decode of
 2,000 messages took **63,444 cycles** — exactly one per byte of message
-body. The book applied 1,000 messages in **40,750 cycles**, and that
-number scales with the depth of the book exactly as an O(depth) walk
-must: 40.75 cycles per message on a 240-level book, 70.40 on a
-440-level one. Both are properties of the *design* rather than of the
-machine, so they reproduce on any simulator and are checked in CI. The
+body. The sparse book applied 1,000 messages in **41,750 cycles** (41.75
+per message) and 2,000 in **142,797** (71.40); the dense grid is flat at
+**5.28** and **5.25** cycles per message, and the narrow-band fallback
+lands at 25.96 and 40.52. Those are properties of the *design* rather
+than of the machine, so they reproduce on any simulator. The
+1,000-record cases are checked in CI; the 2,000-record figures use the
+same script with `RECORDS=2000`. The
 C++ can report the same phenomenon only as a ratio, and a ratio is a
 statement about a machine rather than about a design.
+
+**Synthesis is reported, not rounded up.** On an ECP5 LFE5U-25F at a
+100 MHz constraint, the framer uses 169 LUT4s, 77 FFs and no BRAM and
+closes at 182.32 MHz. The decoder uses 1,111 LUT4s, 2,230 FFs and no
+BRAM, but closes at only 52.72 MHz; it is a single-pass streaming design
+and that is the honest number. The order book is not synthesised: it is
+a behavioural model whose memory is process variables rather than RAM,
+and GHDL rejects its variable-bound bitmap scans. The full project state
+is about 1.9 Mbit, which does not fit the 25F's 56 BRAMs; an 85F has
+208. That is future work, not a claim. The method and caveats are in
+[`results/SYNTHESIS.md`](results/SYNTHESIS.md).
 
 ## Results
 

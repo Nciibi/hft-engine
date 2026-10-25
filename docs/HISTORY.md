@@ -182,6 +182,47 @@ a benchmark whose own output said the fix "is NOT implemented here" while
 measuring it. And `check-claims` now fails the build when any of this
 recurs, which is the only reason to trust a number in prose.
 
+**10. The same book, at a different price.**
+The C++ book already had a dense price grid when the RTL book was still
+a sorted list. Porting the structure over was not the interesting part;
+proving it was the same book was. The RTL got the same bounded band, the
+same occupancy bitmap, and the same sparse fallback, with `DENSE` off by
+default so the existing differential stayed the regression path.
+
+The first dense run disagreed, and the shape of the disagreement was the
+useful part: the RTL dumped 101 bid levels against the C++ 239, while
+all 235 ask levels matched. A symmetric bug would have broken both
+sides. The asymmetry said the bid walk was wrong, and it was:
+`next_dense_slot` scanned the bits below the current bid slot upward
+and returned the **lowest** occupied price, not the highest. It skipped
+every level between. The differential found it because the level count
+was visibly short; the cycle count, which looked like a success at 5
+cycles per message, would have hidden it.
+
+The synthesis flow had its own defects of the same species. `nextpnr`
+was asked for a bitstream with `--textcfg` on an out-of-context run, so
+it failed before reporting timing; the fix was `--write` plus
+`--timing-allow-fail`. The report originally read the first `Max
+frequency` line, which is a placement estimate, instead of the last,
+which is post-route. And the book was in the synthesis set even though
+`ghdl --synth` expands its process-variable pools into 122 MB of
+Verilog that never becomes RAM. With the dense grid added later, GHDL
+stops even earlier, on the variable-bound bitmap loops; the report row
+records that failure too. The report now states that the book is
+behavioural, and the 52.72 MHz decoder figure is published as a miss
+rather than rounded up.
+
+The dense grid now runs at about 5.25 cycles per message at both 1,000
+and 2,000 records, against 41.75 and 71.40 for the sparse list. The
+narrow-band runs, where only part of the price range is in the grid,
+land at 25.96 and 40.52 and still produce the identical dump.
+
+The grid also takes a raw price tick. Real prices span 800 to
+100,000,000 raw units, so a one-unit grid would need a hundred million
+slots; a 100-unit tick needs a 1,000,001-slot band. The 1,792-message
+real slice run through that grid matches the sparse book, falls back for
+the prices not on the tick, and costs 10,284 cycles, 5.74 per message.
+
 ---
 
 ## What the sequence actually argues

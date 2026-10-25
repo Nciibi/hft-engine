@@ -302,6 +302,7 @@ add_test(NAME rtl_trace_tools
 # cache variable overrides all of them:
 #   cmake -B build -DHFT_GHDL=/usr/bin/ghdl
 set(HFT_GHDL "" CACHE FILEPATH "The GHDL executable, for the RTL differential test")
+option(HFT_REQUIRE_GHDL "Fail configure when GHDL is missing" OFF)
 if(HFT_GHDL)
     set(GHDL "${HFT_GHDL}")
 else()
@@ -353,6 +354,12 @@ if(GHDL)
     # The comparison is a dump and not a checksum, because a checksum
     # says only "these differ" and a dump says which order and which
     # field.
+    #
+    # The same differential is run three times: sparse (the regression
+    # path), dense over the whole generated price range, and dense over a
+    # deliberately narrow band that forces some prices through the sparse
+    # fallback. The dense runs also have to beat the sparse cycle count,
+    # so a grid that is correct but never used does not pass.
     add_test(NAME rtl_book_differential
              COMMAND "${CMAKE_COMMAND}"
                      -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
@@ -362,6 +369,10 @@ if(GHDL)
                      -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
                      -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_book_work
                      -DRECORDS=1000
+                     -DDENSE_FLOOR=990000
+                     -DDENSE_SLOTS=32768
+                     -DFALLBACK_FLOOR=998000
+                     -DFALLBACK_SLOTS=2048
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_book_differential.cmake")
     set_tests_properties(rtl_book_differential PROPERTIES TIMEOUT 1800)
 
@@ -413,9 +424,35 @@ if(GHDL)
     # Suite, which is not installed everywhere, so the test SKIPS rather
     # than fails when they are missing -- the same rule the doc check
     # follows. Set YOSYS and NEXTPNR to point at them.
+    #
+    # The book is deliberately not in the default list. Its pools are
+    # process variables, so no RAM is inferred, and GHDL rejects the
+    # dense grid's variable-bound bitmap scans. Set HFT_SYNTH_BOOK=ON to
+    # reproduce that failure; the report always carries the row.
+    option(HFT_SYNTH_BOOK "Include the behavioural order book in the synthesis run" OFF)
+    option(HFT_REQUIRE_SYNTH "Fail configure when yosys or nextpnr is missing" OFF)
     find_program(YOSYS yosys)
     find_program(NEXTPNR nextpnr-ecp5)
     if(GHDL AND YOSYS AND NEXTPNR)
+        set(HFT_SYNTH_TOPS hft_moldudp64 hft_itch_decode)
+        if(HFT_SYNTH_BOOK)
+            list(APPEND HFT_SYNTH_TOPS hft_book)
+        endif()
+
+        # The OSS CAD Suite on Windows keeps its DLLs in a sibling `lib`
+        # directory. Running the test from a shell that has only `bin` on
+        # PATH makes yosys exit with a loader error, not a synthesis
+        # error. Put the library directory on the test's PATH where the
+        # CMake version supports environment modification.
+        set(HFT_SYNTH_LIB "")
+        if(WIN32)
+            get_filename_component(_yosys_bin "${YOSYS}" DIRECTORY)
+            get_filename_component(_yosys_root "${_yosys_bin}" DIRECTORY)
+            if(EXISTS "${_yosys_root}/lib")
+                set(HFT_SYNTH_LIB "${_yosys_root}/lib")
+            endif()
+        endif()
+
         add_test(NAME rtl_synthesis
                  COMMAND "${CMAKE_COMMAND}"
                          -DGHDL=${GHDL}
@@ -424,15 +461,30 @@ if(GHDL)
                          -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
                          -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_synth_work
                          -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/rtl_synth_work/synthesis.md
+                         "-DTOP=${HFT_SYNTH_TOPS}"
+                         -DFREQ=100
                          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/synth.cmake")
-        set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 1800)
+        if(HFT_SYNTH_BOOK)
+            set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 1800)
+        else()
+            set_tests_properties(rtl_synthesis PROPERTIES TIMEOUT 900)
+        endif()
+        if(HFT_SYNTH_LIB AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.22")
+            set_tests_properties(rtl_synthesis PROPERTIES
+                ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${HFT_SYNTH_LIB}")
+        endif()
         message(STATUS "  yosys ............. ${YOSYS}")
         message(STATUS "  nextpnr ............ ${NEXTPNR}")
+    elseif(HFT_REQUIRE_SYNTH)
+        message(FATAL_ERROR
+            "HFT_REQUIRE_SYNTH is ON, but yosys and/or nextpnr-ecp5 were not found")
     else()
         message(STATUS "  yosys/nextpnr ...... not found, the synthesis test is skipped")
     endif()
 
     message(STATUS "  ghdl .............. ${GHDL}")
+elseif(HFT_REQUIRE_GHDL)
+    message(FATAL_ERROR "HFT_REQUIRE_GHDL is ON, but GHDL was not found")
 else()
     message(STATUS "  ghdl .............. not found, the RTL differential is skipped")
 endif()

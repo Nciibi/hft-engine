@@ -215,7 +215,7 @@ jobs:
 
       - name: Configure and build
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DHFT_REQUIRE_GHDL=ON
           cmake --build build --parallel
 
       # The RTL suites: the two decode differentials and the order-book
@@ -243,6 +243,44 @@ jobs:
           echo "The RTL suites are skipped when GHDL is not found. This job"
           echo "installs it, so a skip here means the install failed."
           ghdl --version || true
+
+  # ---- Synthesis ------------------------------------------------------
+  #
+  # Area and timing through the open flow. This job is separate from the
+  # RTL differential because it needs yosys and nextpnr in addition to
+  # GHDL, and because a timing miss is a result to publish rather than a
+  # reason to hide the suite. The test still fails if the tools are not
+  # installed, which is a real failure in this job.
+  synthesis:
+    name: Synthesis / ECP5
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ghdl yosys nextpnr-ecp5
+          ghdl --version
+          yosys -V
+          nextpnr-ecp5 --version
+
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DHFT_REQUIRE_GHDL=ON -DHFT_REQUIRE_SYNTH=ON
+          cmake --build build --parallel
+
+      - name: Synthesis report
+        run: ctest --test-dir build -R rtl_synthesis --output-on-failure --timeout 1800
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthesis-${{ github.sha }}
+          path: build/rtl_synth_work/synthesis.md
+          retention-days: 30
 
   # ---- Benchmarks: produced, never asserted ---------------------------
   #

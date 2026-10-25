@@ -51,7 +51,11 @@ entity tb_book is
         -- capacities have to be stated rather than assumed.
         ORDERS : positive := 4096;
         LEVELS : positive := 2048;
-        SLOTS  : positive := 8192
+        SLOTS  : positive := 8192;
+        DENSE  : boolean := false;
+        PRICE_FLOOR : natural := 0;
+        PRICE_TICK  : positive := 1;
+        DENSE_SLOTS : positive := 4096
     );
 end entity tb_book;
 
@@ -173,7 +177,11 @@ begin
         generic map (
             MAX_ORDERS => ORDERS,
             MAX_LEVELS => LEVELS,
-            TABLE_SLOTS => SLOTS)
+            TABLE_SLOTS => SLOTS,
+            DENSE => DENSE,
+            PRICE_FLOOR => PRICE_FLOOR,
+            PRICE_TICK => PRICE_TICK,
+            DENSE_SLOTS => DENSE_SLOTS)
         port map (
             clk => clk,
             rst => rst,
