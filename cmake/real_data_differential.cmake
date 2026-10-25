@@ -135,6 +135,7 @@ set(rtl_sources
     "${RTL_DIR}/hft_moldudp64.vhd"
     "${RTL_DIR}/hft_itch_decode.vhd"
     "${RTL_DIR}/hft_book.vhd"
+    "${RTL_DIR}/hft_book_hw.vhd"
     "${RTL_DIR}/tb/tb_trace.vhd"
     "${RTL_DIR}/tb/tb_book.vhd")
 
