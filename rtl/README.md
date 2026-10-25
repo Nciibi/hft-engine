@@ -163,6 +163,9 @@ $ ctest --test-dir build -R rtl_real -V
   rtl book .......... rtl messages     1792
   rtl book cycles  279035
   differential ...... the two books agree on every order, level and field
+  rtl hardware ...... rtl messages     1792
+  rtl book cycles  557588
+  hardware differential ...... the hardware and C++ books agree
   rtl dense ......... rtl messages     1792
   rtl dense cycles  10284
   differential ...... the sparse and dense books agree on every order, level and field
