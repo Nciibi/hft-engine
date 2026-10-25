@@ -53,6 +53,7 @@ file(MAKE_DIRECTORY "${WORK}/ghdl")
 string(REPLACE "\\" "/" hex_path "${WORK}/capture.hex")
 string(REPLACE "\\" "/" rtl_trace_path "${WORK}/rtl.trace")
 string(REPLACE "\\" "/" rtl_dump_path "${WORK}/rtl.dump")
+string(REPLACE "\\" "/" rtl_hw_dump_path "${WORK}/rtl_hw.dump")
 string(REPLACE "\\" "/" rtl_dense_dump_path "${WORK}/rtl_dense.dump")
 
 # The real book spans raw prices from 800 to 100,000,000, so the dense
