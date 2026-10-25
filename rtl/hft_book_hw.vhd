@@ -237,6 +237,7 @@ architecture rtl of hft_book_hw is
     type state_t is (
         st_idle,
         st_read_wait,
+        st_read_data,
         st_probe_use,
         st_probe_result,
         st_walk_use,
