@@ -152,7 +152,7 @@ foreach(top IN LISTS TOP)
             string(REPLACE "|" "/" note "${note}")
             string(SUBSTRING "${note}" 0 90 note)
         endif()
-        set(report "${report}| ${top} | - | - | - | ${FREQ} MHz | - | ${note} |\n")
+        set(report "${report}| ${top} | ${device_name} | - | - | - | ${FREQ} MHz | - | ${note} |\n")
         continue()
     endif()
 
