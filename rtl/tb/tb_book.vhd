@@ -178,34 +178,67 @@ begin
             fields => dec_fields,
             cycles => dec_cycles);
 
-    book : entity work.hft_book
-        generic map (
-            MAX_ORDERS => ORDERS,
-            MAX_LEVELS => LEVELS,
-            TABLE_SLOTS => SLOTS,
-            DENSE => DENSE,
-            PRICE_FLOOR => PRICE_FLOOR,
-            PRICE_TICK => PRICE_TICK,
-            DENSE_SLOTS => DENSE_SLOTS)
-        port map (
-            clk => clk,
-            rst => rst,
-            apply_start => apply_start,
-            apply_type => apply_type,
-            apply_fields => apply_fields,
-            apply_done => apply_done,
-            apply_status => apply_status,
-            apply_cycles => apply_cycles,
-            dump_start => dump_start,
-            dump_valid => dump_valid,
-            dump_kind => dump_kind,
-            dump_side => dump_side,
-            dump_a => dump_a,
-            dump_b => dump_b,
-            dump_c => dump_c,
-            dump_state => dump_state,
-            dump_pos => dump_pos,
-            dump_done => dump_done);
+    book_behavioural : if not USE_HW generate
+        book : entity work.hft_book
+            generic map (
+                MAX_ORDERS => ORDERS,
+                MAX_LEVELS => LEVELS,
+                TABLE_SLOTS => SLOTS,
+                DENSE => DENSE,
+                PRICE_FLOOR => PRICE_FLOOR,
+                PRICE_TICK => PRICE_TICK,
+                DENSE_SLOTS => DENSE_SLOTS)
+            port map (
+                clk => clk,
+                rst => rst,
+                apply_start => apply_start,
+                apply_type => apply_type,
+                apply_fields => apply_fields,
+                apply_done => apply_done,
+                apply_status => apply_status,
+                apply_cycles => apply_cycles,
+                dump_start => dump_start,
+                dump_valid => dump_valid,
+                dump_kind => dump_kind,
+                dump_side => dump_side,
+                dump_a => dump_a,
+                dump_b => dump_b,
+                dump_c => dump_c,
+                dump_state => dump_state,
+                dump_pos => dump_pos,
+                dump_done => dump_done);
+    end generate;
+
+    book_hardware : if USE_HW generate
+        book : entity work.hft_book_hw
+            generic map (
+                MAX_ORDERS => ORDERS,
+                MAX_LEVELS => LEVELS,
+                TABLE_SLOTS => SLOTS,
+                DENSE => DENSE,
+                PRICE_FLOOR => PRICE_FLOOR,
+                PRICE_TICK => PRICE_TICK,
+                DENSE_SLOTS => DENSE_SLOTS)
+            port map (
+                clk => clk,
+                rst => rst,
+                apply_start => apply_start,
+                apply_type => apply_type,
+                apply_fields => apply_fields,
+                apply_done => apply_done,
+                apply_status => apply_status,
+                apply_cycles => apply_cycles,
+                dump_start => dump_start,
+                dump_valid => dump_valid,
+                dump_kind => dump_kind,
+                dump_side => dump_side,
+                dump_a => dump_a,
+                dump_b => dump_b,
+                dump_c => dump_c,
+                dump_state => dump_state,
+                dump_pos => dump_pos,
+                dump_done => dump_done);
+    end generate;
 
     -- ---- The clock and the reset --------------------------------------
 
