@@ -425,10 +425,15 @@ if(GHDL)
     # than fails when they are missing -- the same rule the doc check
     # follows. Set YOSYS and NEXTPNR to point at them.
     #
-    # The book is deliberately not in the default list. Its pools are
-    # process variables, so no RAM is inferred, and GHDL rejects the
-    # dense grid's variable-bound bitmap scans. Set HFT_SYNTH_BOOK=ON to
-    # reproduce that failure; the report always carries the row.
+    # The behavioural book is deliberately not in the default list. Its
+    # pools are process variables, so no RAM is inferred, and GHDL
+    # rejects the dense grid's variable-bound bitmap scans. Set
+    # HFT_SYNTH_BOOK=ON to reproduce that failure; the report always
+    # carries the row.
+    #
+    # The synthesizable hardware book IS in the default list. It uses an
+    # 85F because its inferred memories are about 2 Mbit; the framer and
+    # decoder remain on the 25F. See rtl/hft_book_hw.vhd.
     option(HFT_SYNTH_BOOK "Include the behavioural order book in the synthesis run" OFF)
     option(HFT_REQUIRE_SYNTH "Fail configure when yosys or nextpnr is missing" OFF)
     find_program(YOSYS yosys)
