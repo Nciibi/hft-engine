@@ -1,21 +1,24 @@
 # Synthesis: area and timing on ECP5
 
-The RTL model is simulated, not placed on a board. This report is the
+The RTL is simulated, not placed on a board. This report is the
 smallest useful hardware check that does not require one: synthesise the
 design, place and route it out of context, and report what the tools
 say. No pin plan, no bitstream, no board.
 
-Target: **Lattice ECP5 LFE5U-25F, CABGA381**, constrained at **100 MHz**.
+The framer and decoder use an **LFE5U-25F, CABGA381**. The hardware book
+uses an **LFE5U-85F, CABGA381**, because its state is about 2 Mbit and
+the 25F has only 56 DP16KDs. Both are constrained at **100 MHz**.
 Out-of-context timing is a property of the logic, not of a package
 escape.
 
 ## Result
 
-| Design | LUT4 | FF | BRAM | Target | Fmax | Outcome |
-|---|---:|---:|---:|---:|---:|---|
-| `hft_moldudp64` | 169 | 77 | 0 | 100 MHz | **182.32 MHz** | met |
-| `hft_itch_decode` | 1,111 | 2,230 | 0 | 100 MHz | **52.72 MHz** | not met |
-| `hft_book` | - | - | - | 100 MHz | - | not synthesised |
+| Design | Device | LUT4 | FF | BRAM | Target | Fmax | Outcome |
+|---|---|---:|---:|---:|---:|---:|---|
+| `hft_moldudp64` | LFE5U-25F | 169 | 77 | 0 | 100 MHz | **182.32 MHz** | met |
+| `hft_itch_decode` | LFE5U-25F | 1,111 | 2,230 | 0 | 100 MHz | **52.72 MHz** | not met |
+| `hft_book_hw` | LFE5U-85F | 4,349 | 2,635 | **110** | 100 MHz | **49.58 MHz** | not met |
+| `hft_book` | LFE5U-25F | - | - | - | 100 MHz | - | behavioural; not synthesised |
 
 The framer has ample margin. The decoder does not meet 100 MHz. It is a
 single-pass streaming parser that takes one clock per body byte, and the
@@ -23,21 +26,56 @@ timing report is the design's, not a tool artefact: the achieved
 post-route figure is 52.72 MHz. The report says so rather than hiding
 the row or changing the constraint.
 
-The book is deliberately outside the synthesis set. Its order and level
-pools are process variables, so no RAM is inferred, and the dense grid's
-bitmap scans use loop bounds that GHDL requires to be static. GHDL
-therefore rejects the book during synthesis. (Before the dense grid was
-added, the sparse-only model expanded its pools into roughly 122 MB of
-Verilog and Yosys could not hold it; either way the memory never becomes
-a RAM.) The generated report always carries the book row so that "this
-part is not hardware yet" stays visible.
+## The hardware book
 
-For context, the full project state is about 1.9 Mbit. The 25F has 56
-DP16KD BRAMs; an 85F has 208. A hardware book would need a different
-memory organisation and a larger device, which is future work rather
-than a result being claimed here. See
-[`../rtl/README.md`](../rtl/README.md) for the model and the dense-grid
-differential.
+`hft_book_hw.vhd` is the synthesizable counterpart of the behavioural
+book. It keeps the same external interface and the same dump format.
+GHDL infers three block RAMs:
+
+| Memory | Width | Depth | Bits |
+|---|---:|---:|---:|
+| `orders` | 235 | 4,096 | 962,560 |
+| `levels` | 193 | 2,048 | 395,264 |
+| `id_tab` | 79 | 8,192 | 647,168 |
+
+That is 2,004,992 bits, or about **2.0 Mbit**. Yosys maps it to
+**110 DP16KD** blocks; the 85F has 208, so the memory uses 52% of the
+device. The book also uses 4,349 LUT4s and 2,635 FFs. It does **not** fit
+the 25F's 56 DP16KDs, which is why it is on the 85F.
+
+The hardware core is verified, not merely synthesized. It is run against
+the same C++ dump as the behavioural model:
+
+- generated capture: 1,000 messages, **83,659 cycles**, 974 dump records,
+  checksum `97a2bb9075066e99`;
+- real Nasdaq slice: 1,792 messages, **557,588 cycles**, 2,765 dump
+  records, checksum `95aa35f0045c196e`;
+- both dumps are field-for-field identical to the C++ book.
+
+The hardware book is slower than the behavioural model because it
+sequences one synchronous memory access per cycle and pays a read-wait
+state. That is the cost of making the storage real; the cycle numbers
+above are not a speed claim against the behavioural model. The sparse
+behavioural book costs 41.75 cycles per message on the generated
+capture; the hardware core costs 83.66. On real messages the hardware
+core costs 311.2 cycles per message.
+
+Timing is a miss. The 85F run closes at **49.58 MHz**, not 100 MHz. The
+critical path starts at a block-RAM output and runs through the
+record-to-dump and state-control logic. The next step would be to
+pipeline the read result and the dump path; that has not been done, and
+the report does not round the number up.
+
+## The behavioural book
+
+`hft_book` remains deliberately outside the synthesizable set. Its order
+and level pools are process variables, so no RAM is inferred, and the
+dense grid's bitmap scans use loop bounds that GHDL requires to be
+static. GHDL therefore rejects it during synthesis. (Before the dense
+grid was added, the sparse-only model expanded its pools into roughly
+122 MB of Verilog and Yosys could not hold it; either way the memory
+never becomes a RAM.) The generated report always carries the row so
+that "this part is not hardware" stays visible.
 
 ## How it is produced
 
@@ -46,9 +84,9 @@ The flow is:
 1. `ghdl --synth --std=08` turns a top-level VHDL entity into Verilog.
 2. `yosys -p "read_verilog -sv ...; synth_ecp5 -top ... -json ..."`
    maps it to ECP5 primitives.
-3. `nextpnr-ecp5 --25k --package CABGA381 --freq 100 --out-of-context`
-   places and routes it; `--write` emits the post-route JSON and
-   `--report` emits the utilisation report.
+3. `nextpnr-ecp5 --25k` or `--85k --package CABGA381 --freq 100
+   --out-of-context` places and routes it; `--write` emits the post-route
+   JSON and `--report` emits the utilisation report.
 4. The report parser takes the **last** `Max frequency for clock 'clk'`
    line, which is the post-route figure; the first is a placement
    estimate. Area is read from nextpnr's device utilisation, not from
@@ -59,6 +97,10 @@ must be reported; only a tool failure should stop the run. `--write` is
 used instead of `--textcfg` because an out-of-context run has no
 bitstream to write, and asking nextpnr for one fails before the timing
 report is produced.
+
+The device is selected per top: `hft_book_hw` is placed on the 85F
+because its inferred memories are 110 DP16KDs; the framer and decoder
+stay on the 25F.
 
 ## Reproduce
 
@@ -72,7 +114,7 @@ The generated table is written to `build/rtl_synth_work/synthesis.md`.
 The test is skipped when yosys or nextpnr is absent, unless configure was
 given `-DHFT_REQUIRE_SYNTH=ON`.
 
-To reproduce the book failure:
+To reproduce the behavioural book failure:
 
 ```bash
 cmake -S . -B build -DHFT_SYNTH_BOOK=ON
@@ -80,9 +122,9 @@ cmake --build build --parallel
 ctest --test-dir build -R rtl_synthesis -V
 ```
 
-The generated book row is expected to record the synthesis failure, not a
-misleading area number. The test reports the row and does not pretend the
-design was synthesised.
+The generated behavioural row is expected to record the synthesis
+failure, not a misleading area number. The test reports the row and does
+not pretend the behavioural design was synthesised.
 
 ## Tools
 
