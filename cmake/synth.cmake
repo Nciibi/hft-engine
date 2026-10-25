@@ -206,7 +206,7 @@ foreach(top IN LISTS TOP)
         COMMAND "${NEXTPNR}" --json "${top}.json"
                 --write "${top}_pnr.json"
                 --report "${top}_pnr_report.json"
-                --25k --package CABGA381 --freq ${FREQ} --seed 1
+                --${device_part} --package CABGA381 --freq ${FREQ} --seed 1
                 --out-of-context --timing-allow-fail
         WORKING_DIRECTORY "${WORK}"
         OUTPUT_VARIABLE pnr_stdout
