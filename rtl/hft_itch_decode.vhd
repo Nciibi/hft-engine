@@ -303,21 +303,6 @@ begin
                                     cur_start := to_unsigned(kFieldOffset(type_idx, 0), 6);
                                     cur_end := to_unsigned(kFieldEnd(type_idx, 0), 6);
                                     cur_width := kFieldWidth(type_idx, 0);
-                                    acc := (others => '0');
-                                    acc := acc(55 downto 0) & byte_in;
-                                    in_field := 1;
-                                    if cur_width = 1 then
-                                        flds(0) := acc;
-                                        fld_idx := 1;
-                                        in_field := 0;
-                                        if fld_idx < kFieldCount(type_idx) then
-                                            cur_start := to_unsigned(kFieldOffset(type_idx, fld_idx), 6);
-                                            cur_end := to_unsigned(kFieldEnd(type_idx, fld_idx), 6);
-                                            cur_width := kFieldWidth(type_idx, fld_idx);
-                                        else
-                                            cur_width := 0;
-                                        end if;
-                                    end if;
                                 end if;
                             else
                                 if type_idx /= kUnknownType and
