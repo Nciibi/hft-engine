@@ -760,7 +760,7 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure   # 31 suites, ~80s
+ctest --test-dir build --output-on-failure   # 31 suites, ~12 min with real data and synthesis
 ```
 
 That is the whole verification story. The individual binaries, if you want
