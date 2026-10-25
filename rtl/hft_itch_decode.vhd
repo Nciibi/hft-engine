@@ -288,31 +288,54 @@ begin
 
                         elsif byte_valid = '1' then
                             if off = to_unsigned(0, 6) then
+                                -- The tag byte is also the first byte of
+                                -- the first field. Decode the type and
+                                -- load the first field's boundaries in
+                                -- this cycle; from the next byte onward
+                                -- the comparator sees registers, not a
+                                -- table address.
                                 r_type <= byte_in;
                                 r_has_type <= '1';
                                 type_idx := type_index_of(byte_in);
                                 r_type_idx <= type_index_of(byte_in);
-                            end if;
 
-                            if type_idx /= kUnknownType and
-                               fld_idx < kFieldCount(type_idx) then
-                                -- The end offset is tabulated rather
-                                -- than computed: `off < start + width`
-                                -- puts an adder in front of a
-                                -- comparator, and the first synthesis
-                                -- run said the adder was the decoder's
-                                -- critical path.
-                                if off >= to_unsigned(kFieldOffset(type_idx, fld_idx), 6) and
-                                   off < to_unsigned(kFieldEnd(type_idx, fld_idx), 6) then
-                                    if in_field = 0 then
-                                        acc := (others => '0');
+                                if type_idx /= kUnknownType then
+                                    cur_start := to_unsigned(kFieldOffset(type_idx, 0), 6);
+                                    cur_end := to_unsigned(kFieldEnd(type_idx, 0), 6);
+                                    cur_width := kFieldWidth(type_idx, 0);
+                                    acc := (others => '0');
+                                    acc := acc(55 downto 0) & byte_in;
+                                    in_field := 1;
+                                    if cur_width = 1 then
+                                        flds(0) := acc;
+                                        fld_idx := 1;
+                                        in_field := 0;
+                                        if fld_idx < kFieldCount(type_idx) then
+                                            cur_start := to_unsigned(kFieldOffset(type_idx, fld_idx), 6);
+                                            cur_end := to_unsigned(kFieldEnd(type_idx, fld_idx), 6);
+                                            cur_width := kFieldWidth(type_idx, fld_idx);
+                                        else
+                                            cur_width := 0;
+                                        end if;
                                     end if;
+                                end if;
+                            else
+                                if type_idx /= kUnknownType and
+                                   fld_idx < kFieldCount(type_idx) and
+                                   off >= cur_start and off < cur_end then
                                     acc := acc(55 downto 0) & byte_in;
                                     in_field := in_field + 1;
-                                    if in_field = kFieldWidth(type_idx, fld_idx) then
+                                    if in_field = cur_width then
                                         flds(fld_idx) := acc;
                                         fld_idx := fld_idx + 1;
                                         in_field := 0;
+                                        if fld_idx < kFieldCount(type_idx) then
+                                            cur_start := to_unsigned(kFieldOffset(type_idx, fld_idx), 6);
+                                            cur_end := to_unsigned(kFieldEnd(type_idx, fld_idx), 6);
+                                            cur_width := kFieldWidth(type_idx, fld_idx);
+                                        else
+                                            cur_width := 0;
+                                        end if;
                                     end if;
                                 end if;
                             end if;
