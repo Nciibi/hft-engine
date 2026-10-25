@@ -47,7 +47,7 @@ file(MAKE_DIRECTORY "${WORK}")
 # The designs to synthesise by default. The framer and the decoder are
 # the ones with a realisable boundary; the book is measured separately.
 if(NOT DEFINED TOP)
-    set(TOP hft_moldudp64 hft_itch_decode)
+    set(TOP hft_moldudp64 hft_itch_decode hft_book_hw)
 endif()
 
 # The sources, in dependency order: the packages, then the entities.
