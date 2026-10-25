@@ -111,11 +111,13 @@ string(REGEX REPLACE "[\r\n].*" "" nextpnr_version "${nextpnr_version}")
 
 set(report "")
 set(report "${report}# Synthesis\n\n")
-set(report "${report}Target: Lattice ECP5, LFE5U-25F, CABGA381.\n")
-set(report "${report}Target frequency: ${FREQ} MHz. Out of context: no pin plan, no bitstream.\n\n")
+set(report "${report}Target: Lattice ECP5, CABGA381. The framer and decoder use an\n")
+set(report "${report}LFE5U-25F; the hardware book uses an LFE5U-85F because its state is\n")
+set(report "${report}about 2 Mbit. Out of context: no pin plan, no bitstream.\n\n")
+set(report "${report}Target frequency: ${FREQ} MHz.\n\n")
 set(report "${report}Tools: ${ghdl_version}; ${yosys_version}; ${nextpnr_version}.\n\n")
-set(report "${report}| Design | LUT4 | FF | BRAM | Target | Fmax | Notes |\n")
-set(report "${report}|---|---|---|---|---|---|---|\n")
+set(report "${report}| Design | Device | LUT4 | FF | BRAM | Target | Fmax | Notes |\n")
+set(report "${report}|---|---|---:|---:|---:|---:|---:|---|\n")
 
 set(book_synthesised FALSE)
 
