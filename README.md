@@ -444,15 +444,29 @@ same script with `RECORDS=2000`. The
 C++ can report the same phenomenon only as a ratio, and a ratio is a
 statement about a machine rather than about a design.
 
+**The hardware book exists, and is verified against the same dump.**
+`rtl/hft_book_hw.vhd` replaces the behavioural model's process-variable
+pools with synchronous arrays. GHDL infers three block RAMs: orders
+(235 x 4,096), levels (193 x 2,048) and the reference index (79 x
+8,192), about **2.0 Mbit** in total. The generated and real captures both
+produce dumps identical to the C++ book, and on the real slice the
+hardware checksum is `95aa35f0045c196e` - the same checksum the
+behavioural model produces. It costs more cycles, because each memory
+access is sequenced: 83.66 cycles per message on the generated capture
+and 311.15 on the real slice, against 41.75 for the behavioural sparse
+book. That is the cost of making the storage real, not a speed claim.
+
 **Synthesis is reported, not rounded up.** On an ECP5 LFE5U-25F at a
 100 MHz constraint, the framer uses 169 LUT4s, 77 FFs and no BRAM and
 closes at 182.32 MHz. The decoder uses 1,111 LUT4s, 2,230 FFs and no
 BRAM, but closes at only 52.72 MHz; it is a single-pass streaming design
-and that is the honest number. The order book is not synthesised: it is
-a behavioural model whose memory is process variables rather than RAM,
-and GHDL rejects its variable-bound bitmap scans. The full project state
-is about 1.9 Mbit, which does not fit the 25F's 56 BRAMs; an 85F has
-208. That is future work, not a claim. The method and caveats are in
+and that is the honest number. The hardware book needs the 85F: it uses
+**110 DP16KDs** (52% of the device), 4,349 LUT4s and 2,635 FFs, and
+closes at **49.58 MHz**. The timing miss is published rather than hidden;
+the next step is to pipeline the read and dump paths. The behavioural
+`hft_book` remains unsynthesised because its pools are process variables
+and GHDL rejects its variable-bound bitmap scans. The method, the
+memory table and the caveats are in
 [`results/SYNTHESIS.md`](results/SYNTHESIS.md).
 
 ## Results
