@@ -41,7 +41,7 @@ documents below, which is where the actual argument lives.
 | [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
 | [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md) | The optimisation log, **including the two changes that were measured, failed, and reverted**. |
 | [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why the **latency** table is withheld while throughput and ratios are published. |
-| [`results/SYNTHESIS.md`](results/SYNTHESIS.md) | ECP5 area and timing: what the flow measures, what it refuses to round up, and why the book is not synthesised. |
+| [`results/SYNTHESIS.md`](results/SYNTHESIS.md) | ECP5 area and timing: the framer, the decoder, and the memory-backed hardware book on an 85F, including the timing misses. |
 
 ## Contents
 
