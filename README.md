@@ -243,7 +243,7 @@ Three things are now true that were not:
 | **RTL book against the C++ book**, every order and every field | done — 0 differences in sparse, dense and fallback runs |
 | Cycle-exact book cost | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Synthesizable RTL order book** | done - `rtl/hft_book_hw.vhd`, inferred block RAM, verified against the C++ dump |
-| Synthesis, area and timing | done — framer 182.32 MHz, decoder 52.72 MHz, hardware book 49.58 MHz on an 85F; [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
+| Synthesis, area and timing | done — local YoWASP reproduction: framer 183.59 MHz, decoder 123.35 MHz, hardware book 82.13 MHz (100 MHz miss, published); [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
