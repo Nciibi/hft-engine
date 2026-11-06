@@ -464,17 +464,18 @@ generated capture and 617.35 on the real slice, against 41.75 for the
 behavioural sparse book. That is the cost of making the storage real,
 not a speed claim.
 
-**Synthesis is reported, not rounded up.** On an ECP5 LFE5U-25F at a
-100 MHz constraint, the framer uses 169 LUT4s, 77 FFs and no BRAM and
-closes at 182.32 MHz. The decoder uses 1,111 LUT4s, 2,230 FFs and no
-BRAM, but closes at only 52.72 MHz; it is a single-pass streaming design
-and that is the honest number. The hardware book needs the 85F: it uses
-**110 DP16KDs** (52% of the device), 4,349 LUT4s and 2,635 FFs, and
-closes at **49.58 MHz**. The timing miss is published rather than hidden;
-the next step is to pipeline the read and dump paths. The behavioural
-`hft_book` remains unsynthesised because its pools are process variables
-and GHDL rejects its variable-bound bitmap scans. The method, the
-memory table and the caveats are in
+**Synthesis is reported, not rounded up.** A local reproduction of the
+open flow (GHDL 6.0.0; YoWASP yosys 0.70; YoWASP nextpnr-ecp5 0.11.1)
+reports the framer at 172 LUT4s, 77 FFs and 183.59 MHz, the decoder at
+500 LUT4s, 2,243 FFs and 123.35 MHz, and the hardware book at 4,325
+LUT4s, 3,631 FFs, **110 DP16KDs** (52% of the device) and **82.13 MHz**.
+The hardware book still does not meet the 100 MHz constraint; the read
+result path is pipelined, but the critical path remains the BRAM read
+into the first fabric register. The native OSS CAD Suite figures may
+differ; `ctest -R rtl_synthesis` is the publication gate. The
+behavioural `hft_book` remains unsynthesised because its pools are
+process variables and GHDL rejects its variable-bound bitmap scans. The
+method, the memory table and the caveats are in
 [`results/SYNTHESIS.md`](results/SYNTHESIS.md).
 
 ## Results
