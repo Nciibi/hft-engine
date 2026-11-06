@@ -372,6 +372,9 @@ begin
             -- Synchronous reads and writes. The address variables are
             -- updated after these statements, so a read sees the address
             -- presented in the previous cycle.
+            ord_q <= ord_pre;
+            lvl_q <= lvl_pre;
+            id_q <= id_pre;
             ord_pre <= ord_rdata;
             lvl_pre <= lvl_rdata;
             id_pre <= id_rdata;
