@@ -99,7 +99,7 @@ compares two files and reports the first difference, and nothing else.
 | **The RTL book against the C++ book** | done — 0 differences in sparse, dense and fallback runs |
 | **Cycle-exact book cost** | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Both differentials over REAL Nasdaq messages** | done — decoder 70,208 messages, book 1,792 sparse and dense; 0 differences |
-| Synthesis, area and timing | done — framer 182.32 MHz, decoder 52.72 MHz, hardware book 49.58 MHz on an 85F; [`../results/SYNTHESIS.md`](../results/SYNTHESIS.md) |
+| Synthesis, area and timing | done — local YoWASP reproduction: framer 183.59 MHz, decoder 123.35 MHz, hardware book 82.13 MHz (100 MHz miss, published); [`../results/SYNTHESIS.md`](../results/SYNTHESIS.md) |
 
 ## The result
 
