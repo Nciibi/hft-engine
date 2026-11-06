@@ -231,11 +231,12 @@ GHDL infers block RAM. It sequences one access per cycle, and it is
 checked against the C++ dump on both the generated capture and the real
 slice. With 4,096 orders, 2,048 levels and 8,192 index slots the three
 memories are about 2.0 Mbit, which is why synthesis places the core on
-an 85F rather than the 25F. The hardware run costs 83.66 cycles per
-message on 1,000 generated messages and 311.15 on the 1,792-message real
-slice. Those are not improvements on the behavioural model; they are the
-price of real memories, and the behavioural model remains the cycle
-model.
+an 85F rather than the 25F. The hardware run costs 162.86 cycles per
+message on 1,000 generated messages and 617.35 on the 1,792-message real
+slice. The read result path is pipelined one stage beyond the first
+fabric register; those are not improvements on the behavioural model, and
+they are the price of real memories and registered reads. The behavioural
+model remains the cycle model.
 
 **The comparison is a dump, not a checksum.** A checksum says "these two
 states are equal"; a dump says "these two states are equal, and if they
