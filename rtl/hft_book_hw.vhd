@@ -186,8 +186,14 @@ architecture rtl of hft_book_hw is
     signal id_rdata  : id_entry_t := zero_id;
 
     -- One fabric register after the EBR output. The EBR clock-to-q
-    -- alone is more than half a 100 MHz period on this part; the state
-    -- machine consumes these registered copies, not the array outputs.
+    -- alone is more than half a 100 MHz period on this part, so the
+    -- state machine never consumes the array outputs directly.
+    signal ord_pre : order_rec_t := zero_order;
+    signal lvl_pre : level_rec_t := zero_level;
+    signal id_pre  : id_entry_t := zero_id;
+
+    -- A second fabric register keeps the first next to the BRAM and
+    -- lets the state-control logic live next to the wide consumers.
     signal ord_q : order_rec_t := zero_order;
     signal lvl_q : level_rec_t := zero_level;
     signal id_q  : id_entry_t := zero_id;
@@ -238,6 +244,7 @@ architecture rtl of hft_book_hw is
         st_idle,
         st_read_wait,
         st_read_data,
+        st_read_pp,
         st_probe_use,
         st_probe_result,
         st_walk_use,
