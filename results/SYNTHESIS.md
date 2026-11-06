@@ -18,18 +18,24 @@ escape.
 
 ## Result
 
+Equality constraint: 100 MHz, CABGA381. The framer and decoder use an
+**LFE5U-25F**; the hardware book uses an **LFE5U-85F** because its state
+is about 2 Mbit and the 25F has only 56 DP16KDs.
+
 | Design | Device | LUT4 | FF | BRAM | Target | Fmax | Outcome |
 |---|---|---:|---:|---:|---:|---:|---|
-| `hft_moldudp64` | LFE5U-25F | 169 | 77 | 0 | 100 MHz | **182.32 MHz** | met |
-| `hft_itch_decode` | LFE5U-25F | 1,111 | 2,230 | 0 | 100 MHz | **52.72 MHz** | not met |
-| `hft_book_hw` | LFE5U-85F | 4,349 | 2,635 | **110** | 100 MHz | **49.58 MHz** | not met |
+| `hft_moldudp64` | LFE5U-25F | 172 | 77 | 0 | 100 MHz | **183.59 MHz** | met |
+| `hft_itch_decode` | LFE5U-25F | 500 | 2,243 | 0 | 100 MHz | **123.35 MHz** | met |
+| `hft_book_hw` | LFE5U-85F | 4,325 | 3,631 | **110** | 100 MHz | **82.13 MHz** | not met |
 | `hft_book` | LFE5U-25F | - | - | - | 100 MHz | - | behavioural; not synthesised |
 
-The framer has ample margin. The decoder does not meet 100 MHz. It is a
-single-pass streaming parser that takes one clock per body byte, and the
-timing report is the design's, not a tool artefact: the achieved
-post-route figure is 52.72 MHz. The report says so rather than hiding
-the row or changing the constraint.
+The framer has ample margin. The decoder meets the constraint in this
+local reproduction; the earlier native report had a different decoder
+number, which is a toolchain difference rather than a change in the
+decoder source for this run. The hardware book does **not** meet
+100 MHz. The timing report is the design's, not a tool artefact: the
+achieved post-route figure is 82.13 MHz with this flow. The report says
+so rather than hiding the row or changing the constraint.
 
 ## The hardware book
 
