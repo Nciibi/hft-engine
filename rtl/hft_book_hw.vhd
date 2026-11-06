@@ -477,9 +477,6 @@ begin
                     state := st_read_pp;
 
                 when st_read_pp =>
-                    id_q <= id_pre;
-                    ord_q <= ord_pre;
-                    lvl_q <= lvl_pre;
                     state := read_ret;
 
                 when st_probe_use =>
