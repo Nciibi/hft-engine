@@ -368,7 +368,7 @@ begin
             ord_we := '0';
             lvl_we := '0';
             id_we := '0';
-            else
+        elsif rising_edge(clk) then
             -- Synchronous reads and writes. The address variables are
             -- updated after these statements, so a read sees the address
             -- presented in the previous cycle.
