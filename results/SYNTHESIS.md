@@ -146,9 +146,12 @@ not pretend the behavioural design was synthesised.
 
 The figures above were produced with:
 
-- GHDL 6.0.0
-- Yosys 0.70+157
-- nextpnr-ecp5 0.11.1-65
+- GHDL 6.0.0 (6.0.0.r0.ge589c698c.dirty) [Dunoon edition]
+- YoWASP yosys 0.70 (git sha1 28ba3cb92)
+- YoWASP nextpnr-ecp5 0.11.1 (version string reports nextpnr-0.11.1)
 
 The exact version strings are recorded in the generated report, because
-a synthesis number without its toolchain is an anecdote.
+a synthesis number without its toolchain is an anecdote. The earlier
+published run used the native OSS CAD Suite toolchain; this reproduction
+is the one available in the local shell and will differ in absolute
+area and frequency. CI is the publication gate.
