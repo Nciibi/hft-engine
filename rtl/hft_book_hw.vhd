@@ -471,9 +471,6 @@ begin
                     state := st_read_data;
 
                 when st_read_data =>
-                    id_pre <= id_rdata;
-                    ord_pre <= ord_rdata;
-                    lvl_pre <= lvl_rdata;
                     state := st_read_pp;
 
                 when st_read_pp =>
