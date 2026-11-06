@@ -354,14 +354,7 @@ begin
         variable dump_walk_side : std_logic := '0';
         variable dump_position : natural := 0;
     begin
-        if rising_edge(clk) then
             if rst = '1' then
-            ord_q <= ord_pre;
-            lvl_q <= lvl_pre;
-            id_q <= id_pre;
-            ord_pre <= ord_rdata;
-            lvl_pre <= lvl_rdata;
-            id_pre <= id_rdata;
             state := st_idle;
             next_order := 1;
             next_level := 1;
