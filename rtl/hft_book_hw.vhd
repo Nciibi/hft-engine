@@ -468,9 +468,15 @@ begin
                     state := st_read_data;
 
                 when st_read_data =>
-                    id_q <= id_rdata;
-                    ord_q <= ord_rdata;
-                    lvl_q <= lvl_rdata;
+                    id_pre <= id_rdata;
+                    ord_pre <= ord_rdata;
+                    lvl_pre <= lvl_rdata;
+                    state := st_read_pp;
+
+                when st_read_pp =>
+                    id_q <= id_pre;
+                    ord_q <= ord_pre;
+                    lvl_q <= lvl_pre;
                     state := read_ret;
 
                 when st_probe_use =>
