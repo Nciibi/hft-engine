@@ -354,7 +354,14 @@ begin
         variable dump_walk_side : std_logic := '0';
         variable dump_position : natural := 0;
     begin
+            if rising_edge(clk) then
             if rst = '1' then
+            ord_q <= zero_order;
+            lvl_q <= zero_level;
+            id_q <= zero_id;
+            ord_pre <= zero_order;
+            lvl_pre <= zero_level;
+            id_pre <= zero_id;
             state := st_idle;
             next_order := 1;
             next_level := 1;
@@ -368,7 +375,7 @@ begin
             ord_we := '0';
             lvl_we := '0';
             id_we := '0';
-        elsif rising_edge(clk) then
+            else
             -- Synchronous reads and writes. The address variables are
             -- updated after these statements, so a read sees the address
             -- presented in the previous cycle.
