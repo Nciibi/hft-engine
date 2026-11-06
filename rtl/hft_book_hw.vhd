@@ -231,11 +231,12 @@ architecture rtl of hft_book_hw is
     end function;
 
     function hash_slot(key : std_logic_vector(63 downto 0)) return natural is
-        constant kHashMix : unsigned(31 downto 0) := to_unsigned(16#7FEB352D#, 32);
-        variable mixed : unsigned(31 downto 0);
+        variable x : unsigned(63 downto 0) := unsigned(key);
     begin
-        mixed := resize(unsigned(key(31 downto 0)) * kHashMix, 32);
-        return to_integer(resize(mixed, 31)) mod TABLE_SLOTS;
+        x := x xor (x srl 23);
+        x := x xor (x srl 17);
+        x := x xor (x srl 11);
+        return to_integer(resize(x, 32)) mod TABLE_SLOTS;
     end function;
 
     type op_t is (op_none, op_add, op_execute, op_cancel, op_remove, op_replace);
