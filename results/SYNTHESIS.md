@@ -1,5 +1,10 @@
 # Synthesis: area and timing on ECP5
 
+> **Revision after the read-path pipeline.** The figures below were
+> reproduced locally with GHDL 6.0.0, YoWASP yosys 0.70 and YoWASP
+> nextpnr-ecp5 0.11.1. They are not the native OSS CAD Suite build; the
+> native run may differ, and CI is the publication gate.
+
 The RTL is simulated, not placed on a board. This report is the
 smallest useful hardware check that does not require one: synthesise the
 design, place and route it out of context, and report what the tools
