@@ -51,31 +51,36 @@ GHDL infers three block RAMs:
 
 That is 2,004,992 bits, or about **2.0 Mbit**. Yosys maps it to
 **110 DP16KD** blocks; the 85F has 208, so the memory uses 52% of the
-device. The book also uses 4,349 LUT4s and 2,635 FFs. It does **not** fit
-the 25F's 56 DP16KDs, which is why it is on the 85F.
+device. The book also uses 4,325 LUT4s and 3,631 FFs. It does **not**
+fit the 25F's 56 DP16KDs, which is why it is on the 85F.
 
 The hardware core is verified, not merely synthesized. It is run against
 the same C++ dump as the behavioural model:
 
-- generated capture: 1,000 messages, **83,659 cycles**, 974 dump records,
+- generated capture: 1,000 messages, **162,859 cycles**, 974 dump records,
   checksum `97a2bb9075066e99`;
-- real Nasdaq slice: 1,792 messages, **557,588 cycles**, 2,765 dump
+- real Nasdaq slice: 1,792 messages, **1,106,288 cycles**, 2,765 dump
   records, checksum `95aa35f0045c196e`;
 - both dumps are field-for-field identical to the C++ book.
 
 The hardware book is slower than the behavioural model because it
-sequences one synchronous memory access per cycle and pays a read-wait
-state. That is the cost of making the storage real; the cycle numbers
-above are not a speed claim against the behavioural model. The sparse
-behavioural book costs 41.75 cycles per message on the generated
-capture; the hardware core costs 83.66. On real messages the hardware
-core costs 311.15 cycles per message.
+sequences one synchronous memory access per cycle and now pays for a
+registered read pipeline: `st_read_wait`, `st_read_data`, `st_read_pp`.
+That is the cost of making the storage real; the cycle numbers above are
+not a speed claim against the behavioural model. The sparse behavioural
+book costs 41.75 cycles per message on the generated capture; the
+hardware core costs 162.86. On real messages the hardware core costs
+617.35 cycles per message.
 
-Timing is a miss. The 85F run closes at **49.58 MHz**, not 100 MHz. The
-critical path starts at a block-RAM output and runs through the
-record-to-dump and state-control logic. The next step would be to
-pipeline the read result and the dump path; that has not been done, and
-the report does not round the number up.
+Timing is a miss. In this local reproduction the 85F run closes at
+**82.13 MHz**, not 100 MHz. The read result path is pipelined; the
+critical path remains the block-RAM output into the first fabric
+register. The next step is not "add another fabric register" — that was
+tried — it is either inference of the DP16KD output register through a
+flow that supports it, or board-level placement constraints after the
+core is integrated. The dump path is not separately pipelined because
+the current critical path does not start there. The report does not
+round the number up.
 
 ## The behavioural book
 
