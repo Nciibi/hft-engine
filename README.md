@@ -459,9 +459,10 @@ pools with synchronous arrays. GHDL infers three block RAMs: orders
 produce dumps identical to the C++ book, and on the real slice the
 hardware checksum is `95aa35f0045c196e` - the same checksum the
 behavioural model produces. It costs more cycles, because each memory
-access is sequenced: 83.66 cycles per message on the generated capture
-and 311.15 on the real slice, against 41.75 for the behavioural sparse
-book. That is the cost of making the storage real, not a speed claim.
+access is sequenced and registered: 162.86 cycles per message on the
+generated capture and 617.35 on the real slice, against 41.75 for the
+behavioural sparse book. That is the cost of making the storage real,
+not a speed claim.
 
 **Synthesis is reported, not rounded up.** On an ECP5 LFE5U-25F at a
 100 MHz constraint, the framer uses 169 LUT4s, 77 FFs and no BRAM and
