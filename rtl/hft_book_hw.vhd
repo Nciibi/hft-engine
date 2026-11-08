@@ -27,6 +27,14 @@
 -- finite live-order budget. `MAX_ORDERS` and `MAX_LEVELS` are chosen
 -- for the capture the differential runs; a production core would put
 -- the free lists back in.
+--
+-- The read path has two fabric registers (`..._pre`, `..._q`) after the
+-- arrays. With the DP16KD output register (OUTREG) synthesised this is
+-- three cycles end to end, which is what the three read-wait states
+-- allow for, so the two registers are the whole fabric pipeline. The
+-- older shape kept a third stage (`..._rdata`); OUTREG carries that
+-- cycle inside the EBR instead, which is why the third stage went
+-- away. See results/SYNTHESIS.md.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -40,6 +48,8 @@ entity hft_book_hw is
     generic (
         MAX_ORDERS  : positive := 4096;
         MAX_LEVELS  : positive := 2048;
+        -- Must be a power of two: the index hash and the probe-step
+        -- wrap use a mask, not a divider.
         TABLE_SLOTS : positive := 8192;
         -- Accepted for interface compatibility with the behavioural
         -- model. The hardware core is the sparse ladder.
@@ -181,19 +191,19 @@ architecture rtl of hft_book_hw is
     signal levels : level_pool_t := init_levels;
     signal id_tab : id_table_t := init_ids;
 
-    signal ord_rdata : order_rec_t := zero_order;
-    signal lvl_rdata : level_rec_t := zero_level;
-    signal id_rdata  : id_entry_t := zero_id;
-
-    -- One fabric register after the EBR output. The EBR clock-to-q
+    -- Two fabric registers after the EBR output. The EBR clock-to-q
     -- alone is more than half a 100 MHz period on this part, so the
     -- state machine never consumes the array outputs directly.
+    -- OUTREG carries the first read cycle inside the EBR.
     signal ord_pre : order_rec_t := zero_order;
     signal lvl_pre : level_rec_t := zero_level;
     signal id_pre  : id_entry_t := zero_id;
 
-    -- A second fabric register keeps the first next to the BRAM and
+    -- The second register keeps the first next to the BRAM and
     -- lets the state-control logic live next to the wide consumers.
+    -- These pipeline registers are not reset: they are transient,
+    -- overwritten on every read, and the state machine only consumes
+    -- them after a full read completes.
     signal ord_q : order_rec_t := zero_order;
     signal lvl_q : level_rec_t := zero_level;
     signal id_q  : id_entry_t := zero_id;
@@ -236,7 +246,7 @@ architecture rtl of hft_book_hw is
         x := x xor (x srl 23);
         x := x xor (x srl 17);
         x := x xor (x srl 11);
-        return to_integer(resize(x, 32)) mod TABLE_SLOTS;
+        return to_integer(resize(x, 32) and to_unsigned(TABLE_SLOTS - 1, 32));
     end function;
 
     type op_t is (op_none, op_add, op_execute, op_cancel, op_remove, op_replace);
@@ -357,12 +367,6 @@ begin
     begin
             if rising_edge(clk) then
             if rst = '1' then
-            ord_q <= zero_order;
-            lvl_q <= zero_level;
-            id_q <= zero_id;
-            ord_pre <= zero_order;
-            lvl_pre <= zero_level;
-            id_pre <= zero_id;
             state := st_idle;
             next_order := 1;
             next_level := 1;
@@ -383,12 +387,9 @@ begin
             ord_q <= ord_pre;
             lvl_q <= lvl_pre;
             id_q <= id_pre;
-            ord_pre <= ord_rdata;
-            lvl_pre <= lvl_rdata;
-            id_pre <= id_rdata;
-            ord_rdata <= orders(ord_raddr);
-            lvl_rdata <= levels(lvl_raddr);
-            id_rdata <= id_tab(id_raddr);
+            ord_pre <= orders(ord_raddr);
+            lvl_pre <= levels(lvl_raddr);
+            id_pre <= id_tab(id_raddr);
 
             if ord_we = '1' then
                 orders(ord_waddr) <= ord_wdata;
@@ -501,7 +502,11 @@ begin
                             stat := bs_capacity_exhausted;
                             state := st_finish;
                         else
-                            probe_slot := (probe_slot + 1) mod TABLE_SLOTS;
+                            if probe_slot = TABLE_SLOTS - 1 then
+                                probe_slot := 0;
+                            else
+                                probe_slot := probe_slot + 1;
+                            end if;
                             id_raddr := probe_slot;
                             read_ret := st_probe_use;
                             state := st_read_wait;
