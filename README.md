@@ -41,7 +41,7 @@ documents below, which is where the actual argument lives.
 | [`docs/RESULTS.md`](docs/RESULTS.md) | The measurement argument: four attempted fixes of which three made things worse, and a concurrency conclusion that reversed itself. |
 | [`results/OPTIMIZATION.md`](results/OPTIMIZATION.md) | The optimisation log, **including the two changes that were measured, failed, and reverted**. |
 | [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md) | Host specification, the clock's characteristics, and why the **latency** table is withheld while throughput and ratios are published. |
-| [`results/SYNTHESIS.md`](results/SYNTHESIS.md) | ECP5 area and timing: the framer, the decoder, and the memory-backed hardware book on an 85F, including the timing misses. |
+| [`results/SYNTHESIS.md`](results/SYNTHESIS.md) | ECP5 area and timing: the framer, the decoder, and the memory-backed hardware book on an 85F, all meeting 100 MHz. |
 
 ## Contents
 
@@ -243,7 +243,7 @@ Three things are now true that were not:
 | **RTL book against the C++ book**, every order and every field | done — 0 differences in sparse, dense and fallback runs |
 | Cycle-exact book cost | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Synthesizable RTL order book** | done - `rtl/hft_book_hw.vhd`, inferred block RAM, verified against the C++ dump |
-| Synthesis, area and timing | done — local YoWASP reproduction: framer 183.59 MHz, decoder 123.35 MHz, hardware book 82.13 MHz (100 MHz miss, published); [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
+| Synthesis, area and timing | done — local YoWASP reproduction (speed grade 7): framer 210.35 MHz, decoder 132.78 MHz, hardware book 110.69 MHz, all met; [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
 | PTP / hardware-timestamp clock sync | not started |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
@@ -363,7 +363,7 @@ $ ctest --test-dir build -R rtl_real -V
   rtl book cycles  279035
   differential ...... the two books agree on every order, level and field
   rtl hardware ...... rtl messages     1792
-  rtl book cycles  1106288
+  rtl book cycles  1106140
   hardware differential ...... the hardware and C++ books agree
   rtl dense ......... rtl messages     1792
   rtl dense cycles  10284
@@ -374,7 +374,7 @@ The same book slice is replayed through the dense grid with a 100-unit
 tick and a 1,000,001-slot band. It matches the sparse reference and takes
 10,284 cycles, 5.74 per message. The same messages are also replayed
 through the synthesizable hardware core, which produces the identical
-checksum at 1,106,288 cycles, 617.35 per message.
+checksum at 1,106,140 cycles, 617.27 per message.
 
 ## The hardware path
 
@@ -460,23 +460,27 @@ produce dumps identical to the C++ book, and on the real slice the
 hardware checksum is `95aa35f0045c196e` - the same checksum the
 behavioural model produces. It costs more cycles, because each memory
 access is sequenced and registered: 162.86 cycles per message on the
-generated capture and 617.35 on the real slice, against 41.75 for the
+generated capture and 617.27 on the real slice, against 41.75 for the
 behavioural sparse book. That is the cost of making the storage real,
 not a speed claim.
 
 **Synthesis is reported, not rounded up.** A local reproduction of the
-open flow (GHDL 6.0.0; YoWASP yosys 0.70; YoWASP nextpnr-ecp5 0.11.1)
-reports the framer at 172 LUT4s, 77 FFs and 183.59 MHz, the decoder at
-500 LUT4s, 2,243 FFs and 123.35 MHz, and the hardware book at 4,325
-LUT4s, 3,631 FFs, **110 DP16KDs** (52% of the device) and **82.13 MHz**.
-The hardware book still does not meet the 100 MHz constraint; the read
-result path is pipelined, but the critical path remains the BRAM read
-into the first fabric register. The native OSS CAD Suite figures may
-differ; `ctest -R rtl_synthesis` is the publication gate. The
-behavioural `hft_book` remains unsynthesised because its pools are
-process variables and GHDL rejects its variable-bound bitmap scans. The
-method, the memory table and the caveats are in
-[`results/SYNTHESIS.md`](results/SYNTHESIS.md).
+open flow (GHDL 6.0.0; YoWASP yosys 0.70; YoWASP nextpnr-ecp5 0.11.1,
+speed grade 7) reports the framer at 172 LUT4s, 77 FFs and 210.35 MHz,
+the decoder at 500 LUT4s, 2,243 FFs and 132.78 MHz, and the hardware
+book at 4,482 LUT4s, 3,133 FFs, **110 DP16KDs** (52% of the device) and
+**110.69 MHz** — the hardware book now meets the 100 MHz constraint.
+It closes via the DP16KD output register (OUTREG) plus index masking;
+see [`results/SYNTHESIS.md`](results/SYNTHESIS.md) for how the read
+was re-timed (two fabric registers after the arrays, three cycles with
+OUTREG) and why speed grade 7 is the stated target.
+At speed grade 6 (nextpnr's default for `--85k`) the same netlist
+measures 98.4 MHz; the re-timing moved it from 86.35 MHz there.
+The native OSS CAD Suite figures may differ; `ctest -R rtl_synthesis`
+is the publication gate. The behavioural `hft_book` remains
+unsynthesised because its pools are process variables and GHDL rejects
+its variable-bound bitmap scans. The method, the memory table and the
+caveats are in [`results/SYNTHESIS.md`](results/SYNTHESIS.md).
 
 ## Results
 
