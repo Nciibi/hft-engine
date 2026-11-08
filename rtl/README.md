@@ -99,7 +99,7 @@ compares two files and reports the first difference, and nothing else.
 | **The RTL book against the C++ book** | done — 0 differences in sparse, dense and fallback runs |
 | **Cycle-exact book cost** | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Both differentials over REAL Nasdaq messages** | done — decoder 70,208 messages, book 1,792 sparse and dense; 0 differences |
-| Synthesis, area and timing | done — local YoWASP reproduction: framer 183.59 MHz, decoder 123.35 MHz, hardware book 82.13 MHz (100 MHz miss, published); [`../results/SYNTHESIS.md`](../results/SYNTHESIS.md) |
+| Synthesis, area and timing | done — local YoWASP reproduction (speed grade 7): framer 210.35 MHz, decoder 132.78 MHz, hardware book 110.69 MHz, all met; [`../results/SYNTHESIS.md`](../results/SYNTHESIS.md) |
 
 ## The result
 
@@ -164,7 +164,7 @@ $ ctest --test-dir build -R rtl_real -V
   rtl book cycles  279035
   differential ...... the two books agree on every order, level and field
   rtl hardware ...... rtl messages     1792
-  rtl book cycles  1106288
+  rtl book cycles  1106140
   hardware differential ...... the hardware and C++ books agree
   rtl dense ......... rtl messages     1792
   rtl dense cycles  10284
@@ -232,11 +232,12 @@ checked against the C++ dump on both the generated capture and the real
 slice. With 4,096 orders, 2,048 levels and 8,192 index slots the three
 memories are about 2.0 Mbit, which is why synthesis places the core on
 an 85F rather than the 25F. The hardware run costs 162.86 cycles per
-message on 1,000 generated messages and 617.35 on the 1,792-message real
-slice. The read result path is pipelined one stage beyond the first
-fabric register; those are not improvements on the behavioural model, and
-they are the price of real memories and registered reads. The behavioural
-model remains the cycle model.
+message on 1,000 generated messages and 617.27 on the 1,792-message real
+slice. The read result path has two fabric registers after the arrays;
+with the DP16KD output register synthesised it is three cycles end to
+end, matching the three read-wait states. Those are not improvements on
+the behavioural model; they are the price of real memories and
+registered reads. The behavioural model remains the cycle model.
 
 **The comparison is a dump, not a checksum.** A checksum says "these two
 states are equal"; a dump says "these two states are equal, and if they
