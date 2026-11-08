@@ -243,15 +243,17 @@ produce field-for-field identical dumps, and the real checksum is
 `95aa35f0045c196e` - the same one the behavioural model produces.
 
 The hardware core costs 162.86 cycles per message on the generated
-capture and 617.35 on the real slice after its read result path was
+capture and 617.27 on the real slice after its read result path was
 pipelined, against 41.75 for the behavioural sparse book. That is the
 cost of one synchronous memory access per cycle plus a registered read
 pipeline, not a regression to hide. A local YoWASP reproduction of the
 synthesis flow places it on an 85F: 110 DP16KDs (52% of the device),
-4,325 LUT4s and 3,631 FFs. It closes at **82.13 MHz** against the
-100 MHz constraint. The miss is reported as a miss; the next step is
-not another fabric register, it is DP16KD output-register inference or
-board-level placement after integration.
+4,482 LUT4s and 3,133 FFs. It now closes at **110.69 MHz** against the
+100 MHz constraint (speed grade 7; 98.4 MHz on grade 6, nextpnr's
+default). The closure came from DP16KD output-register inference (the
+read was re-shaped to two fabric registers, three cycles with OUTREG),
+index masking in place of two signed `mod` operations, and stating
+speed grade 7 as the target; see results/SYNTHESIS.md.
 
 ---
 
