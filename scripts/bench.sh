@@ -49,6 +49,12 @@ else
 fi
 
 echo "hugepages    : $(grep -i huge /proc/meminfo | tr -s ' ' | cut -d' ' -f1-5 | tr '\n' ' ')"
+echo "kernel       : $(uname -r)"
+echo "ram          : $(awk '/MemTotal/ {printf "%.1f GiB", $2/1048576}' /proc/meminfo)"
+echo "isolcpus     : $(grep -o 'isolcpus=[^ ]*' /proc/cmdline || echo '(unset)')"
+echo "nohz_full    : $(grep -o 'nohz_full=[^ ]*' /proc/cmdline || echo '(unset)')"
+echo "irq affinity : first IRQ -> $(cat /sys/devices/system/cpu/irq/0/smp_affinity_list 2>/dev/null || echo unavailable)"
+echo "steal        : $(awk '/^cpu / {tot=0; for(i=1;i<=8;i++) tot+=$i; printf \"%.4f of cpu time\", $8/tot}' /proc/stat)"
 echo "messages     : ${MESSAGES}"
 echo
 
