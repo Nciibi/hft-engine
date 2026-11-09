@@ -118,9 +118,9 @@ begin
             wait until falling_edge(clk);
             dbg_count := dbg_count + 1;
             if (dbg_count mod 1000) = 0 then
-                report "dbg fifo=" & integer'image(fifo_count) & " busy=" & book_busy
-                     & " in_valid=" & in_valid & " in_ready=" & in_ready
-                     & " in_eof=" & in_eof;
+                report "dbg fifo=" & integer'image(fifo_count) & " busy=" & std_logic'image(book_busy)
+                     & " in_valid=" & std_logic'image(in_valid) & " in_ready=" & std_logic'image(in_ready)
+                     & " in_eof=" & std_logic'image(in_eof);
             end if;
         end loop;
         report "driver saw end_cap";
