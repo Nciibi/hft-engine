@@ -215,6 +215,7 @@ Three things are now true that were not:
 | Order Replace (U) decode | done |
 | Broken Trade (B) decode | done |
 | Trade (P) and Cross Trade (Q) decode | done |
+| System Event (S) decode | done - verified vs spec 1.1, 12 bytes |
 | MoldUDP64 64-bit sequence gap detection | done |
 | SPSC lock-free ring buffer | done |
 | Cache-line isolation, cache-line padded indices | done |
@@ -223,7 +224,7 @@ Three things are now true that were not:
 | Symbol sharding, ref-index routing | done |
 | MoldUDP64 downstream packet framing | done |
 | Threaded pipeline equivalence check | done |
-| Multi-shard sequencer, rebalancing, failover | not started |
+| Multi-shard sequencer, rebalancing, failover | done - hft/lob/sequencer.hpp, 22 checks |
 | Calibrated `rdtsc` clock with fences | done |
 | Measurement floor and resolution sweep, published | done |
 | Invariant-TSC determination across physical cores | done |
@@ -244,7 +245,7 @@ Three things are now true that were not:
 | Cycle-exact book cost | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Synthesizable RTL order book** | done - `rtl/hft_book_hw.vhd`, inferred block RAM, verified against the C++ dump |
 | Synthesis, area and timing | done — local YoWASP reproduction (speed grade 7): framer 210.35 MHz, decoder 132.78 MHz, hardware book 110.69 MHz, all met; [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
-| PTP / hardware-timestamp clock sync | not started |
+| Clock sync (offset/drift servo + kernel-bypass timestamps) | done - hft/util/clock_sync.hpp, hft/feed/kernel_bypass.hpp; hardware PTP/DTSC timestamping still no |
 | Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
 | SOUP packet checksum | n/a — does not exist; see below |
 
