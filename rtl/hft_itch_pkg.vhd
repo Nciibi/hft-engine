@@ -159,8 +159,10 @@ package hft_itch_pkg is
         7 => (1, 3, 5, 11, 19, 20, 32, 36, 0, 0, 0, 0, 0, 0, 0, 0),
         -- 'Q' Cross Trade
         8 => (1, 3, 5, 11, 27, 31, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        -- 'S' System Event (spec 1.1, verified: locate always 0)
+        9 => (1, 3, 5, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         -- not a type this build decodes
-        9 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        10 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- Width of each field, in bytes.
     constant kFieldWidth : width_table_t := (
