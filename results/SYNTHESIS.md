@@ -27,7 +27,19 @@ because its state is about 2 Mbit and the 25F has only 56 DP16KDs.
 | `hft_moldudp64` | LFE5U-25F | 172 | 77 | 0 | 100 MHz | **210.35 MHz** | met |
 | `hft_itch_decode` | LFE5U-25F | 500 | 2,243 | 0 | 100 MHz | **132.78 MHz** | met |
 | `hft_book_hw` | LFE5U-85F | 4,482 | 3,133 | **110** | 100 MHz | **110.69 MHz** | met |
+| `hft_seq` | LFE5U-25F | - | - | - | 100 MHz | - | in default synth set (see below) |
+| `hft_msg_fifo` | LFE5U-25F | - | - | - | 100 MHz | - | in default synth set (see below) |
+| `hft_top` | LFE5U-85F | - | - | - | 100 MHz | - | in default synth set (see below) |
 | `hft_book` | LFE5U-25F | - | - | - | 100 MHz | - | behavioural; not synthesised |
+
+The `hft_seq`, `hft_msg_fifo` and `hft_top` rows are added to the
+default synthesis set (`cmake/synth.cmake` TOP list, `hft_top` on
+the 85F with the same OUTREG patch as `hft_book_hw`); their area
+and Fmax are read from the generated report
+(`build/rtl_synth_work/synthesis.md`, `ctest -R rtl_synthesis`),
+not from this hand-written table — a number typed here without a
+run behind it would repeat the failure this repository documents
+elsewhere.
 
 The framer has ample margin. The decoder meets the constraint in this
 local reproduction; the earlier native report had a different decoder
