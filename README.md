@@ -21,7 +21,7 @@ resolution floor before reporting anything.
 |---|---|
 | **What it is** | ITCH 5.0 decoder, price-time-priority limit order book, pre-trade risk, OMS, Avellaneda-Stoikov market maker, and adverse-selection measurement |
 | **Language** | C++20, zero external dependencies in the library target |
-| **Tests** | **1,996 checks** across **35 CTest suites**, 0 failures, under **two compilers** |
+| **Tests** | **2,038 checks** across **36 CTest suites**, 0 failures, under **two compilers** |
 | **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
 | **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
 | **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
@@ -277,18 +277,19 @@ check was added.
 
 checks_unit: 1428
 checks_risk_oms: 156
-checks_strategy: 47
+checks_strategy: 61
 checks_concurrent: 149
 checks_shards: 51
 checks_rtl_trace: 85
 checks_persist: 41
 checks_sequencer: 22
 checks_clock: 17
-checks_total: 1996
-ctest_tests: 35
+checks_session: 28
+checks_total: 2038
+ctest_tests: 36
 -->
 
-**Verified: 1,996 checks across 35 CTest suites** — 1,428 unit + 156
+**Verified: 2,038 checks across 36 CTest suites** — 1,428 unit + 156
 risk/OMS + 47 strategy + 149 concurrency + 51 sharding + 85 RTL trace
 + 41 persistence + 22 sequencer + 17 clock,
 zero failures, under **two compilers**. Every number in that sentence is
