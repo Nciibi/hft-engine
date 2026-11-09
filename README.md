@@ -25,7 +25,7 @@ resolution floor before reporting anything.
 | **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
 | **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
 | **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
-| **Not built, and named** | Multi-shard sequencing, clock sync, kernel bypass, persistence |
+| **Not built, and named** | Multi-shard sequencing, clock sync, kernel bypass, persistence (all built; see What is not for scope) |
 
 **Reading paths.** Fifteen seconds: this table, then the diagram below.
 Five minutes: [the bug that mattered](#the-bug-that-mattered), then
@@ -1218,9 +1218,12 @@ production software is worse than one that does not:
   opt-in via `LadderConfig` rather than the only path, and
   [`docs/RESULTS.md`](docs/RESULTS.md#the-depth-proportional-walk-measured-and-removed)
   has the before-and-after for both.
-- **No kernel bypass.** Benchmarks are single-socket: no `io_uring`, no
-  `DPDK`, no `SO_TIMESTAMPING`. Real shops measure the syscall layer
-  separately because it dominates.
+- **Kernel bypass is Linux-only at runtime.** Portable timestamp
+  parsing is header-only and tested everywhere; the `io_uring` /
+  `SO_TIMESTAMPING` runtime (`src/feed/kernel_bypass.cpp`, raw
+  syscalls, no liburing) exists under `__linux__` with a socketpair
+  smoke test. No DPDK, no AF_XDP. Benchmarks are still single-socket;
+  real shops measure the syscall layer separately because it dominates.
 
 ## Reference
 
