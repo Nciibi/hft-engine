@@ -210,6 +210,7 @@ Three things are now true that were not:
 | Deterministic replay, FNV-1a book-state checksum | done |
 | Pre-trade risk: position, gross, notional, price band, rate, kill switch | done |
 | OMS: order state machine, slot pool, reconcile counters | done |
+| Persistence: WAL, snapshot, idempotent restart | done - hft/persist/wal.hpp, 41 checks |
 | Avellaneda-Stoikov quoting, no transcendental in the loop | done |
 | Adverse selection: markout, effective/realised spread, toxicity | done |
 | Order Replace (U) decode | done |
