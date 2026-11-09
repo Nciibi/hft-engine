@@ -205,8 +205,21 @@ struct CrossTrade {
     std::uint8_t cross_type = 0;  ///< 'O' opening, 'C' closing, 'H' halt/IPO
 };
 
+/// ITCH 'S', System Event. Verified against TotalView-ITCH 5.0
+/// section 1.1. Signals market/data-feed events (start of messages,
+/// start/end of hours, ...). No book effect; the apply layer is a
+/// no-op, but a handler that never sees it cannot tell a clean
+/// startup from a mid-session join.
+struct SystemEvent {
+    StockLocate stock_locate = 0;
+    TrackingNumber tracking = 0;
+    Nanos timestamp = 0;
+    std::uint8_t code = 0;  ///< 'O' start of messages, 'S' start of hours, ...
+};
+
 using MessageBody = std::variant<AddOrder, OrderExecuted, OrderExecutedAtPrice, OrderCancel,
-                                 OrderDelete, OrderReplace, BrokenTrade, Trade, CrossTrade>;
+                                 OrderDelete, OrderReplace, BrokenTrade, Trade, CrossTrade,
+                                 SystemEvent>;
 
 /// A decoded message: the payload plus the tag derived from it.
 struct Message {
