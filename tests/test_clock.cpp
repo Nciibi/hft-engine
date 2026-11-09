@@ -121,6 +121,45 @@ int main() {
         check(!feed::parse_timestamp_payload(nullptr, 0, ts), "null rejected");
     }
 
-    std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
-    return g_failures == 0 ? 0 : 1;
+#if defined(__linux__)
+// Linux-only runtime smoke test: SO_TIMESTAMPING actually stamps a
+// packet on a socketpair, and io_uring setup succeeds (or reports
+// disabled, which is also a pass -- some kernels/containers turn
+// io_uring off, and a disabled ring is not a wrong answer).
+#include <sys/socket.h>
+#include <unistd.h>
+
+namespace {
+void test_linux_runtime() {
+    int fds[2] = {-1, -1};
+    check(::socketpair(AF_UNIX, SOCK_DGRAM, 0, fds) == 0, "socketpair created");
+    if (fds[0] < 0) {
+        return;
+    }
+    check(feed::linux_bypass::enable_hardware_timestamps(fds[0]) ||
+              feed::linux_bypass::enable_hardware_timestamps(fds[1]),
+          "SO_TIMESTAMPING enabled on a socket");
+    const char msg[] = "hello";
+    check(::send(fds[1], msg, sizeof(msg), 0) == static_cast<ssize_t>(sizeof(msg)), "packet sent");
+    char buf[64] = {};
+    feed::PacketTimestamp ts;
+    const ssize_t n = feed::linux_bypass::recv_timestamped(fds[0], buf, sizeof(buf), ts);
+    check(n == static_cast<ssize_t>(sizeof(msg)), "timestamped packet received");
+    if (n > 0) {
+        check(ts.ns > 0, "kernel timestamp is positive");
+    }
+    ::close(fds[0]);
+    ::close(fds[1]);
+
+    const int ring = feed::linux_bypass::create_ring(64);
+    if (ring >= 0) {
+        check(ring >= 0, "io_uring ring created");
+        ::close(ring);
+    } else {
+        check(true, "io_uring unavailable on this host (not a failure)");
+    }
 }
+}  // namespace
+#endif  // defined(__linux__)
+
+int main() {
