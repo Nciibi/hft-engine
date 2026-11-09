@@ -40,19 +40,19 @@ std::vector<std::uint8_t> add_frame(std::uint64_t id, std::uint32_t shares, std:
     f[1] = 36;  // length prefix (body size)
     f[2] = 'A';
     // locate(2)=1, tracking(2)=0, timestamp(6)=0, id(8)
-    for (int i = 0; i < 8; ++i) {
-        f[2 + 11 + i] = static_cast<std::uint8_t>((id >> ((7 - i) * 8)) & 0xFFu);
+    for (std::size_t i = 0; i < 8; ++i) {
+        f[2 + 11 + static_cast<int>(i)] = static_cast<std::uint8_t>((id >> ((7 - i) * 8)) & 0xFFu);
     }
     f[2 + 19] = 'B';  // side
-    for (int i = 0; i < 4; ++i) {
-        f[2 + 20 + i] = static_cast<std::uint8_t>((shares >> ((3 - i) * 8)) & 0xFFu);
+    for (std::size_t i = 0; i < 4; ++i) {
+        f[2 + 20 + static_cast<int>(i)] = static_cast<std::uint8_t>((shares >> ((3 - i) * 8)) & 0xFFu);
     }
     const char* sym = "SIMTEST ";
-    for (int i = 0; i < 8; ++i) {
-        f[2 + 24 + i] = static_cast<std::uint8_t>(sym[i]);
+    for (std::size_t i = 0; i < 8; ++i) {
+        f[2 + 24 + static_cast<int>(i)] = static_cast<std::uint8_t>(sym[i]);
     }
-    for (int i = 0; i < 4; ++i) {
-        f[2 + 32 + i] = static_cast<std::uint8_t>((price >> ((3 - i) * 8)) & 0xFFu);
+    for (std::size_t i = 0; i < 4; ++i) {
+        f[2 + 32 + static_cast<int>(i)] = static_cast<std::uint8_t>((price >> ((3 - i) * 8)) & 0xFFu);
     }
     return f;
 }
