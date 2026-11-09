@@ -56,16 +56,27 @@ entity hft_moldudp64 is
         clk           : in  std_logic;
         rst           : in  std_logic;
 
-        -- Byte stream in.
+        -- Byte stream in (AXI-stream style).
         --
         -- `in_eof` says the source has no more bytes to give. It is
         -- separate from `in_valid` on purpose: a stream that has not
         -- started yet looks exactly like a stream that has finished,
         -- and telling those apart by `in_valid` alone would end the
         -- capture before it began.
+        --
+        -- `in_ready` is the framer's acceptance signal to the source:
+        -- it is the pass-through of `downstream_ready`. When it is
+        -- '0' the framer consumes NOTHING -- no byte, no EOF -- and
+        -- the source must hold `in_byte`/`in_valid` stable, exactly
+        -- as AXI-stream requires. This is what lets a slower consumer
+        -- (the book) throttle a faster producer (the wire): tie it
+        -- to '1' (the testbenches) and the framer is the original
+        -- always-ready block.
         in_valid      : in  std_logic;
+        in_ready      : out std_logic;
         in_eof        : in  std_logic;
         in_byte       : in  std_logic_vector(7 downto 0);
+        downstream_ready : in std_logic := '1';
 
         -- Frame body bytes out.
         out_valid     : out std_logic;
@@ -76,6 +87,19 @@ entity hft_moldudp64 is
         frame_len     : out natural range 0 to 65535;
         frame_has_len : out std_logic;
         frame_trunc   : out std_logic;
+
+        -- Per-packet transport info, pulsed for one cycle when the
+        -- packet header completes (hdr_pos = 19). `pkt_seq` is the
+        -- 64-bit Sequence Number field (bytes 10..17, big endian) --
+        -- the value the sequence tracker observes. Heartbeats
+        -- (count 0, seq = next expected) and end-of-session
+        -- (count 65535) carry no frames; both are reported so the
+        -- tracker can apply the C++ observe_packet rules.
+        pkt_seq_valid : out std_logic;
+        pkt_seq       : out std_logic_vector(63 downto 0);
+        pkt_count     : out std_logic_vector(15 downto 0);
+        pkt_heartbeat : out std_logic;
+        pkt_eos       : out std_logic;
 
         end_of_capture : out std_logic
     );
@@ -108,15 +132,27 @@ architecture rtl of hft_moldudp64 is
     signal o_has_len : std_logic := '0';
     signal o_trunc : std_logic := '0';
     signal o_end : std_logic := '0';
+    signal o_pkt_valid : std_logic := '0';
+    signal o_pkt_seq : std_logic_vector(63 downto 0) := (others => '0');
+    signal o_pkt_count : std_logic_vector(15 downto 0) := (others => '0');
+    signal o_pkt_hb : std_logic := '0';
+    signal o_pkt_eos : std_logic := '0';
+    signal seq_reg : std_logic_vector(63 downto 0) := (others => '0');
 
 begin
 
+    in_ready <= downstream_ready;
     out_valid <= o_valid;
     out_byte <= o_byte;
     frame_start <= o_start;
     frame_len <= o_len;
     frame_has_len <= o_has_len;
     frame_trunc <= o_trunc;
+    pkt_seq_valid <= o_pkt_valid;
+    pkt_seq <= o_pkt_seq;
+    pkt_count <= o_pkt_count;
+    pkt_heartbeat <= o_pkt_hb;
+    pkt_eos <= o_pkt_eos;
     end_of_capture <= o_end;
 
     process (clk)
@@ -138,25 +174,47 @@ begin
                 o_has_len <= '0';
                 o_trunc <= '0';
                 o_end <= '0';
+                o_pkt_valid <= '0';
+                o_pkt_hb <= '0';
+                o_pkt_eos <= '0';
+                seq_reg <= (others => '0');
             else
                 -- Every control output is a one-cycle pulse by default.
                 o_valid <= '0';
                 o_start <= '0';
                 o_trunc <= '0';
+                o_pkt_valid <= '0';
+                o_pkt_hb <= '0';
+                o_pkt_eos <= '0';
 
-                if in_valid = '1' then
+                -- Backpressure gate: when downstream is not ready the
+                -- byte (and EOF) is NOT consumed -- state, counters
+                -- and outputs hold, pulses stay clear. The source
+                -- re-presents the byte next cycle.
+                if downstream_ready = '0' then
+                    null;
+                elsif in_valid = '1' then
                     case state is
                         when st_header =>
+                            if hdr_pos >= 10 and hdr_pos <= 17 then
+                                -- Sequence Number, bytes 10..17, big
+                                -- endian: shift in MSB first.
+                                seq_reg <= seq_reg(55 downto 0) & in_byte;
+                            end if;
                             if hdr_pos = 19 then
                                 -- The last byte of the header: the
                                 -- Message Count, and the end of the
                                 -- header.
                                 count_value := len_hi * 256 + to_integer(unsigned(in_byte));
                                 hdr_pos <= 0;
+                                o_pkt_valid <= '1';
+                                o_pkt_seq <= seq_reg;
+                                o_pkt_count <= std_logic_vector(to_unsigned(count_value, 16));
                                 if count_value = 65535 then
                                     -- End of session.
                                     state <= st_end;
                                     o_end <= '1';
+                                    o_pkt_eos <= '1';
                                 elsif count_value = 0 then
                                     -- A heartbeat carries the next
                                     -- expected sequence number and no
@@ -164,6 +222,7 @@ begin
                                     -- transport, not the feed, so it
                                     -- carries no frame.
                                     state <= st_header;
+                                    o_pkt_hb <= '1';
                                 else
                                     blocks_left <= count_value;
                                     len_hi <= 0;
