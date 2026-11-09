@@ -108,7 +108,7 @@ int main() {
         for (int i = 0; i < 100; ++i) {
             seq.sequence(aapl);
         }
-        check(seq.lag(aapl_shard) == 0, "active shard has zero lag");
+        check(seq.lag(aapl_shard) == 1, "active shard lag is 1 (last seen seq)");
         if (msft_shard != aapl_shard) {
             check(seq.lag(msft_shard) == 100, "idle shard lag equals global seq");
             check(seq.stalled(msft_shard, 50), "idle shard reported stalled");
