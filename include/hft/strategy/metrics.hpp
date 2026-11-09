@@ -244,6 +244,83 @@ private:
     util::LatencyHistogram realised_;
 };
 
+/// Queue-position-aware fill model.
+///
+/// The symmetric fill model in market_maker.cpp fills any quote
+/// the mid touches, as if it were first in queue and instant to
+/// reach the venue. Real fills require two things that model
+/// omits: (1) the shares ahead of you in the queue at your price
+/// must be consumed/cancelled first, and (2) your quote takes
+/// `latency_ns` to reach the book. This class tracks both. It is
+/// deliberately deterministic: volume consumed at your price
+/// reduces the queue ahead share-for-share (price-time priority
+/// means nothing jumps the queue), and eligibility is a pure
+/// function of time since placement. No randomness, so a backtest
+/// that disagrees between runs has a bug, not noise.
+class FillModel final {
+public:
+    explicit FillModel(Nanos latency_ns = 0) noexcept : latency_ns_(latency_ns) {}
+
+    struct Placement {
+        Side side = Side::bid;
+        Price price{};
+        Quantity size{};
+        std::uint64_t ahead = 0;  // shares ahead at placement
+        Nanos placed_at = 0;
+        std::uint64_t filled = 0;
+    };
+
+    /// Place a quote with `ahead_shares` visibly ahead of it at
+    /// the same price. Returns the queue position (shares ahead).
+    [[nodiscard]] std::uint64_t place(Placement& p, std::uint64_t ahead_shares,
+                                      Nanos now) noexcept {
+        p.ahead = ahead_shares;
+        p.placed_at = now;
+        p.filled = 0;
+        resting_ = &p;
+        return p.ahead;
+    }
+
+    /// Volume traded at the quote's price: consumes the queue
+    /// ahead first, then fills the resting quote. Returns shares
+    /// filled on this observation.
+    std::uint64_t on_trade_through(Price price, std::uint64_t shares, Nanos now) noexcept {
+        if (resting_ == nullptr || price != resting_->price || !eligible(now)) {
+            return 0;
+        }
+        const std::uint64_t consumed = shares < resting_->ahead ? shares : resting_->ahead;
+        resting_->ahead -= consumed;
+        shares -= consumed;
+        const std::uint64_t fillable =
+            shares < remaining(resting_) ? shares : remaining(resting_);
+        resting_->filled += fillable;
+        return fillable;
+    }
+
+    /// Cancellations ahead of the quote shrink the queue.
+    void on_cancel_ahead(std::uint64_t shares) noexcept {
+        if (resting_ == nullptr) {
+            return;
+        }
+        resting_->ahead = shares < resting_->ahead ? resting_->ahead - shares : 0;
+    }
+
+    [[nodiscard]] bool eligible(const Placement& p, Nanos now) const noexcept {
+        return now >= p.placed_at + latency_ns_ && p.ahead == 0;
+    }
+    [[nodiscard]] bool eligible(Nanos now) const noexcept {
+        return resting_ != nullptr && eligible(*resting_, now);
+    }
+    [[nodiscard]] static std::uint64_t remaining(const Placement* p) noexcept {
+        return p == nullptr ? 0 : p->size.raw() - p->filled;
+    }
+    [[nodiscard]] Nanos latency() const noexcept { return latency_ns_; }
+
+private:
+    Nanos latency_ns_;
+    Placement* resting_ = nullptr;
+};
+
 /// PnL accounting for a market maker.
 ///
 /// Cash-and-position bookkeeping, marked to market on every observation
