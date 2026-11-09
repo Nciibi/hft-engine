@@ -109,6 +109,20 @@ echo "=== per-stage latency: shallow vs deep book ==="
 "${ROOT}/build/hft_stage_bench" "${MESSAGES}"
 echo
 
+echo "=== repeatability (N runs, same command) ==="
+# A single run is an anecdote; the spread is the result. REPEAT
+# defaults to 3. On bare metal run-to-run variance is ~16%, in
+# cloud ~150% (see results/LATENCY.md) -- report the spread, not
+# the best run.
+REPEAT="${REPEAT:-3}"
+for i in $(seq 1 "${REPEAT}"); do
+  echo "--- run ${i}/${REPEAT} ---"
+  "${ROOT}/build/hft_stage_bench" 500000 2>/dev/null \
+    | awk '/^deep book|^shallow book|throughput|msgs\/sec|msg\/s/ {print "  " $0}'
+done
+echo "Paste the stage tables above into results/LATENCY.md with the"
+echo "environment block at the top of this output. See that file"
+
 echo "=== concurrency: ring vs mutex baseline ==="
 # These two place their own threads and report the placement they
 # actually achieved, so no taskset is needed here.
