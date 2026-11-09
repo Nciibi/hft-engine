@@ -216,7 +216,7 @@ package hft_itch_pkg is
     --   'Q' Cross Trade          an eight-byte share count, which the
     --                             specification says may be zero when
     --                             interest is insufficient to cross
-    constant kOrderKeyed : flag_table_t := (true, true, true, true, true, true, false, false, false, false);
+    constant kOrderKeyed : flag_table_t := (true, true, true, true, true, true, false, false, false, false, false);
 
     -- The table index for a tag byte.
     function type_index_of(tag : std_logic_vector(7 downto 0)) return type_index_t;
@@ -336,6 +336,7 @@ package body hft_itch_pkg is
             when x"42" => return 6;  -- 'B'
             when x"50" => return 7;  -- 'P'
             when x"51" => return 8;  -- 'Q'
+            when x"53" => return 9;  -- 'S'
             when others => return kUnknownType;
         end case;
     end function;
