@@ -904,6 +904,11 @@ begin
                         o_dump_state <= ord_q.state;
                         o_dump_pos <= dump_position;
                         dump_position := dump_position + 1;
+                        dump_checksum := fnv1a_u64(dump_checksum, ord_q.id);
+                        dump_checksum := fnv1a_u64(dump_checksum, ord_q.price);
+                        dump_checksum := fnv1a_u64(dump_checksum, ord_q.size);
+                        dump_checksum := fnv1a_u64(dump_checksum,
+                            std_logic_vector(to_unsigned(ord_q.state, 64)));
                     end if;
                     dump_cur_order := ord_q.q_next;
                     if dump_cur_order /= 0 then
@@ -931,10 +936,14 @@ begin
                             state := st_read_wait;
                         else
                             o_dump_done <= '1';
+                            o_checksum <= dump_checksum;
+                            o_checksum_valid <= '1';
                             state := st_idle;
                         end if;
                     else
                         o_dump_done <= '1';
+                        o_checksum <= dump_checksum;
+                        o_checksum_valid <= '1';
                         state := st_idle;
                     end if;
 

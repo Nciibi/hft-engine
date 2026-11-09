@@ -40,6 +40,7 @@ entity hft_hex_reader is
     port (
         clk         : in  std_logic;
         rst         : in  std_logic;
+        byte_ready  : in  std_logic := '1';
         byte_valid  : out std_logic;
         byte_out    : out std_logic_vector(7 downto 0);
         byte_eof    : out std_logic
@@ -72,7 +73,9 @@ begin
                 o_valid <= '0';
                 o_eof <= '0';
             else
-                if not eof_reached then
+                if byte_ready = '0' and o_valid = '1' then
+                    null;  -- hold byte_valid/byte_out: consumer stalled
+                elsif not eof_reached then
                     -- Read the next line if this one is spent. An
                     -- empty line is skipped, so a trailing newline
                     -- cannot look like a zero-length line rather than
