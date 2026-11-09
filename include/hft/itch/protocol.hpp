@@ -38,9 +38,15 @@ enum class MessageType : std::uint8_t {
     trade = 'P',                          ///< Trade, non-cross (spec 1.5.1)
     cross_trade = 'Q',                    ///< Cross Trade (spec 1.5.2)
 
-    // Tag known; body layout NOT yet verified against the spec.
-    add_order_mpid = 'F',                 ///< Add Order with MPID attribution
+    // Verified (see below).
     system_event = 'S',                   ///< System Event
+
+    // Tag known; body layout NOT yet verified against the spec.
+    // These remain skipped by length, deliberately: their tables
+    // differ between feed variants (e.g. Stock Directory totals
+    // differ between the Nasdaq and PSX specs), and guessing one
+    // variant's layout would misparse another's.
+    add_order_mpid = 'F',                 ///< Add Order with MPID attribution
     stock_directory = 'R',                ///< Stock Directory
     end_of_market_hours = 'M',
     end_of_system_hours = 'Z',
