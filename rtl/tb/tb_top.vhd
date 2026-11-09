@@ -16,6 +16,7 @@ use work.hft_itch_pkg.all;
 use work.hft_book_pkg.all;
 use work.hft_trace_fmt.all;
 use std.textio.all;
+use std.textio;
 
 entity tb_top is
     generic (
