@@ -357,6 +357,7 @@ package body hft_itch_pkg is
             when 6 => return x"42";
             when 7 => return x"50";
             when 8 => return x"51";
+            when 9 => return x"53";
             when others => return kZero;
         end case;
     end function;
