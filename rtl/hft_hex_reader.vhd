@@ -75,37 +75,34 @@ begin
             else
                 if byte_ready = '0' and o_valid = '1' then
                     null;  -- hold byte_valid/byte_out: consumer stalled
-                elsif not eof_reached then
-                    -- Read the next line if this one is spent. An
-                    -- empty line is skipped, so a trailing newline
-                    -- cannot look like a zero-length line rather than
-                    -- the end.
-                    --
-                    -- The condition is "this line is spent", not "this
-                    -- line is empty": a spent line still has a length,
-                    -- and testing for emptiness would read past the end
-                    -- of it.
-                    while (line_pos >= line_len) and (not eof_reached) loop
-                        if endfile(hex_file) then
-                            eof_reached := true;
-                        else
-                            readline(hex_file, l);
-                            line_len := l.all'length;
-                            line_pos := 0;
-                        end if;
-                    end loop;
-                end if;
-
-                if eof_reached then
-                    o_valid <= '0';
-                    o_eof <= '1';
                 else
-                    hi := hex_val(l.all(line_pos + 1));
-                    lo := hex_val(l.all(line_pos + 2));
-                    line_pos := line_pos + 2;
-                    o_byte <= std_logic_vector(to_unsigned(hi * 16 + lo, 8));
-                    o_valid <= '1';
-                    o_eof <= '0';
+                    if not eof_reached then
+                        -- Read the next line if this one is spent. An
+                        -- empty line is skipped, so a trailing newline
+                        -- cannot look like a zero-length line rather than
+                        -- the end.
+                        while (line_pos >= line_len) and (not eof_reached) loop
+                            if endfile(hex_file) then
+                                eof_reached := true;
+                            else
+                                readline(hex_file, l);
+                                line_len := l.all'length;
+                                line_pos := 0;
+                            end if;
+                        end loop;
+                    end if;
+
+                    if eof_reached then
+                        o_valid <= '0';
+                        o_eof <= '1';
+                    else
+                        hi := hex_val(l.all(line_pos + 1));
+                        lo := hex_val(l.all(line_pos + 2));
+                        line_pos := line_pos + 2;
+                        o_byte <= std_logic_vector(to_unsigned(hi * 16 + lo, 8));
+                        o_valid <= '1';
+                        o_eof <= '0';
+                    end if;
                 end if;
             end if;
         end if;
