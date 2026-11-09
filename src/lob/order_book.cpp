@@ -659,6 +659,20 @@ Handle OrderBook::add(Side side, Price price, Quantity size, OrderId id,
     return h;
 }
 
+BookStatus OrderBook::restore_order(Side side, Price price, Quantity size, OrderId id,
+                                    OrderState state) noexcept {
+    if (state != OrderState::new_order && state != OrderState::partially_filled) {
+        return BookStatus::malformed;
+    }
+    BookStatus status{};
+    const Handle h = add(side, price, size, id, status);
+    if (status != BookStatus::ok) {
+        return status;
+    }
+    orders_[h].state = state;
+    return BookStatus::ok;
+}
+
 BookStatus OrderBook::execute(OrderId id, Quantity qty) noexcept {
     const Handle h = find_order(id);
     if (h == kInvalidHandle) {
