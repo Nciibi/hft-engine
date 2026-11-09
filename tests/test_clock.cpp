@@ -34,6 +34,10 @@ void check_eq_i64(std::int64_t actual, std::int64_t expected, const char* what) 
 namespace util = hft::util;
 namespace feed = hft::feed;
 
+#if defined(__linux__)
+void test_linux_runtime();
+#endif
+
 }  // namespace
 
 int main() {
@@ -122,6 +126,14 @@ int main() {
     }
 
 #if defined(__linux__)
+    test_linux_runtime();
+#endif
+
+    std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
+    return g_failures == 0 ? 0 : 1;
+}
+
+#if defined(__linux__)
 // Linux-only runtime smoke test: SO_TIMESTAMPING actually stamps a
 // packet on a socketpair, and io_uring setup succeeds (or reports
 // disabled, which is also a pass -- some kernels/containers turn
@@ -161,5 +173,3 @@ void test_linux_runtime() {
 }
 }  // namespace
 #endif  // defined(__linux__)
-
-int main() {
