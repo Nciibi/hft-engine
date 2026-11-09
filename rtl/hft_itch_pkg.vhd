@@ -192,15 +192,16 @@ package hft_itch_pkg is
         6 => (3, 5, 11, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         7 => (3, 5, 11, 19, 20, 24, 36, 44, 0, 0, 0, 0, 0, 0, 0, 0),
         8 => (3, 5, 11, 19, 31, 39, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-        9 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        9 => (3, 5, 11, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        10 => (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     -- How many fields each type carries.
-    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 7, 0);
+    constant kFieldCount : count_table_t := (8, 6, 8, 5, 4, 7, 4, 8, 7, 4, 0);
 
     -- The body length each type requires, in bytes. A frame whose
     -- declared length disagrees with this is a BAD LENGTH, not a
     -- message with different fields.
-    constant kBodyLength : length_table_t := (36, 31, 36, 23, 19, 35, 19, 44, 40, 0);
+    constant kBodyLength : length_table_t := (36, 31, 36, 23, 19, 35, 19, 44, 40, 12, 0);
 
     -- Whether the message is keyed on an order reference, and a
     -- reference of zero is therefore malformed.
