@@ -250,6 +250,21 @@ add_executable(hft_shards tests/test_shards.cpp)
 target_link_libraries(hft_shards PRIVATE hft_core)
 add_test(NAME shards COMMAND hft_shards)
 
+# Persistence: WAL + snapshot + idempotent restart. Header-only.
+add_executable(hft_persist tests/test_persist.cpp)
+target_link_libraries(hft_persist PRIVATE hft_core)
+add_test(NAME persist COMMAND hft_persist)
+
+# Multi-shard sequencer: global sequencing, rebalance, failover.
+add_executable(hft_sequencer tests/test_sequencer.cpp)
+target_link_libraries(hft_sequencer PRIVATE hft_core)
+add_test(NAME sequencer COMMAND hft_sequencer)
+
+# Clock sync servo + kernel-bypass portable core.
+add_executable(hft_clock tests/test_clock.cpp)
+target_link_libraries(hft_clock PRIVATE hft_core)
+add_test(NAME clock COMMAND hft_clock)
+
 # The RTL trace: the format, the comparator, and the bridge from the
 # engine's decoder to a trace record.
 #
