@@ -374,6 +374,7 @@ package body hft_itch_pkg is
             when 6 => return "Broken Trade";
             when 7 => return "Trade";
             when 8 => return "Cross Trade";
+            when 9 => return "System Event";
             when others => return "unknown";
         end case;
     end function;
