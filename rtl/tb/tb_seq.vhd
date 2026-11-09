@@ -103,11 +103,17 @@ begin
         resync <= '0';
         assert expected_o = std_logic_vector(to_unsigned(1005, 64)) report "resync expected wrong" severity failure;
         assert resyncs_o = std_logic_vector(to_unsigned(1, 64)) report "resync count wrong" severity failure;
-        -- Wrap-adjacent: packet at 2^64-2 count=2 -> expected wraps to 0, ok
+        -- Rebase to just before the 64-bit wrap: expected = 2^64-2.
+        wait until falling_edge(clk);
+        resync <= '1';
+        resync_seq <= std_logic_vector(to_unsigned(18446744073709551612, 64));
+        resync_count <= std_logic_vector(to_unsigned(2, 16));
+        wait until falling_edge(clk);
+        resync <= '0';
+        assert expected_o = std_logic_vector(to_unsigned(18446744073709551614, 64)) report "wrap rebase wrong" severity failure;
+        -- Packet at 2^64-2 count=2 -> ok, expected wraps/refills to 0.
         packet(18446744073709551614, 2, '0');
-        -- This packet is far from 1005, so it is a forward gap in
-        -- modular terms only if delta < 2^63; it is huge, expect gap
-        -- classification and expected = seq+count (wrapped 0).
+        assert seq_state = 0 report "wrap packet not ok" severity failure;
         assert expected_o = std_logic_vector(to_unsigned(0, 64)) report "wrap expected wrong" severity failure;
         report "tb_seq PASS";
         sim_done <= '1';
