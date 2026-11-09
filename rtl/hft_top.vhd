@@ -170,8 +170,8 @@ begin
             TABLE_SLOTS => TABLE_SLOTS)
         port map (
             clk => clk, rst => rst,
-            apply_start => apply_start, apply_type => fifo_rd_type,
-            apply_fields => fifo_rd_fields, apply_done => apply_done,
+            apply_start => apply_start, apply_type => apply_type_r,
+            apply_fields => apply_fields_r, apply_done => apply_done,
             apply_status => apply_status, apply_cycles => apply_cycles,
             dump_start => dump_start, dump_valid => dump_valid,
             dump_kind => dump_kind, dump_side => dump_side,
@@ -206,6 +206,11 @@ begin
                 end if;
                 if book_busy_r = '0' then
                     if fifo_rd_valid = '1' then
+                        -- Latch the message: the FIFO head moves on
+                        -- pop, so the book must see stable registers,
+                        -- not the FIFO output.
+                        apply_type_r <= fifo_rd_type;
+                        apply_fields_r <= fifo_rd_fields;
                         apply_start <= '1';
                         fifo_rd_pop <= '1';
                         book_busy_r <= '1';
