@@ -230,6 +230,19 @@ public:
     Handle add(Side side, Price price, Quantity size, OrderId id,
                BookStatus& status) noexcept;
 
+    /// Restore an order with an explicit state, for snapshot recovery.
+    ///
+    /// `add` always creates `new_order`; a snapshot of a book with a
+    /// partially-filled order cannot be rebuilt from adds alone,
+    /// because the executed quantity is not in the snapshot (only
+    /// the remaining size is). This sets the state directly after
+    /// adding, so restore_snapshot in hft/persist/wal.hpp can
+    /// reproduce the exact (id, price, size, state) fold. Only
+    /// working states (new_order, partially_filled) are accepted;
+    /// anything else is rejected rather than placed on the book.
+    BookStatus restore_order(Side side, Price price, Quantity size, OrderId id,
+                             OrderState state) noexcept;
+
     /// True when `price` is addressable by the dense ladder.
     ///
     /// Exposed so a benchmark can assert that its band actually covers the
