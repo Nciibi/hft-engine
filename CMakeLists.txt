@@ -266,6 +266,11 @@ add_executable(hft_clock tests/test_clock.cpp)
 target_link_libraries(hft_clock PRIVATE hft_core)
 add_test(NAME clock COMMAND hft_clock)
 
+# SOUP session: login, heartbeat, retransmit-on-gap.
+add_executable(hft_session tests/test_session.cpp)
+target_link_libraries(hft_session PRIVATE hft_core)
+add_test(NAME session COMMAND hft_session)
+
 # The RTL trace: the format, the comparator, and the bridge from the
 # engine's decoder to a trace record.
 #
