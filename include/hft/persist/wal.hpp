@@ -247,11 +247,10 @@ struct Snapshot {
 /// success) if the restored checksum differs from the snapshot's.
 inline bool restore_snapshot(lob::OrderBook& book, const Snapshot& snap) {
     for (const SnapshotOrder& o : snap.orders) {
-        lob::BookStatus st{};
-        book.add(o.side == static_cast<std::uint8_t>('B') ? Side::bid : Side::ask,
-                 Price::from_raw(static_cast<std::int64_t>(o.price)),
-                 Quantity::from_raw(o.size), o.id, st);
-        if (st != lob::BookStatus::ok) {
+        const OrderState state = o.state == 1 ? OrderState::partially_filled : OrderState::new_order;
+        if (!book.restore_order(o.side == static_cast<std::uint8_t>('B') ? Side::bid : Side::ask,
+                                Price::from_raw(static_cast<std::int64_t>(o.price)),
+                                Quantity::from_raw(o.size), o.id, state)) {
             return false;
         }
     }
