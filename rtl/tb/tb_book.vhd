@@ -257,7 +257,9 @@ begin
                 dump_c => dump_c,
                 dump_state => dump_state,
                 dump_pos => dump_pos,
-                dump_done => dump_done);
+                dump_done => dump_done,
+                book_checksum => hw_checksum,
+                book_checksum_valid => hw_checksum_valid);
     end generate;
 
     -- ---- The clock and the reset --------------------------------------
