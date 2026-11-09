@@ -60,6 +60,7 @@ $suites = [ordered]@{
     'persist'     = 'hft_persist'
     'sequencer'   = 'hft_sequencer'
     'clock'       = 'hft_clock'
+    'session'     = 'hft_session'
 }
 
 # Try the bare name and the .exe name rather than branching on the host.
