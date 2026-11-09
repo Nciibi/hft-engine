@@ -121,6 +121,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
         case MessageType::broken_trade:               expected = off::kBrokenTradeSize; break;
         case MessageType::trade:                      expected = off::kTradeSize; break;
         case MessageType::cross_trade:                expected = off::kCrossTradeSize; break;
+        case MessageType::system_event:               expected = off::kSystemEventSize; break;
         default:                                expected = 0; break;  // skip below
     }
 
