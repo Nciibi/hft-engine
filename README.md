@@ -1182,12 +1182,10 @@ production software is worse than one that does not:
   entry is a separate product (Basic, OU Clearsight, FIX) with its own
   specification; an implementation encoding `'B'` as an order would put an
   eight-byte match number where a venue expects an order.
-- **Order Replace is decoded but the generator under-models it.** `'U'` is
-  implemented and applied per spec §4.4.5, including the rule that a new
-  reference number means new time priority. The generator does not track
-  the replacement order's new reference in its live set, so a captured
-  replace is the last mutation that order receives. The decode and apply
-  paths are exercised directly by hand-built frames.
+- **Order Replace is decoded, applied, and generated faithfully.** `'U'`
+  is implemented per spec §4.4.5 (new reference = new time priority), and
+  the generator tracks the replacement under its new reference in its
+  live set, so replaced orders continue to receive mutations.
 - **Sequencing logic is in-process.** The multi-shard sequencer
   (hft/lob/sequencer.hpp) assigns global sequence numbers, rebalances
   symbols, and fails over a down shard to its standby without loss --
