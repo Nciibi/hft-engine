@@ -280,7 +280,7 @@ checks_concurrent: 149
 checks_shards: 51
 checks_rtl_trace: 85
 checks_total: 1907
-ctest_tests: 31
+ctest_tests: 32
 -->
 
 **Verified: 1,907 checks across 30 CTest suites** — 1,419 unit + 156
@@ -766,7 +766,7 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure   # 31 suites, ~12 min with real data and synthesis
+ctest --test-dir build --output-on-failure   # 32 suites, ~12 min with real data and synthesis
 ```
 
 That is the whole verification story. The individual binaries, if you want
