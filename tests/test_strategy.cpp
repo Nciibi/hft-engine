@@ -251,6 +251,50 @@ void test_pnl_accounting() {
     check(p.drawdown() == 0, "and draws down nothing");
 }
 
+// ---- Queue-position-aware fills --------------------------------------
+
+void test_fill_model_queue_position() {
+    std::printf("fill model: queue position and latency\n");
+    strategy::FillModel fm(1'000);  // 1000ns to reach the book
+    strategy::FillModel::Placement p;
+    p.side = Side::bid;
+    p.price = Price::from_raw(1'000'000);
+    p.size = Quantity::from_raw(100);
+
+    // Front of queue, but latency not yet elapsed: no fill.
+    check(fm.place(p, 0, 0) == 0, "front of queue has zero ahead");
+    check(fm.on_trade_through(p.price, 100, 500) == 0,
+          "latency blocks an early fill");
+    check(!fm.eligible(500), "not eligible before latency");
+    // After latency, front-of-queue fills in full.
+    check(fm.eligible(1'000), "eligible after latency at front of queue");
+    check(fm.on_trade_through(p.price, 100, 1'000) == 100,
+          "front-of-queue quote fills immediately after latency");
+    check(fm.on_trade_through(p.price, 100, 1'000) == 0,
+          "filled quote does not fill again");
+
+    // Back of queue: 500 shares ahead must be consumed first.
+    strategy::FillModel::Placement q;
+    q.side = Side::ask;
+    q.price = Price::from_raw(1'000'200);
+    q.size = Quantity::from_raw(50);
+    check(fm.place(q, 500, 2'000) == 500, "back of queue has 500 ahead");
+    check(fm.on_trade_through(q.price, 50, 3'000) == 0,
+          "back-of-queue quote gets nothing until ahead is consumed");
+    check(fm.on_trade_through(q.price, 400, 3'000) == 0,
+          "partial consumption still leaves queue ahead");
+    check(q.ahead == 100, "ahead shrinks by traded volume");
+    fm.on_cancel_ahead(100);
+    check(q.ahead == 0, "cancels ahead clear the queue");
+    check(fm.eligible(3'000), "eligible once queue is clear");
+    check(fm.on_trade_through(q.price, 20, 3'000) == 20,
+          "cleared quote fills up to traded volume");
+
+    // Wrong price does not fill.
+    check(fm.on_trade_through(Price::from_raw(1'000'300), 50, 3'000) == 0,
+          "trade through a different price does not fill");
+}
+
 // ---- The book invariant ---------------------------------------------
 
 void test_book_never_crosses() {
