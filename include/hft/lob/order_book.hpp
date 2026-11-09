@@ -240,8 +240,8 @@ public:
     /// reproduce the exact (id, price, size, state) fold. Only
     /// working states (new_order, partially_filled) are accepted;
     /// anything else is rejected rather than placed on the book.
-    BookStatus restore_order(Side side, Price price, Quantity size, OrderId id,
-                             OrderState state) noexcept;
+    bool restore_order(Side side, Price price, Quantity size, OrderId id,
+                       OrderState state) noexcept;
 
     /// True when `price` is addressable by the dense ladder.
     ///
