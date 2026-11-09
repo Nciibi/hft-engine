@@ -109,12 +109,19 @@ begin
         variable dump_index : natural := 0;
         variable checksum : std_logic_vector(63 downto 0) := fnv1a_basis;
         variable got_checksum : boolean := false;
+        variable dbg_count : natural := 0;
         file book_file : text open write_mode is OUT_PATH;
     begin
         -- Wait for capture end, then for FIFO + book to drain.
         report "driver start";
         while end_cap = '0' loop
             wait until falling_edge(clk);
+            dbg_count := dbg_count + 1;
+            if (dbg_count mod 1000) = 0 then
+                report "dbg fifo=" & integer'image(fifo_count) & " busy=" & book_busy
+                     & " in_valid=" & in_valid & " in_ready=" & in_ready
+                     & " in_eof=" & in_eof;
+            end if;
         end loop;
         report "driver saw end_cap";
         while fifo_count > 0 or book_busy = '1' loop
