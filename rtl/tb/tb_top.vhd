@@ -113,7 +113,7 @@ begin
         file book_file : text open write_mode is OUT_PATH;
     begin
         -- Wait for capture end, then for FIFO + book to drain.
-        report "driver start";
+        report "driver start end_cap=" & std_logic'image(end_cap) & " fifo=" & integer'image(fifo_count);
         while end_cap = '0' loop
             wait until falling_edge(clk);
             dbg_count := dbg_count + 1;
