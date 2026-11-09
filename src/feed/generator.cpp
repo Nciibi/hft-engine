@@ -263,8 +263,7 @@ void append_order_executed_at_price(std::vector<std::uint8_t>& out, hft::OrderId
     write_be32(out, static_cast<std::uint32_t>(execution_price.raw()));
 }
 
-/// Order Replace ('U'). Emitted only to exercise the decoder's
-/// skip-by-length path; this build deliberately does not decode it.
+/// Order Replace ('U'). Verified against spec 4.4.5 and decoded.
 void append_order_replace(std::vector<std::uint8_t>& out, hft::OrderId original, hft::OrderId next,
                           hft::Quantity shares, hft::Price price, hft::Nanos timestamp,
                           hft::StockLocate locate, hft::TrackingNumber tracking) noexcept {
