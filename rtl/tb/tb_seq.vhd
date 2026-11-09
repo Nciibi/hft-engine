@@ -30,17 +30,6 @@ architecture sim of tb_seq is
     signal resyncs_o : std_logic_vector(63 downto 0) := (others => '0');
     signal sim_done : std_logic := '0';
 
-    procedure packet(seq : natural; cnt : natural; hb : std_logic) is
-    begin
-        wait until falling_edge(clk);
-        pkt_valid <= '1';
-        pkt_seq <= std_logic_vector(to_unsigned(seq, 64));
-        pkt_count <= std_logic_vector(to_unsigned(cnt, 16));
-        pkt_hb <= hb;
-        pkt_eos <= '0';
-        wait until falling_edge(clk);
-        pkt_valid <= '0';
-    end procedure;
 begin
     dut : entity work.hft_seq
         port map (
@@ -63,6 +52,17 @@ begin
     end process;
 
     driver : process
+        procedure packet(seq : natural; cnt : natural; hb : std_logic) is
+        begin
+            wait until falling_edge(clk);
+            pkt_valid <= '1';
+            pkt_seq <= std_logic_vector(to_unsigned(seq, 64));
+            pkt_count <= std_logic_vector(to_unsigned(cnt, 16));
+            pkt_hb <= hb;
+            pkt_eos <= '0';
+            wait until falling_edge(clk);
+            pkt_valid <= '0';
+        end procedure;
     begin
         wait for 40 ns;
         rst <= '0';
