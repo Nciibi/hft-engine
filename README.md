@@ -1135,9 +1135,12 @@ built to answer are:
    candidates most under-prepare for, and the one most likely to be
    asked regardless of the round.
 
-Not yet built, and named honestly: a multi-shard sequencer with
-rebalancing and failover, clock synchronisation, kernel-bypass transport,
-and persistence. Symbol sharding and MoldUDP64 framing *are* built — an
+Not yet built, and named honestly: DPDK/AF_XDP socket transport,
+hardware PTP timestamping, live session negotiation/retransmit, and
+OUCH order entry (a separate product with its own specification).
+Symbol sharding, the multi-shard sequencer with rebalancing and
+failover, the clock-sync servo, the kernel-bypass timestamp core,
+and WAL/snapshot persistence *are* built — an
 earlier revision of this line said otherwise and contradicted the table
 in [What is implemented](#what-is-implemented).
 
@@ -1184,17 +1187,20 @@ production software is worse than one that does not:
   the replacement order's new reference in its live set, so a captured
   replace is the last mutation that order receives. The decode and apply
   paths are exercised directly by hand-built frames.
-- **No multi-shard sequencing.** Symbol sharding works and is measured, but
-  there is no sequencer arbitrating across shards, no rebalancing when the
-  symbol set changes, and no recovery when a shard falls behind. Those are
-  the hard parts of production and none are here. What *is* here is the
-  part that had to be right first: routing a mutation to the right book when
-  the message does not say which book it belongs to.
-- **No clock synchronisation** — no PTP, no NTP discipline, no
-  cross-machine timestamp alignment. Cross-host latency claims would be
-  meaningless without it.
-- **No persistence or recovery.** A restart loses all state; a real system
-  needs a write-ahead log and a snapshot cadence.
+- **Sequencing logic is in-process.** The multi-shard sequencer
+  (hft/lob/sequencer.hpp) assigns global sequence numbers, rebalances
+  symbols, and fails over a down shard to its standby without loss --
+  but cross-process failover (a dead process's kernel buffers, a standby
+  host taking over a session) is a different system and is not claimed.
+- **Clock synchronisation is a servo, not PTP.** hft/util/clock_sync.hpp
+  estimates offset/drift from timestamp pairs and disciplines time
+  (step vs slew). No PTP, no NIC timestamp, no kernel discipline --
+  cross-host latency claims would still be meaningless without those.
+- **Persistence is format + recovery logic, not a storage system.**
+  hft/persist/wal.hpp defines the WAL record format, duplicate/gap
+  handling, snapshot/restore, and snapshot+WAL-tail recovery, all
+  checksum-verified. It does not fsync, mmap, or manage a storage
+  tier -- that deployment choice is the caller's.
 - **The market making backtest is an upper bound.** No queue position, no
   latency, no size at level. Its fill model is *symmetric*, so the position
   is a random walk the inventory term cannot damp and the strategy reaches
