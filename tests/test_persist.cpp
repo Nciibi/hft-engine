@@ -99,7 +99,7 @@ int main() {
         const auto f1 = add_frame(10, 50, 1'000'000);
         w.append(1, f1.data(), f1.size());
         auto bytes = w.bytes();
-        bytes[20] ^= 0xFF;  // inside the frame bytes
+        bytes.at(20) ^= 0xFF;  // inside the frame bytes
         persist::WalReader r(bytes);
         persist::WalRecord rec;
         persist::WalStatus st;
@@ -138,7 +138,7 @@ int main() {
             if (st == persist::WalStatus::ok) {
                 const auto res = hft::itch::decode(r.frame(rec), rec.frame_size);
                 if (res.ok()) {
-                    hft::lob::apply(res.message, book);
+                    const auto ar1 = hft::lob::apply(res.message, book); (void)ar1;
                 }
             }
         }
@@ -216,17 +216,17 @@ int main() {
             const auto res = hft::itch::decode(frames[i].data(), frames[i].size());
             check(res.ok(), "full replay frame decodes");
             if (res.ok()) {
-                hft::lob::apply(res.message, full);
+                const auto ar2 = hft::lob::apply(res.message, full); (void)ar2;
             }
             w.append(static_cast<std::uint64_t>(i + 1), frames[i].data(), frames[i].size());
         }
         // Recover: snapshot after seq 2 from a half-replayed book,
         // then WAL tail 3-4.
         lob::OrderBook half(1024, 1024);
-        for (int i = 0; i < 2; ++i) {
+        for (std::size_t i = 0; i < 2; ++i) {
             const auto res = hft::itch::decode(frames[i].data(), frames[i].size());
             if (res.ok()) {
-                hft::lob::apply(res.message, half);
+                const auto ar3 = hft::lob::apply(res.message, half); (void)ar3;
             }
         }
         const auto snap = persist::take_snapshot(half, 2);
@@ -241,7 +241,7 @@ int main() {
             if (st == persist::WalStatus::ok) {
                 const auto res = hft::itch::decode(r.frame(rec), rec.frame_size);
                 if (res.ok()) {
-                    hft::lob::apply(res.message, recovered);
+                    const auto ar4 = hft::lob::apply(res.message, recovered); (void)ar4;
                     ++tail_applied;
                 }
             }
