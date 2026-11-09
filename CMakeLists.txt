@@ -68,6 +68,7 @@ add_library(hft_core STATIC
     src/itch/decode.cpp
     src/lob/order_book.cpp
     src/feed/generator.cpp
+    src/feed/kernel_bypass.cpp
     src/util/affinity.cpp)
 
 target_include_directories(hft_core PUBLIC
