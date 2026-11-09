@@ -46,8 +46,10 @@ file(MAKE_DIRECTORY "${WORK}")
 
 # The designs to synthesise by default. The framer and the decoder are
 # the ones with a realisable boundary; the book is measured separately.
+# hft_top is the streaming system (framer+decoder+FIFO+book+seq) and
+# needs the 85F for the same reason hft_book_hw does.
 if(NOT DEFINED TOP)
-    set(TOP hft_moldudp64 hft_itch_decode hft_book_hw)
+    set(TOP hft_moldudp64 hft_itch_decode hft_book_hw hft_seq hft_msg_fifo hft_top)
 endif()
 
 # The sources, in dependency order: the packages, then the entities.
@@ -59,7 +61,10 @@ set(sources
     "${RTL_DIR}/hft_moldudp64.vhd"
     "${RTL_DIR}/hft_itch_decode.vhd"
     "${RTL_DIR}/hft_book.vhd"
-    "${RTL_DIR}/hft_book_hw.vhd")
+    "${RTL_DIR}/hft_book_hw.vhd"
+    "${RTL_DIR}/hft_seq.vhd"
+    "${RTL_DIR}/hft_msg_fifo.vhd"
+    "${RTL_DIR}/hft_top.vhd")
 
 set(analyse "")
 foreach(src IN LISTS sources)

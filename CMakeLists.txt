@@ -376,6 +376,23 @@ if(GHDL)
                      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_book_differential.cmake")
     set_tests_properties(rtl_book_differential PROPERTIES TIMEOUT 1800)
 
+    # The streaming top-level differential: byte stream in, book dump
+    # out, in lockstep with backpressure (hft_top + hft_seq + FIFO),
+    # plus the sequence-tracker unit test. Unlike the book
+    # differential above, nothing here decodes first and applies
+    # second -- the FIFO and the framer stall are exercised for real.
+    add_test(NAME rtl_top_differential
+             COMMAND "${CMAKE_COMMAND}"
+                     -DHFT_RTL_TRACE=$<TARGET_FILE:hft_rtl_trace>
+                     -DHFT_BOOK_DUMP=$<TARGET_FILE:hft_book_dump>
+                     -DHFT_BOOK_CHECK=$<TARGET_FILE:hft_book_check>
+                     -DGHDL=${GHDL}
+                     -DRTL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/rtl
+                     -DWORK=${CMAKE_CURRENT_BINARY_DIR}/rtl_top_work
+                     -DRECORDS=1000
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtl_top_differential.cmake")
+    set_tests_properties(rtl_top_differential PROPERTIES TIMEOUT 1800)
+
     # The real-data differential: the same two comparisons, over REAL
     # Nasdaq market data rather than a generated capture.
     #
