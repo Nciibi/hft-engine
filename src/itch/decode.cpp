@@ -290,6 +290,17 @@ DecodeResult decode(const std::uint8_t* data, std::size_t available) noexcept {
             return r;
         }
 
+        case MessageType::system_event: {
+            SystemEvent s;
+            s.stock_locate = header.locate;
+            s.tracking = header.tracking;
+            s.timestamp = header.timestamp;
+            s.code = body[off::system_event_code];
+            r.status = DecodeStatus::ok;
+            r.message.body = s;
+            return r;
+        }
+
         case MessageType::order_replace: {
             OrderReplace u;
             u.stock_locate = header.locate;
