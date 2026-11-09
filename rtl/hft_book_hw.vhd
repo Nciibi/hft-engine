@@ -419,6 +419,7 @@ begin
             o_done <= '0';
             o_dump_valid <= '0';
             o_dump_done <= '0';
+            o_checksum_valid <= '0';
 
             if state /= st_idle then
                 cycle_count := cycle_count + 1;
@@ -429,6 +430,7 @@ begin
                 when st_idle =>
                     if dump_start = '1' then
                         dump_next_level := 0;
+                        dump_checksum := fnv1a_basis;
                         if bid_head /= 0 then
                             dump_walk_side := '1';
                             dump_cur_level := bid_head;
@@ -437,6 +439,8 @@ begin
                             dump_cur_level := ask_head;
                         else
                             o_dump_done <= '1';
+                            o_checksum <= dump_checksum;
+                            o_checksum_valid <= '1';
                             dump_cur_level := 0;
                         end if;
                         if dump_cur_level /= 0 then
