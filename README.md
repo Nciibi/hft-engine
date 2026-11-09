@@ -1200,12 +1200,13 @@ production software is worse than one that does not:
   handling, snapshot/restore, and snapshot+WAL-tail recovery, all
   checksum-verified. It does not fsync, mmap, or manage a storage
   tier -- that deployment choice is the caller's.
-- **The market making backtest is an upper bound.** No queue position, no
-  latency, no size at level. Its fill model is *symmetric*, so the position
-  is a random walk the inventory term cannot damp and the strategy reaches
-  its limit and stays there. The adverse-selection metrics do not depend on
-  this and stand on their own; the inventory numbers show the mechanism is
-  wired up, not that the strategy controls inventory.
+- **The market making backtest remains an upper bound, now with queue
+  position and latency.** `FillModel` (strategy/metrics.hpp) tracks
+  shares ahead and quote latency, so fills are no longer symmetric/
+  instant. Still no size-at-level interaction beyond the queue ahead,
+  and the fill model is deterministic (no order-flow randomness), so
+  inventory numbers show the mechanism is wired up, not that the
+  strategy controls inventory.
 - **No self-trade prevention, no auction handling, no order book state
   message processing.**
 - **The sparse price ladder is a hash map plus a sorted linked list**, so
