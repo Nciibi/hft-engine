@@ -479,7 +479,9 @@ void test_decode() {
     // An unknown but well-formed type is skippable, not an error.
     {
         std::vector<std::uint8_t> unknown;
-        const std::uint8_t body[8] = {'S', 0, 0, 0, 0, 0, 0, 0};
+        // 'F' (Add Order MPID): layout unverified, still skipped.
+        // ('S' used to be the example here and is now decoded.)
+        const std::uint8_t body[8] = {'F', 0, 0, 0, 0, 0, 0, 0};
         feed::append_frame(unknown, body, sizeof(body));
         const auto ur = itch::decode(unknown.data(), unknown.size());
         check(ur.status == itch::DecodeStatus::unknown_type, "unknown type reported");
