@@ -1239,8 +1239,9 @@ follows Guéant-Lehalle-Fernandez-Tapia.
 `A`, `E`, `C`, `X`, `D`, `U`, `B`, `P` and `Q` have been checked against
 the published field tables in Nasdaq's TotalView-ITCH 5.0 specification,
 and each one now carries a `static_assert` against its literal offset.
-`F` (Add Order with MPID Attribution), `S` and `R` have **not** been
-verified, and this build does not decode them. There is no order-entry
+`F` (Add Order with MPID Attribution), `R`, `M` and `Z` have **not**
+been verified, and this build does not decode them. `S` (System Event)
+is verified (spec 1.1, 12 bytes) and decoded. There is no order-entry
 direction to verify, because TotalView-ITCH does not have one.
 
 Going to the specification has now found three errors that a green test
