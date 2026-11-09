@@ -35,10 +35,13 @@ Two things must happen before the withheld half is published:
 
 1. **Run on the rented bare-metal host** (`c7i.metal`), which has a
    TSC-backed clock at nanosecond granularity.
-2. **Run `scripts/bench.sh` there.** It gates on the correctness tests and
-   on cross-optimisation determinism first, then prints the environment
-   block, then the clock characterisation, then the benchmarks — in that
-   order.
+2. **Run `scripts/bench.sh` there** (environment + correctness gates
+   + benchmarks + REPEAT spread), then `./scripts/perf_profile.sh
+   build 2000000` for attribution. Paste the results into
+   [`LATENCY.md`](LATENCY.md); the host-table template there mirrors
+   bench.sh's environment block exactly. See
+   [`docs/PERF.md`](../docs/PERF.md) for what each counter should
+   show for this engine.
 
 Then paste the environment block into the host table below and fill the
 `README.md` placeholders from the script's own output. Do not hand-edit
