@@ -70,8 +70,12 @@ public:
     SoupSession(const char* username, const char* password,
                 std::int64_t heartbeat_timeout_ns = 1'000'000'000LL) noexcept
         : heartbeat_timeout_ns_(heartbeat_timeout_ns) {
-        std::memcpy(username_, username, 10);
-        std::memcpy(password_, password, 10);
+        for (std::size_t i = 0; i < 10 && username[i] != '\0'; ++i) {
+            username_[i] = username[i];
+        }
+        for (std::size_t i = 0; i < 10 && password[i] != '\0'; ++i) {
+            password_[i] = password[i];
+        }
     }
 
     /// Build the Login Request wire bytes and enter `logging_in`.
