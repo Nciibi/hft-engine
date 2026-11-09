@@ -21,7 +21,7 @@ resolution floor before reporting anything.
 |---|---|
 | **What it is** | ITCH 5.0 decoder, price-time-priority limit order book, pre-trade risk, OMS, Avellaneda-Stoikov market maker, and adverse-selection measurement |
 | **Language** | C++20, zero external dependencies in the library target |
-| **Tests** | **1,907 checks** across **30 CTest suites**, 0 failures, under **two compilers** |
+| **Tests** | **1,996 checks** across **35 CTest suites**, 0 failures, under **two compilers** |
 | **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
 | **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
 | **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
@@ -273,18 +273,22 @@ adding that suite changed ctest_tests from 23 to 24, which is itself a
 value this block has to carry. The count below is the number *after* the
 check was added.
 
-checks_unit: 1419
+checks_unit: 1428
 checks_risk_oms: 156
 checks_strategy: 47
 checks_concurrent: 149
 checks_shards: 51
 checks_rtl_trace: 85
-checks_total: 1907
-ctest_tests: 32
+checks_persist: 41
+checks_sequencer: 22
+checks_clock: 17
+checks_total: 1996
+ctest_tests: 35
 -->
 
-**Verified: 1,907 checks across 30 CTest suites** — 1,419 unit + 156
-risk/OMS + 47 strategy + 149 concurrency + 51 sharding + 85 RTL trace,
+**Verified: 1,996 checks across 35 CTest suites** — 1,428 unit + 156
+risk/OMS + 47 strategy + 149 concurrency + 51 sharding + 85 RTL trace
++ 41 persistence + 22 sequencer + 17 clock,
 zero failures, under **two compilers**. Every number in that sentence is
 asserted by `ctest`, and `scripts/check-claims.sh` fails the build if it
 drifts from what the binaries actually print. The argument is not the
@@ -766,7 +770,7 @@ one**. Full account in
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure   # 32 suites, ~12 min with real data and synthesis
+ctest --test-dir build --output-on-failure   # 35 suites, ~12 min with real data and synthesis
 ```
 
 That is the whole verification story. The individual binaries, if you want
