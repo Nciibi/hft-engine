@@ -238,6 +238,14 @@ inline constexpr std::size_t kCrossTradeSize = cross_type + 1;
 inline constexpr std::size_t kOrderCancelSize = order_cancel_shares + kSharesSize;
 inline constexpr std::size_t kOrderDeleteSize = order_delete_id + kOrderIdSize;
 
+// ---- System Event ('S'), spec 1.1 ----
+//   0 1 Message Type 'S', 1 2 Stock Locate (always 0),
+//   3 2 Tracking Number, 5 6 Timestamp, 11 1 Event Code -> 12 bytes.
+// Verified against TotalView-ITCH 5.0 section 1.1 (Nasdaq and PSX
+// specs agree on this layout, unlike Stock Directory).
+inline constexpr std::size_t system_event_code = 11;
+inline constexpr std::size_t kSystemEventSize = system_event_code + 1;
+
 }  // namespace off
 
 // Guard the verified layouts. These fail at compile time, not at 3am.
@@ -269,6 +277,8 @@ static_assert(off::order_replace_price == off::order_replace_shares + 4,
 static_assert(off::kBrokenTradeSize == 19, "ITCH Broken Trade body is 19 bytes (spec 4.5.3)");
 static_assert(off::broken_trade_match == 11, "Broken Trade match number sits at offset 11");
 static_assert(off::kTradeSize == 44, "ITCH Trade (non-cross) body is 44 bytes (spec 1.5.1)");
+static_assert(off::kSystemEventSize == 12, "ITCH System Event body is 12 bytes (spec 1.1)");
+static_assert(off::system_event_code == 11, "System Event code sits at offset 11");
 static_assert(off::trade_id == 11, "Trade order reference sits at offset 11");
 static_assert(off::trade_side == 19, "Trade side indicator sits at offset 19");
 static_assert(off::trade_shares == 20, "Trade shares sit at offset 20");
