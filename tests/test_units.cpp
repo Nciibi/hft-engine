@@ -1138,6 +1138,7 @@ void test_broken_trade_layout_is_spec() {
 
 void test_system_event_layout_is_spec() {
     std::printf("System Event layout against the published field table\n");
+    using namespace hft;
 
     //  0  1  'S'   System Event Message (spec 1.1)
     //  1  2  Stock Locate (always 0)
