@@ -112,9 +112,11 @@ begin
         file book_file : text open write_mode is OUT_PATH;
     begin
         -- Wait for capture end, then for FIFO + book to drain.
+        report "driver start";
         while end_cap = '0' loop
             wait until falling_edge(clk);
         end loop;
+        report "driver saw end_cap";
         while fifo_count > 0 or book_busy = '1' loop
             wait until falling_edge(clk);
         end loop;
