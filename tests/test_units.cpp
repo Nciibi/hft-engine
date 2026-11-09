@@ -1136,6 +1136,57 @@ void test_broken_trade_layout_is_spec() {
           "but they are distinct tags, so identical size is not conflation");
 }
 
+void test_system_event_layout_is_spec() {
+    std::printf("System Event layout against the published field table\n");
+
+    //  0  1  'S'   System Event Message (spec 1.1)
+    //  1  2  Stock Locate (always 0)
+    //  3  2  Tracking Number
+    //  5  6  Timestamp
+    // 11  1  Event Code
+    std::vector<std::uint8_t> body(itch::off::kSystemEventSize, 0);
+    body[0] = 'S';
+    body[3] = 0x00;
+    body[4] = 0x07;              // Tracking Number 7
+    body[5] = 0x00;
+    body[6] = 0x00;
+    body[7] = 0x00;
+    body[8] = 0x00;
+    body[9] = 0x00;
+    body[10] = 0x0A;             // Timestamp 10 ns
+    body[11] = 'O';              // Start of Messages
+
+    check_eq_int(static_cast<long long>(itch::off::kSystemEventSize), 12,
+                 "System Event body is 12 bytes (spec 1.1)");
+
+    std::vector<std::uint8_t> frame;
+    hft::feed::append_frame(frame, body.data(), body.size());
+    const auto r = itch::decode(frame.data(), frame.size());
+    check(r.ok(), "the hand-built System Event frame decodes");
+    if (r.ok()) {
+        const auto* s = std::get_if<itch::SystemEvent>(&r.message.body);
+        check(s != nullptr, "it decodes to SystemEvent");
+        if (s != nullptr) {
+            check_eq_int(static_cast<long long>(s->stock_locate), 0, "stock locate is always 0");
+            check_eq_int(static_cast<long long>(s->tracking), 7, "tracking number");
+            check(s->timestamp == 10, "timestamp");
+            check(s->code == static_cast<std::uint8_t>('O'), "event code is 'O'");
+        }
+    }
+
+    // No book effect, like 'B'/'P'/'Q'.
+    hft::lob::OrderBook book(1u << 10, 1u << 10);
+    hft::lob::BookStatus status{};
+    book.add(Side::bid, Price::from_raw(50'000), Quantity::from_raw(10), 6'000'001, status);
+    const std::uint64_t before = book.aggregate_at(Side::bid).raw();
+    itch::SystemEvent se;
+    se.code = static_cast<std::uint8_t>('O');
+    const hft::lob::ApplyResult ar = hft::lob::apply(itch::Message{se}, book);
+    check(ar.applied, "a System Event is reported as processed");
+    check_eq_int(static_cast<long long>(book.aggregate_at(Side::bid).raw()),
+                 static_cast<long long>(before), "a System Event does not move the book");
+}
+
 // ---- Trade (non-cross) and Cross Trade ------------------------------
 //
 // Both verified against TotalView-ITCH 5.0 section 1.5.1 and 1.5.2.
