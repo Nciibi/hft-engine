@@ -89,10 +89,10 @@ package hft_itch_pkg is
     -- come?" -- and gets the same answer.
     type decode_status_t is (st_ok, st_skipped, st_bad_length, st_malformed, st_truncated);
 
-    -- The index into the field tables. 9 means "a type this build does
-    -- not decode", which is a skip rather than an error.
-    subtype type_index_t is natural range 0 to 9;
-    constant kUnknownType : type_index_t := 9;
+    -- The index into the field tables. 10 means "a type this build
+    -- does not decode", which is a skip rather than an error.
+    subtype type_index_t is natural range 0 to 10;
+    constant kUnknownType : type_index_t := 10;
 
     -- The field tables are sixteen entries wide, not nine.
     --
