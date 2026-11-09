@@ -216,7 +216,7 @@ foreach(top IN LISTS TOP)
     # This is a Yosys limitation workaround, not a design change:
     # changing REGMODE does not alter the logic or the state, only
     # which physical register holds the first read cycle.
-    if(top STREQUAL "hft_book_hw")
+    if(top STREQUAL "hft_book_hw" OR top STREQUAL "hft_top")
         file(READ "${WORK}/${top}.json" _synth_json)
         string(REPLACE "\"NOREG\"" "\"OUTREG\"" _synth_json "${_synth_json}")
         file(WRITE "${WORK}/${top}.json" "${_synth_json}")
