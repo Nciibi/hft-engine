@@ -247,7 +247,7 @@ Three things are now true that were not:
 | **Synthesizable RTL order book** | done - `rtl/hft_book_hw.vhd`, inferred block RAM, verified against the C++ dump |
 | Synthesis, area and timing | done — local YoWASP reproduction (speed grade 7): framer 210.35 MHz, decoder 132.78 MHz, hardware book 110.69 MHz, all met; [`results/SYNTHESIS.md`](results/SYNTHESIS.md) |
 | Clock sync (offset/drift servo + kernel-bypass timestamps) | done - hft/util/clock_sync.hpp, hft/feed/kernel_bypass.hpp; hardware PTP/DTSC timestamping still no |
-| Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | not started |
+| Kernel bypass (`io_uring`, `SO_TIMESTAMPING`) | done - Linux runtime, portable core everywhere |
 | SOUP packet checksum | n/a — does not exist; see below |
 
 **Order Replace and Broken Trade are implemented, and the reason they were
