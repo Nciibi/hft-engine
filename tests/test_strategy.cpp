@@ -283,8 +283,8 @@ void test_fill_model_queue_position() {
           "back-of-queue quote gets nothing until ahead is consumed");
     check(fm.on_trade_through(q.price, 400, 3'000) == 0,
           "partial consumption still leaves queue ahead");
-    check(q.ahead == 100, "ahead shrinks by traded volume");
-    fm.on_cancel_ahead(100);
+    check(q.ahead == 50, "ahead shrinks by traded volume (500-50-400)");
+    fm.on_cancel_ahead(50);
     check(q.ahead == 0, "cancels ahead clear the queue");
     check(fm.eligible(3'000), "eligible once queue is clear");
     check(fm.on_trade_through(q.price, 20, 3'000) == 20,
