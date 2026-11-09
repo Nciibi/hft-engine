@@ -640,9 +640,14 @@ std::vector<std::uint8_t> generate_capture(const CaptureConfig& config, CaptureS
                                      target.price, clock, 1,
                                      static_cast<hft::TrackingNumber>(i & 0xFFFFu));
                 ++local.order_replace;
-                // The replaced order leaves the book under its new
-                // reference, which this build does not track, so the
-                // generator's live set does not gain an entry for it.
+                // The replacement lives under its new reference: track
+                // it in the live set so later mutations name the new
+                // id, exactly as the apply layer carries side/price
+                // over from the original add.
+                Live replaced = target;
+                replaced.id = next_id;
+                live.push_back(replaced);
+                ++next_id;
             } else if (roll < config.pct_add + config.pct_execute) {
                 // Execute 1..remaining. Never zero: a zero-share
                 // execution is not a thing a venue sends, and allowing
