@@ -245,6 +245,8 @@ struct Message {
                     return static_cast<std::uint8_t>(MessageType::broken_trade);
                 } else if constexpr (std::is_same_v<T, Trade>) {
                     return static_cast<std::uint8_t>(MessageType::trade);
+                } else if constexpr (std::is_same_v<T, SystemEvent>) {
+                    return static_cast<std::uint8_t>(MessageType::system_event);
                 } else {
                     return static_cast<std::uint8_t>(MessageType::cross_trade);
                 }
@@ -253,7 +255,7 @@ struct Message {
     }
 };
 
-static_assert(std::variant_size_v<MessageBody> == 9,
+static_assert(std::variant_size_v<MessageBody> == 10,
               "MessageBody must cover every decoded ITCH type");
 
 enum class DecodeStatus : std::uint8_t {
