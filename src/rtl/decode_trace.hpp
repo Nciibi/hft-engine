@@ -160,6 +160,11 @@ private:
                 builder.add_u64(payload.shares.raw(), 4, "shares");
                 builder.add_i64(payload.price.raw(), 4, "price");
                 builder.add_u64(payload.match, 8, "match");
+            } else if constexpr (std::is_same_v<T, hft::itch::SystemEvent>) {
+                builder.add_u64(payload.stock_locate, 2, "locate");
+                builder.add_u64(payload.tracking, 2, "tracking");
+                builder.add_u64(payload.timestamp, 6, "timestamp");
+                builder.add_u64(payload.code, 1, "event_code");
             } else {
                 // Cross Trade. The share count here is EIGHT bytes,
                 // unlike every other message in the protocol.

@@ -97,6 +97,12 @@ struct ApplyResult {
                 // messages sees it arrive, rather than silently
                 // swallowing a tag it does not otherwise handle.
                 return ApplyResult{BookStatus::ok, true};
+            } else if constexpr (std::is_same_v<T, itch::SystemEvent>) {
+                // 'S' System Event: market/feed lifecycle signal, no
+                // book effect. Reported as applied so a caller can see
+                // session boundaries rather than silently swallowing
+                // a tag it does not otherwise handle.
+                return ApplyResult{BookStatus::ok, true};
             } else {
                 // 'P' Trade and 'Q' Cross Trade, like 'B', are reported
                 // execution events rather than book mutations. The
