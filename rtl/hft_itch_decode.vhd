@@ -272,6 +272,7 @@ begin
                             r_status <= st_truncated;
                             r_type <= (others => '0');
                             r_has_type <= '0';
+                            r_has_symbol <= '0';
                             r_field_count <= 0;
                             r_cycles <= 0;
                             r_done <= '1';
@@ -285,6 +286,7 @@ begin
                             r_status <= st_bad_length;
                             r_type <= (others => '0');
                             r_has_type <= '0';
+                            r_has_symbol <= '0';
                             r_field_count <= 0;
                             r_cycles <= 0;
                             r_done <= '1';
@@ -304,6 +306,7 @@ begin
                             r_status <= st_truncated;
                             r_type <= (others => '0');
                             r_has_type <= '0';
+                            r_has_symbol <= '0';
                             r_field_count <= 0;
                             r_cycles <= cyc;
                             r_done <= '1';

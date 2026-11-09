@@ -79,7 +79,14 @@ entity hft_book_hw is
         dump_c     : out std_logic_vector(63 downto 0);
         dump_state : out order_state_t;
         dump_pos   : out natural;
-        dump_done  : out std_logic
+        dump_done  : out std_logic;
+        -- FNV-1a checksum of the dumped book, computed IN HARDWARE
+        -- during the dump (id, price, size, state per live order, in
+        -- dump order -- the same fold src/rtl/book_dump.cpp and
+        -- tb_book use). Valid for one cycle with dump_done's final
+        -- pulse; previously only the testbench computed it.
+        book_checksum : out std_logic_vector(63 downto 0);
+        book_checksum_valid : out std_logic
     );
 end entity hft_book_hw;
 
@@ -292,6 +299,8 @@ architecture rtl of hft_book_hw is
     signal o_dump_state : order_state_t := st_resting;
     signal o_dump_pos : natural := 0;
     signal o_dump_done : std_logic := '0';
+    signal o_checksum : std_logic_vector(63 downto 0) := (others => '0');
+    signal o_checksum_valid : std_logic := '0';
 
 begin
 
@@ -307,6 +316,8 @@ begin
     dump_state <= o_dump_state;
     dump_pos <= o_dump_pos;
     dump_done <= o_dump_done;
+    book_checksum <= o_checksum;
+    book_checksum_valid <= o_checksum_valid;
 
     process (clk)
         variable state : state_t := st_idle;
@@ -364,6 +375,7 @@ begin
         variable dump_next_level : natural range 0 to MAX_LEVELS := 0;
         variable dump_walk_side : std_logic := '0';
         variable dump_position : natural := 0;
+        variable dump_checksum : std_logic_vector(63 downto 0) := (others => '0');
     begin
             if rising_edge(clk) then
             if rst = '1' then
