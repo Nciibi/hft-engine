@@ -131,7 +131,7 @@ foreach(top IN LISTS TOP)
         set(book_synthesised TRUE)
     endif()
 
-    if(top STREQUAL "hft_book_hw")
+    if(top STREQUAL "hft_book_hw" OR top STREQUAL "hft_top")
         set(device_name "LFE5U-85F")
         set(device_part "85k")
     else()
