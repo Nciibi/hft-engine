@@ -76,6 +76,14 @@ entity hft_itch_decode is
         declared_len  : out natural range 0 to 65535;
         field_count   : out natural range 0 to 9;
         fields        : out field_array_t;
+        -- The stock symbol the trace deliberately does not carry for
+        -- 'P'/'Q' (it sits in a gap between extracted fields, see
+        -- TRACE_FORMAT.md 3.4). Extracted here as a separate output
+        -- so a downstream consumer (symbol routing/sharding) can use
+        -- it WITHOUT changing the trace format or the differential.
+        -- Zero for every other type ('A' carries its symbol as a field).
+        symbol        : out std_logic_vector(63 downto 0);
+        has_symbol    : out std_logic;
         cycles        : out natural range 0 to 65535
     );
 end entity hft_itch_decode;
@@ -91,6 +99,8 @@ architecture rtl of hft_itch_decode is
     signal r_declared : natural range 0 to 65535 := 0;
     signal r_field_count : natural range 0 to 9 := 0;
     signal r_fields : field_array_t := (others => (others => '0'));
+    signal r_symbol : std_logic_vector(63 downto 0) := (others => '0');
+    signal r_has_symbol : std_logic := '0';
     signal r_cycles : natural range 0 to 65535 := 0;
 
     -- The body is captured on its last byte and qualified on the next
@@ -115,6 +125,8 @@ begin
     declared_len <= r_declared;
     field_count <= r_field_count;
     fields <= r_fields;
+    symbol <= r_symbol;
+    has_symbol <= r_has_symbol;
     cycles <= r_cycles;
 
     process (clk)
@@ -131,6 +143,7 @@ begin
         variable remaining : natural range 0 to 65535 := 0;
         variable declared : natural range 0 to 65535 := 0;
         variable flds : field_array_t := (others => (others => '0'));
+        variable sym : std_logic_vector(63 downto 0) := (others => '0');
         variable cyc : natural range 0 to 65535 := 0;
 
         variable have_start : boolean := false;
@@ -152,10 +165,13 @@ begin
                 r_declared <= 0;
                 r_field_count <= 0;
                 r_fields <= (others => (others => '0'));
+                r_symbol <= (others => '0');
+                r_has_symbol <= '0';
                 r_cycles <= 0;
             else
                 r_done <= '0';
                 r_fields <= flds;
+                r_symbol <= sym;
 
                 if finalizing = '1' then
                     -- The last body byte has been captured. Qualifying
@@ -165,6 +181,11 @@ begin
                     finalizing <= '0';
                     busy <= '0';
                     r_has_type <= '1';
+                    if r_type_idx = 7 or r_type_idx = 8 then
+                        r_has_symbol <= '1';
+                    else
+                        r_has_symbol <= '0';
+                    end if;
 
                     if r_type_idx = kUnknownType then
                         -- A well-formed frame of a type this build does
@@ -235,6 +256,7 @@ begin
                         cur_width := 0;
                         acc := (others => '0');
                         flds := (others => (others => '0'));
+                        sym := (others => '0');
                         type_idx := kUnknownType;
                         r_type_idx <= kUnknownType;
                         finalizing <= '0';
