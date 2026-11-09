@@ -285,12 +285,18 @@ public:
     /// ahead first, then fills the resting quote. Returns shares
     /// filled on this observation.
     std::uint64_t on_trade_through(Price price, std::uint64_t shares, Nanos now) noexcept {
-        if (resting_ == nullptr || price != resting_->price || !eligible(now)) {
+        if (resting_ == nullptr || price != resting_->price) {
             return 0;
         }
+        // Taker volume at this price consumes the queue ahead
+        // whether or not our quote has arrived yet (latency gates
+        // OUR fill, not the queue's progress).
         const std::uint64_t consumed = shares < resting_->ahead ? shares : resting_->ahead;
         resting_->ahead -= consumed;
         shares -= consumed;
+        if (!eligible(now)) {
+            return 0;
+        }
         const std::uint64_t fillable =
             shares < remaining(resting_) ? shares : remaining(resting_);
         resting_->filled += fillable;
