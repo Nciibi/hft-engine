@@ -57,6 +57,14 @@ architecture sim of tb_trace is
     signal frame_has_len : std_logic := '0';
     signal frame_trunc : std_logic := '0';
     signal end_of_capture : std_logic := '0';
+    signal fr_in_ready : std_logic := '0';
+    signal pkt_valid : std_logic := '0';
+    signal pkt_seq_sig : std_logic_vector(63 downto 0) := (others => '0');
+    signal pkt_count_sig : std_logic_vector(15 downto 0) := (others => '0');
+    signal pkt_hb : std_logic := '0';
+    signal pkt_eos : std_logic := '0';
+    signal dec_symbol : std_logic_vector(63 downto 0) := (others => '0');
+    signal dec_has_symbol : std_logic := '0';
 
     -- Decoder result.
     signal done : std_logic := '0';
@@ -96,14 +104,21 @@ begin
             clk => clk,
             rst => rst,
             in_valid => in_valid,
+            in_ready => fr_in_ready,
             in_eof => in_eof,
             in_byte => in_byte,
+            downstream_ready => '1',
             out_valid => out_valid,
             out_byte => out_byte,
             frame_start => frame_start,
             frame_len => frame_len,
             frame_has_len => frame_has_len,
             frame_trunc => frame_trunc,
+            pkt_seq_valid => pkt_valid,
+            pkt_seq => pkt_seq_sig,
+            pkt_count => pkt_count_sig,
+            pkt_heartbeat => pkt_hb,
+            pkt_eos => pkt_eos,
             end_of_capture => end_of_capture);
 
     decoder : entity work.hft_itch_decode
@@ -123,6 +138,8 @@ begin
             declared_len => declared_len,
             field_count => field_count,
             fields => fields,
+            symbol => dec_symbol,
+            has_symbol => dec_has_symbol,
             cycles => cycles);
 
     -- ---- The clock ----------------------------------------------------
