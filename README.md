@@ -1152,17 +1152,15 @@ production software is worse than one that does not:
 
 - **No live exchange connectivity.** TotalView-ITCH requires a Nasdaq
   market-data agreement. This runs on captured or generated feeds.
-- **The capture path is MoldUDP64, but the transport is not.** The
-  generated capture is a stream of Downstream Packets: a 20-byte header
-  carrying `[session:10][seq:8][count:2]`, then message blocks that are
-  byte-identical to ITCH frames, so a block feeds the decoder
-  unadjusted. The field table is hand-built in a test the way the Add
-  Order one is. What is *not* here is the unreliable transport beneath
-  it: nothing retransmits, nothing sequences across a dropped packet,
-  and no real session id is negotiated. `CaptureReader` handles the
-  packet structure — boundaries, heartbeats, end-of-session, and
-  truncation — but the gap detector is only as good as the packets it is
-  given.
+- **The capture path is MoldUDP64, and the session layer now is too.**
+  `CaptureReader` handles the packet structure — boundaries, heartbeats,
+  end-of-session, and truncation — and `SoupSession`
+  (`hft/feed/soup_session.hpp`) adds login/session-id negotiation,
+  heartbeat echo with an alive timeout, and retransmit requests on
+  sequence gaps. What is *not* here is a live socket session: no real
+  venue connection, session id, or retransmit server (that needs a
+  Nasdaq agreement); the gap detector is only as good as the packets
+  it is given.
 - **There is no checksum, and that is correct.** An earlier revision of
   this file promised "MoldUDP64 packet framing and checksum" as one item.
   They are two protocols. MoldUDP64 is an unreliable transport wrapper and
