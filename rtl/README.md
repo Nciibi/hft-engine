@@ -313,8 +313,41 @@ two.
 | `hft_book_hw.vhd` | The synthesizable book: synchronous order, level and index memories, a read-wait state machine, and the same dump walk. Inferred RAMs; 85F target. |
 | `hft_hex_reader.vhd` | The hex sidecar reader: a file of hex, as a byte stream, one byte per clock with no gaps. |
 | `hft_trace_fmt.vhd` | Rendering a decoded message as a trace record: the status character, the decimal, the hex. |
+| `hft_seq.vhd` | The sequence tracker: modular 64-bit packet sequence observation (ok/gap/duplicate), heartbeat rules, explicit resync. |
+| `hft_msg_fifo.vhd` | The decoded-message FIFO: elastic buffer between the fast decoder and the slow book; `can_accept` drives the framer's backpressure. |
+| `hft_top.vhd` | The streaming system: framer → decoder → FIFO → synthesizable book, sequence tracker in parallel, dump + in-hardware checksum out. Synthesizable (85F). |
 | `tb/tb_trace.vhd` | The decode testbench: reads the hex sidecar, runs the design, writes the trace. |
 | `tb/tb_book.vhd` | The book testbench: decodes the capture, applies every message to the book, writes the book dump. |
+| `tb/tb_seq.vhd` | The sequence-tracker unit test: hand-driven packets (ok, gap, duplicate, heartbeat, resync, wrap). |
+| `tb/tb_top.vhd` | The streaming testbench: the whole `hft_top` pipeline in lockstep under backpressure, writes the book dump and checks the hardware checksum. |
+
+## What is not in the FPGA, and why
+
+- **Ethernet/UDP/MAC, pins, bitstream.** The byte stream at `hft_top`
+  is the design boundary; a board MAC/PHY is vendor IP plus a pin
+  plan, and this repository has neither a board nor a bitstream
+  (`results/SYNTHESIS.md`: out-of-context, no pin plan). The
+  synthesis flow reports area/timing; it does not place a system.
+- **Free-list recycling in `hft_book_hw`.** Orders are allocated
+  monotonically and dead records stay in their queue (dump skips
+  them), so the hardware core has a finite *total*-order budget
+  (`MAX_ORDERS`/`MAX_LEVELS`), not a finite *live*-order budget.
+  The behavioural `hft_book` recycles; a production core would
+  unlink dead orders from their queue and put the handles back —
+  that is unrepaired-queue-link work in the read-wait FSM, and it
+  is the main remaining item inside the book itself.
+- **Dense grid in hardware.** The grid + occupancy bitmap exists in
+  the behavioural model (cycle model); `hft_book_hw` is sparse-only
+  (the grid over raw 64-bit prices does not fit an ECP5).
+- **ITCH types beyond the nine decoded** (`F/S/R/M/Z`, …) are
+  `st_skipped`, exactly as in C++ — their field tables are not
+  verified against the spec here, so they are skipped by length,
+  not guessed. `B/P/Q` remain book no-ops per the spec.
+- **Downstream decision logic** (OMS, pre-trade risk, quoting,
+  adverse selection, PnL) sits *behind* the book in the C++ engine;
+  it is not part of the market-data path this hardware implements,
+  and ITCH is an outbound-only feed, so there is no order-entry
+  encode stage to put in hardware either.
 
 ## Why the reference walk is not the engine's reader
 
