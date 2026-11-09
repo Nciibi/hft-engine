@@ -100,6 +100,12 @@ compares two files and reports the first difference, and nothing else.
 | **Cycle-exact book cost** | done — 41.75 cycles/message sparse, 5.28 dense, 25.96 fallback |
 | **Both differentials over REAL Nasdaq messages** | done — decoder 70,208 messages, book 1,792 sparse and dense; 0 differences |
 | Synthesis, area and timing | done — local YoWASP reproduction (speed grade 7): framer 210.35 MHz, decoder 132.78 MHz, hardware book 110.69 MHz, all met; [`../results/SYNTHESIS.md`](../results/SYNTHESIS.md) |
+| **Framer sequence extraction + backpressure** | done — `hft_moldudp64.vhd`: 64-bit packet sequence/count outputs, AXI-stream `in_ready`/`downstream_ready`; tied to '1' in the old testbenches, driven by the FIFO in the top |
+| **Sequence tracker** | done — `hft_seq.vhd`: modular 64-bit gap/duplicate/heartbeat/resync, `tb/tb_seq.vhd` (ok, gap, duplicate, heartbeat, resync, wrap) |
+| **Decoded-message FIFO (backpressure)** | done — `hft_msg_fifo.vhd`: DEPTH-1 usable, inferred RAM, `can_accept` throttles the framer |
+| **Streaming top-level** | done — `hft_top.vhd`: byte stream in, book dump + checksum out, lockstep (no decode-then-apply array); `cmake/rtl_top_differential.cmake` — 0 differences vs C++ under real backpressure |
+| **In-hardware checksum** | done — `hft_book_hw.vhd`: FNV-1a folded during the dump, `book_checksum_valid` with `dump_done`; asserted equal to the testbench fold in `tb_top.vhd` |
+| **P/Q symbol extraction** | done — `hft_itch_decode.vhd`: `symbol`/`has_symbol` outputs for 'P'/'Q' (trace format unchanged) |
 
 ## The result
 
