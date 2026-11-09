@@ -18,6 +18,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#if defined(__linux__)
+#include <sys/types.h>
+#endif
+
 namespace hft::feed {
 
 /// A packet timestamped by the kernel/NIC, in nanoseconds.
@@ -65,7 +69,7 @@ struct PacketTimestamp {
 }
 
 #if defined(__linux__)
-/// Linux-only runtime declarations. Defined in a .cpp on Linux;
+/// Linux-only runtime declarations. Defined in src/feed/kernel_bypass.cpp;
 /// on other hosts these functions do not exist and must not be
 /// referenced (the portable core above is the portable interface).
 namespace linux_bypass {
@@ -73,10 +77,20 @@ namespace linux_bypass {
 /// Returns false on any setsockopt failure; never throws.
 bool enable_hardware_timestamps(int fd) noexcept;
 
-/// Create an io_uring instance with `entries` SQ entries.
-/// Returns the ring fd, or -1 on failure. The ring must be
-/// submitted/polled by the caller; this is the setup half only.
+/// Receive one packet on a SO_TIMESTAMPING socket (recvmsg) and
+/// extract its kernel/hardware timestamp into `out`. Returns the
+/// packet size in bytes, or -1 on any failure (including a packet
+/// with no timestamp cmsg). Never throws.
+ssize_t recv_timestamped(int fd, void* buf, std::size_t size, PacketTimestamp& out) noexcept;
+
+/// Create an io_uring instance with `entries` SQ entries via the
+/// raw syscall (no liburing dependency). Returns the ring fd, or
+/// -1 on failure. The ring must be submitted/polled by the caller.
 int create_ring(unsigned entries) noexcept;
+
+/// Wait for io_uring completions, up to `timeout_ms`. Returns true
+/// if at least one completion is ready, false on timeout/error.
+bool poll_ring(int ring_fd, long timeout_ms) noexcept;
 }  // namespace linux_bypass
 #endif
 
