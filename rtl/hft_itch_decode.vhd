@@ -347,6 +347,12 @@ begin
                                             cur_width := 0;
                                         end if;
                                     end if;
+                                elsif type_idx = 7 and off >= to_unsigned(24, 6)
+                                      and off < to_unsigned(32, 6) then
+                                    sym := sym(55 downto 0) & byte_in;
+                                elsif type_idx = 8 and off >= to_unsigned(19, 6)
+                                      and off < to_unsigned(27, 6) then
+                                    sym := sym(55 downto 0) & byte_in;
                                 end if;
                             end if;
 
