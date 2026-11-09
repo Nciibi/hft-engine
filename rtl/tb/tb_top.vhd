@@ -109,7 +109,6 @@ begin
         variable dump_index : natural := 0;
         variable checksum : std_logic_vector(63 downto 0) := fnv1a_basis;
         variable got_checksum : boolean := false;
-        variable dbg_count : natural := 0;
         file book_file : text open write_mode is OUT_PATH;
     begin
         -- Wait for capture end, then for FIFO + book to drain.
