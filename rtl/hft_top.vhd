@@ -106,6 +106,8 @@ architecture rtl of hft_top is
     signal fifo_rd_pop : std_logic := '0';
 
     signal apply_start : std_logic := '0';
+    signal apply_type_r : std_logic_vector(7 downto 0) := (others => '0');
+    signal apply_fields_r : field_array_t := (others => (others => '0'));
     signal apply_done : std_logic := '0';
     signal apply_status : book_status_t := bs_ok;
     signal apply_cycles : natural range 0 to natural'high := 0;

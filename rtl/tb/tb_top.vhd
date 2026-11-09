@@ -113,17 +113,12 @@ begin
         file book_file : text open write_mode is OUT_PATH;
     begin
         -- Wait for capture end, then for FIFO + book to drain.
-        report "driver start end_cap=" & std_logic'image(end_cap) & " fifo=" & integer'image(fifo_count);
+        -- Wait a cycle first: at t=0 the connected signals are 'U'
+        -- before the design's drivers settle.
+        wait until falling_edge(clk);
         while end_cap = '0' loop
             wait until falling_edge(clk);
-            dbg_count := dbg_count + 1;
-            if (dbg_count mod 1000) = 0 then
-                report "dbg fifo=" & integer'image(fifo_count) & " busy=" & std_logic'image(book_busy)
-                     & " in_valid=" & std_logic'image(in_valid) & " in_ready=" & std_logic'image(in_ready)
-                     & " in_eof=" & std_logic'image(in_eof);
-            end if;
         end loop;
-        report "driver saw end_cap";
         while fifo_count > 0 or book_busy = '1' loop
             wait until falling_edge(clk);
         end loop;
