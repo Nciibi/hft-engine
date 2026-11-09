@@ -106,13 +106,20 @@ begin
         -- Rebase to just before the 64-bit wrap: expected = 2^64-2.
         wait until falling_edge(clk);
         resync <= '1';
-        resync_seq <= std_logic_vector(to_unsigned(18446744073709551612, 64));
+        resync_seq <= x"FFFFFFFFFFFFFFFC";
         resync_count <= std_logic_vector(to_unsigned(2, 16));
         wait until falling_edge(clk);
         resync <= '0';
-        assert expected_o = std_logic_vector(to_unsigned(18446744073709551614, 64)) report "wrap rebase wrong" severity failure;
+        assert expected_o = x"FFFFFFFFFFFFFFFE" report "wrap rebase wrong" severity failure;
         -- Packet at 2^64-2 count=2 -> ok, expected wraps/refills to 0.
-        packet(18446744073709551614, 2, '0');
+        wait until falling_edge(clk);
+        pkt_valid <= '1';
+        pkt_seq <= x"FFFFFFFFFFFFFFFE";
+        pkt_count <= std_logic_vector(to_unsigned(2, 16));
+        pkt_hb <= '0';
+        pkt_eos <= '0';
+        wait until falling_edge(clk);
+        pkt_valid <= '0';
         assert seq_state = 0 report "wrap packet not ok" severity failure;
         assert expected_o = std_logic_vector(to_unsigned(0, 64)) report "wrap expected wrong" severity failure;
         report "tb_seq PASS";
