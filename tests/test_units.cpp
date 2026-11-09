@@ -2221,6 +2221,7 @@ int main() {
     test_report_percentiles();
     test_order_replace_layout_is_spec();
     test_broken_trade_layout_is_spec();
+    test_system_event_layout_is_spec();
     test_trade_layouts_are_spec();
     test_flatmap_churn();
     test_timer_units();
