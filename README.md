@@ -25,7 +25,7 @@ resolution floor before reporting anything.
 | **Correctness argument** | 900,000 differential operations against independent reference models, full state comparison after *every one* |
 | **Measured** | 2.95M msg/s shallow / 2.85M msg/s deep; 1.85x from symbol sharding; 137.81x → 1.52x ladder walk, fixed |
 | **Reproduce** | `cmake -B build && cmake --build build && ctest --test-dir build` — then `./scripts/bench.sh` |
-| **Not built, and named** | Multi-shard sequencing, clock sync, kernel bypass, persistence (all built; see What is not for scope) |
+| **Not built, and named** | DPDK, hardware PTP, live exchange connectivity, OUCH order entry |
 
 **Reading paths.** Fifteen seconds: this table, then the diagram below.
 Five minutes: [the bug that mattered](#the-bug-that-mattered), then
